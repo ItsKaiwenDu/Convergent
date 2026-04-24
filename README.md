@@ -1,4 +1,6 @@
-# <img src="assets/Logo.png" width="40" height="40" align="center"> Convergent: Local File Converter Utility
+![Banner](Banner.png)
+
+# Convergent: Local File Converter Utility
 
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages the power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
@@ -34,7 +36,7 @@
 
 ### Installation
 
-1.  **Clone or Download**: Ensure `main.py` and `Makefile` are in the same directory.
+1.  **Clone or Download**: Ensure `Convergent.py` and `Makefile` are in the same directory.
 2.  **Run Setup**:
     ```bash
     make setup

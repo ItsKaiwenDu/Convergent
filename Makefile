@@ -1,15 +1,15 @@
-# Convertie: Local File Converter Utility
+# Convergent: Local File Converter Utility
 # Owner: Kaiwen Du
 # License: Free to use
 
 # Configuration
 PYTHON = python3
-SCRIPT = main.py
+SCRIPT = Convergent.py
 
 .PHONY: help setup start
 
 help:
-	@echo "Convertie Makefile Commands:"
+	@echo "Convergent Makefile Commands:"
 	@echo "  make setup     - Install necessary Python and System dependencies"
 	@echo "  make start     - Run the converter (Interactive or with flags)"
 	@echo ""
