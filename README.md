@@ -10,8 +10,9 @@
 -   **Interactive Menu**: A user-friendly, arrow-key driven interface for quick conversions.
 -   **Batch Processing**: Convert entire directories of files in one command.
 -   **Multi-Format Support**:
-    -   **Images**: HEIC to JPG/PNG, JPG to PNG/WEBP/PDF, etc.
-    -   **Videos**: MOV/MP4 to MP3, GIF, or alternative video containers.
+    -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
+    -   **Videos**: MOV/MP4 to MP3, GIF, or alternative containers (AVI, MOV, MP4).
+    -   **Audio**: WAV and M4A to MP3.
     -   **Documents**: DOCX and PPTX to PDF (via Pandoc).
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
