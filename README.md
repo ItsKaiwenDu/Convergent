@@ -61,4 +61,4 @@ make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos"
 **Kaiwen Du** - [GitHub](https://github.com/ItsKaiwenDu)
 
 ## License
-Free to use. 
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
