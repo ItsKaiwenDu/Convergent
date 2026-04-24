@@ -21,9 +21,9 @@ setup:
 	$(PYTHON) -m pip install rich
 	@echo "Checking System dependencies (Homebrew required)..."
 	@if command -v brew >/dev/null; then \
-		brew install ffmpeg imagemagick pandoc; \
+		brew install ffmpeg imagemagick pandoc ghostscript; \
 	else \
-		echo "Warning: Homebrew not found. Please install FFmpeg, ImageMagick, and Pandoc manually."; \
+		echo "Warning: Homebrew not found. Please install FFmpeg, ImageMagick, Pandoc, and Ghostscript manually."; \
 	fi
 	@echo "Setup complete!"
 

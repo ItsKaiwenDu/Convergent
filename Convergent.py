@@ -33,7 +33,6 @@ import termios
 import argparse
 from pathlib import Path
 
-# Try to import rich for better UI, fallback to print if not available
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -42,7 +41,6 @@ try:
 except ImportError:
     class MockConsole:
         def print(self, *args, **kwargs):
-            # Strip rich-style tags if using fallback
             import re
             msg = " ".join(map(str, args))
             msg = re.sub(r"\[.*?\]", "", msg)
@@ -73,7 +71,6 @@ def get_char(prompt):
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     
-    # Handle Ctrl+C (\x03) manually in raw mode
     if ch == '\x03':
         raise KeyboardInterrupt
         
@@ -82,8 +79,6 @@ def get_char(prompt):
 
 def run_command(cmd):
     try:
-        # We don't capture output for ffmpeg so the user can see progress if they want, 
-        # but here we'll keep it quiet for a cleaner CLI.
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return True, ""
@@ -110,12 +105,10 @@ class Converter:
         self.source_formats = sorted(list(self.formats.keys()))
 
     def convert_heic(self, source, target_ext):
-        # Using ImageMagick 'magick' command
         output = source.with_suffix(f".{target_ext.lower()}")
         return run_command(["magick", str(source), str(output)])
 
     def convert_video(self, source, target_ext):
-        # Using ffmpeg
         output = source.with_suffix(f".{target_ext.lower()}")
         cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
         if target_ext.upper() == "MP4":
@@ -129,7 +122,6 @@ class Converter:
         return run_command(cmd)
 
     def convert_audio(self, source, target_ext):
-        # Using ffmpeg
         output = source.with_suffix(f".{target_ext.lower()}")
         cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
         if target_ext.upper() == "MP3":
@@ -140,7 +132,6 @@ class Converter:
 
     def convert_office(self, source, target_ext):
         if target_ext.upper() == "PDF":
-            # Try pandoc first
             output = source.with_suffix(".pdf")
             success, err = run_command(["pandoc", str(source), "-o", str(output)])
             if success: return True, ""
@@ -149,9 +140,50 @@ class Converter:
         return False, f"Unsupported target format: {target_ext}"
 
     def convert_image(self, source, target_ext):
-        # Using ImageMagick
         output = source.with_suffix(f".{target_ext.lower()}")
         return run_command(["magick", str(source), str(output)])
+
+    def combine_pdfs(self, path):
+        path_obj = Path(os.path.expanduser(path))
+        if not path_obj.is_dir():
+            console.print("[bold red]Error: PDF Combiner requires a directory path.[/bold red]")
+            return
+            
+        pdf_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
+        
+        if not pdf_files:
+            console.print("[bold red]No PDF files found in the directory.[/bold red]")
+            return
+            
+        console.print(f"[bold cyan]Found {len(pdf_files)} PDF files to combine...[/bold cyan]")
+        output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ")
+        if not output_name:
+            output_name = "combined.pdf"
+        if not output_name.endswith(".pdf"):
+            output_name += ".pdf"
+            
+        output_path = path_obj / output_name
+        
+        # Use ghostscript directly for high-quality PDF merging (no rasterization)
+        cmd = [
+            "gs", 
+            "-dNOPAUSE", 
+            "-sDEVICE=pdfwrite", 
+            f"-sOUTPUTFILE={output_path}", 
+            "-dBATCH"
+        ] + [str(f) for f in pdf_files]
+        
+        success, error = run_command(cmd)
+        
+        if success:
+            console.print(f"[bold green]Successfully combined into {output_name}[/bold green]")
+        else:
+            console.print(f"[bold red]FAILED to combine PDFs[/bold red]")
+            if "command not found" in error:
+                console.print("   [bold yellow]Error: 'ghostscript' is required for PDF operations.[/bold yellow]")
+                console.print("   [dim]Install via: brew install ghostscript[/dim]")
+            elif error:
+                console.print(f"   [dim]{error.strip()}[/dim]")
 
     def process(self, source_format, target_format, path):
         path_obj = Path(os.path.expanduser(path))
@@ -161,7 +193,6 @@ class Converter:
             if path_obj.suffix.lower() == f".{source_format.lower()}":
                 files = [path_obj]
         elif path_obj.is_dir():
-            # Truly case-insensitive search for all files in the directory
             for item in path_obj.iterdir():
                 if item.is_file() and item.suffix.lower() == f".{source_format.lower()}":
                     files.append(item)
@@ -231,8 +262,8 @@ def main():
         clear_screen()
         console.rule("File Converter Machine")
         
-        # Select FROM
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
+        console.print(" 0. PDF Combiner")
         for i, fmt in enumerate(conv.source_formats, 1):
             console.print(f" {i}. {fmt}")
         console.print(" Q. Quit")
@@ -240,6 +271,14 @@ def main():
         choice = get_char("\nPick a #: ")
         if choice.lower() == 'q':
             break
+        
+        if choice == '0':
+            console.print(f"\n[bold yellow]Enter folder path containing PDFs:[/bold yellow]")
+            path = get_input("Path: ").strip().strip("'").strip('"').strip()
+            if path:
+                conv.combine_pdfs(path)
+                get_char("\nPress any key to continue...")
+            continue
             
         try:
             from_idx = int(choice) - 1
@@ -249,7 +288,6 @@ def main():
         except ValueError:
             continue
             
-        # Select TO
         targets = conv.formats[source_fmt]
         console.print(f"\n[bold yellow]Select target format ('To') for {source_fmt}:[/bold yellow]")
         for i, fmt in enumerate(targets, 1):
@@ -268,10 +306,9 @@ def main():
         except ValueError:
             continue
             
-        # Path input
         console.print(f"\n[bold yellow]Enter file or folder path:[/bold yellow]")
         console.print("[dim](Tip: You can drag and drop a file or folder into this window)[/dim]")
-        path = get_input("Path: ").strip().strip("'").strip('"').strip() # Clean quotes and spaces
+        path = get_input("Path: ").strip().strip("'").strip('"').strip()
         
         if not path:
             continue
