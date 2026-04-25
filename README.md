@@ -10,8 +10,9 @@
 -   **Interactive Menu**: A user-friendly, arrow-key driven interface for quick conversions.
 -   **Batch Processing**: Convert entire directories of files in one command.
 -   **Multi-Format Support**:
+    -   **PDF Combiner**: Merge multiple PDF files in a directory into a single high-quality document.
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
-    -   **Videos**: MOV/MP4 to MP3, GIF, or alternative containers (AVI, MOV, MP4).
+    -   **Videos**: MOV/MP4 to MP3, GIF (with customizable FPS), or alternative containers (AVI, MOV, MP4).
     -   **Audio**: WAV and M4A to MP3.
     -   **Documents**: DOCX and PPTX to PDF (via Pandoc).
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
@@ -26,6 +27,7 @@
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) |
 | **Processing Engine** | [FFmpeg](https://ffmpeg.org/) (Audio/Video) |
 | **Image Engine** | [ImageMagick](https://imagemagick.org/) |
+| **PDF Merger** | [Ghostscript](https://ghostscript.com/) |
 | **Document Engine** | [Pandoc](https://pandoc.org/) |
 
 ## Getting Started
@@ -42,7 +44,7 @@
     ```bash
     make setup
     ```
-    *This will install the `rich` Python library and attempt to install `ffmpeg`, `imagemagick`, and `pandoc` via Homebrew.*
+    *This will install the `rich` Python library and attempt to install `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` via Homebrew.*
 
 ## Usage
 
@@ -55,7 +57,11 @@ make start
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using the `ARGS` variable:
 ```bash
+# Convert HEIC images to JPG
 make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos"
+
+# Convert Video to GIF with 30 FPS
+make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
 ```
 
 ## Owner

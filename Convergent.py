@@ -114,13 +114,16 @@ class Converter:
         output = source.with_suffix(f".{target_ext.lower()}")
         return run_command(["magick", str(source), str(output)])
 
-    def convert_video(self, source, target_ext):
+    def convert_video(self, source, target_ext, fps=None):
         output = source.with_suffix(f".{target_ext.lower()}")
         cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
         if target_ext.upper() == "MP4":
             cmd += ["-c:v", "libx264", "-c:a", "aac", "-strict", "experimental"]
         elif target_ext.upper() == "GIF":
-            cmd += ["-vf", "fps=10,scale=480:-1:flags=lanczos"]
+            vf = "scale=480:-1:flags=lanczos"
+            if fps:
+                vf = f"fps={fps}," + vf
+            cmd += ["-vf", vf]
         elif target_ext.upper() == "MP3":
             cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
         
@@ -191,7 +194,7 @@ class Converter:
             elif error:
                 console.print(f"   [dim]{error.strip()}[/dim]")
 
-    def process(self, source_formats, target_format, path):
+    def process(self, source_formats, target_format, path, fps=None):
         path_obj = Path(os.path.expanduser(path))
         files = []
         
@@ -234,7 +237,7 @@ class Converter:
             if source_fmt == "HEIC":
                 success, error = self.convert_heic(f, target_format)
             elif source_fmt in ["MOV", "MP4"]:
-                success, error = self.convert_video(f, target_format)
+                success, error = self.convert_video(f, target_format, fps=fps)
             elif source_fmt in ["WAV", "M4A"]:
                 success, error = self.convert_audio(f, target_format)
             elif source_fmt in ["DOCX", "PPTX"]:
@@ -258,6 +261,7 @@ def main():
     parser = argparse.ArgumentParser(description="Convergent: Local File Converter")
     parser.add_argument("--from", dest="from_fmt", help="Source format (e.g., JPG, MOV)")
     parser.add_argument("--to", dest="to_fmt", help="Target format (e.g., PNG, MP3)")
+    parser.add_argument("--fps", help="Frames per second for GIF conversion (e.g., 30, 60)")
     parser.add_argument("--path", help="Path to file or directory")
     args = parser.parse_args()
 
@@ -276,7 +280,7 @@ def main():
             console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
             sys.exit(1)
             
-        conv.process([source_fmt], target_fmt, args.path)
+        conv.process([source_fmt], target_fmt, args.path, fps=args.fps)
         return
 
     while True:
@@ -332,6 +336,18 @@ def main():
         except ValueError:
             continue
             
+        fps = None
+        if target_fmt == "GIF":
+            console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
+            console.print(" 1. Original FPS")
+            console.print(" 2. 30 FPS")
+            console.print(" 3. 60 FPS")
+            fps_choice = get_char("\nPick a #: ")
+            if fps_choice == '2':
+                fps = 30
+            elif fps_choice == '3':
+                fps = 60
+            
         console.print(f"\n[bold yellow]Enter file or folder path:[/bold yellow]")
         console.print("[dim](Tip: You can drag and drop a file or folder into this window)[/dim]")
         path = get_input("Path: ").strip().strip("'").strip('"').strip()
@@ -339,7 +355,7 @@ def main():
         if not path:
             continue
             
-        conv.process(source_fmts, target_fmt, path)
+        conv.process(source_fmts, target_fmt, path, fps=fps)
         get_char("\nPress any key to continue...")
 
 if __name__ == "__main__":
