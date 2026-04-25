@@ -103,6 +103,12 @@ class Converter:
             "M4A": ["MP3"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
+        self.categories = {
+            "1": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG"]},
+            "2": {"name": "Video", "extensions": ["MOV", "MP4", "WAV"]},
+            "3": {"name": "Audio", "extensions": ["M4A"]},
+            "4": {"name": "Document", "extensions": ["DOCX", "PPTX"]},
+        }
 
     def convert_heic(self, source, target_ext):
         output = source.with_suffix(f".{target_ext.lower()}")
@@ -185,40 +191,55 @@ class Converter:
             elif error:
                 console.print(f"   [dim]{error.strip()}[/dim]")
 
-    def process(self, source_format, target_format, path):
+    def process(self, source_formats, target_format, path):
         path_obj = Path(os.path.expanduser(path))
         files = []
         
+        source_fmts_upper = [fmt.upper() for fmt in source_formats]
+        
         if path_obj.is_file():
-            if path_obj.suffix.lower() == f".{source_format.lower()}":
+            ext = path_obj.suffix.lower()[1:].upper()
+            if ext in source_fmts_upper:
                 files = [path_obj]
         elif path_obj.is_dir():
             for item in path_obj.iterdir():
-                if item.is_file() and item.suffix.lower() == f".{source_format.lower()}":
-                    files.append(item)
+                if item.is_file():
+                    ext = item.suffix.lower()[1:].upper()
+                    if ext in source_fmts_upper:
+                        files.append(item)
         
         if not files:
-            console.print(f"[bold red]No {source_format} files found at {path}[/bold red]")
+            console.print(f"[bold red]No matching files found at {path}[/bold red]")
             return
 
         console.print(f"[bold cyan]Found {len(files)} files to convert...[/bold cyan]")
         
         success_count = 0
         for f in files:
+            source_fmt = f.suffix.lower()[1:].upper()
+            
+            # Check if this specific source format supports the target format
+            if target_format not in self.formats.get(source_fmt, []):
+                # Special case: if target is the same as source, skip
+                if source_fmt == target_format:
+                    continue
+                console.print(f" > {f.name}... [bold yellow]SKIPPED[/bold yellow] (Target {target_format} not supported for {source_fmt})")
+                continue
+
             console.print(f" > {f.name}...", end=" ")
             
             success = False
             error = ""
             
-            if source_format == "HEIC":
+            if source_fmt == "HEIC":
                 success, error = self.convert_heic(f, target_format)
-            elif source_format in ["MOV", "MP4"]:
+            elif source_fmt in ["MOV", "MP4"]:
                 success, error = self.convert_video(f, target_format)
-            elif source_format in ["WAV", "M4A"]:
+            elif source_fmt in ["WAV", "M4A"]:
                 success, error = self.convert_audio(f, target_format)
-            elif source_format in ["DOCX", "PPTX"]:
+            elif source_fmt in ["DOCX", "PPTX"]:
                 success, error = self.convert_office(f, target_format)
-            elif source_format in ["JPG", "PNG"]:
+            elif source_fmt in ["JPG", "PNG"]:
                 success, error = self.convert_image(f, target_format)
                 
             if success:
@@ -229,7 +250,7 @@ class Converter:
                 if error:
                     console.print(f"   [dim]{error.strip()}[/dim]")
         
-        console.print(f"\n[bold green]Finished! Successfully converted {success_count}/{len(files)} files.[/bold green]")
+        console.print(f"\n[bold green]Finished! Successfully converted {success_count} files.[/bold green]")
 
 def main():
     conv = Converter()
@@ -255,7 +276,7 @@ def main():
             console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
             sys.exit(1)
             
-        conv.process(source_fmt, target_fmt, args.path)
+        conv.process([source_fmt], target_fmt, args.path)
         return
 
     while True:
@@ -263,9 +284,10 @@ def main():
         console.rule("File Converter Machine")
         
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
-        console.print(" 0. PDF Combiner")
-        for i, fmt in enumerate(conv.source_formats, 1):
-            console.print(f" {i}. {fmt}")
+        console.print(" 0. Combine: PDF")
+        for key, cat in conv.categories.items():
+            exts_str = ", ".join(cat["extensions"])
+            console.print(f" {key}. {cat['name']}: {exts_str}")
         console.print(" Q. Quit")
         
         choice = get_char("\nPick a #: ")
@@ -280,29 +302,33 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
             
-        try:
-            from_idx = int(choice) - 1
-            if from_idx < 0 or from_idx >= len(conv.source_formats):
-                raise ValueError
-            source_fmt = conv.source_formats[from_idx]
-        except ValueError:
+        if choice not in conv.categories:
             continue
             
-        targets = conv.formats[source_fmt]
-        console.print(f"\n[bold yellow]Select target format ('To') for {source_fmt}:[/bold yellow]")
-        for i, fmt in enumerate(targets, 1):
+        category = conv.categories[choice]
+        source_fmts = category["extensions"]
+        
+        # Determine available targets for this category (union of targets)
+        available_targets = set()
+        for fmt in source_fmts:
+            available_targets.update(conv.formats.get(fmt, []))
+        
+        sorted_targets = sorted(list(available_targets))
+        
+        console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
+        for i, fmt in enumerate(sorted_targets, 1):
             console.print(f" {i}. {fmt}")
         console.print(" B. Back")
         
-        choice = get_char("\nPick a #: ")
-        if choice.lower() == 'b':
+        target_choice = get_char("\nPick a #: ")
+        if target_choice.lower() == 'b':
             continue
             
         try:
-            to_idx = int(choice) - 1
-            if to_idx < 0 or to_idx >= len(targets):
+            to_idx = int(target_choice) - 1
+            if to_idx < 0 or to_idx >= len(sorted_targets):
                 raise ValueError
-            target_fmt = targets[to_idx]
+            target_fmt = sorted_targets[to_idx]
         except ValueError:
             continue
             
@@ -313,7 +339,7 @@ def main():
         if not path:
             continue
             
-        conv.process(source_fmt, target_fmt, path)
+        conv.process(source_fmts, target_fmt, path)
         get_char("\nPress any key to continue...")
 
 if __name__ == "__main__":
