@@ -104,10 +104,10 @@ class Converter:
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
-            "1": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG"]},
-            "2": {"name": "Video", "extensions": ["MOV", "MP4", "WAV"]},
-            "3": {"name": "Audio", "extensions": ["M4A"]},
-            "4": {"name": "Document", "extensions": ["DOCX", "PPTX"]},
+            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG"]},
+            "3": {"name": "Video", "extensions": ["MOV", "MP4", "WAV"]},
+            "4": {"name": "Audio", "extensions": ["M4A"]},
+            "5": {"name": "Document", "extensions": ["DOCX", "PPTX"]},
         }
 
     def convert_heic(self, source, target_ext):
@@ -193,6 +193,107 @@ class Converter:
                 console.print("   [dim]Install via: brew install ghostscript[/dim]")
             elif error:
                 console.print(f"   [dim]{error.strip()}[/dim]")
+
+    def get_pdf_page_count(self, path):
+        try:
+            # Try mdls first (macOS)
+            result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "(null)":
+                return int(result.stdout.strip())
+            
+            # Fallback to gs
+            cmd = ["gs", "-q", "-dNODISPLAY", "-dNOSAFER", "-c", f"({path}) (r) file runpdfbegin pdfpagecount = quit"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+        except:
+            pass
+        return 0
+
+    def split_pdf(self, path):
+        path_obj = Path(os.path.expanduser(path)).resolve()
+        if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
+            console.print("[bold red]Error: Split PDF requires a single PDF file.[/bold red]")
+            return
+
+        total_pages = self.get_pdf_page_count(str(path_obj))
+        if total_pages == 0:
+            console.print("[bold red]Error: Could not determine PDF page count or file is empty.[/bold red]")
+            return
+
+        console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({total_pages} pages):[/bold yellow]")
+        console.print(" 1. Individual Pages (every page becomes its own PDF)")
+        console.print(" 2. Custom Split (e.g., 1, 4, 2, 3...)")
+        
+        mode = get_char("\nPick a #: ")
+        
+        # Create a directory for the split pages
+        output_dir = path_obj.parent / f"{path_obj.stem}_split"
+        try:
+            output_dir.mkdir(exist_ok=True)
+        except Exception as e:
+            console.print(f"[bold red]Error creating directory: {e}[/bold red]")
+            return
+
+        if mode == '1':
+            console.print(f"[bold cyan]Splitting into {total_pages} individual pages...[/bold cyan]")
+            output_pattern = output_dir / "page_%03d.pdf"
+            cmd = [
+                "gs", 
+                "-sDEVICE=pdfwrite", 
+                "-o", str(output_pattern),
+                str(path_obj)
+            ]
+            success, error = run_command(cmd)
+            if success:
+                console.print(f"[bold green]Successfully split into {output_dir.name}/[/bold green]")
+            else:
+                console.print(f"[bold red]FAILED to split PDF[/bold red]")
+                if error: console.print(f"   [dim]{error.strip()}[/dim]")
+
+        elif mode == '2':
+            console.print(f"\n[bold yellow]Enter page counts for each PDF separated by commas:[/bold yellow]")
+            console.print(f"[dim](Example: 1, 4, 2 will create 3 PDFs with 1, 4, and 2 pages, plus 1 PDF for the remaining pages)[/dim]")
+            input_str = get_input("Page counts: ")
+            try:
+                page_counts = [int(x.strip()) for x in input_str.split(',') if x.strip()]
+            except ValueError:
+                console.print("[bold red]Invalid input. Please use numbers separated by commas.[/bold red]")
+                return
+            
+            console.print(f"[bold cyan]Processing custom split...[/bold cyan]")
+            current_page = 1
+            idx = 1
+            for count in page_counts:
+                if current_page > total_pages:
+                    break
+                if count <= 0: continue
+                
+                end_page = min(current_page + count - 1, total_pages)
+                out_file = output_dir / f"part_{idx}_{current_page}-{end_page}.pdf"
+                
+                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), 
+                       f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
+                success, error = run_command(cmd)
+                if not success:
+                    console.print(f" > Part {idx}: [bold red]FAILED[/bold red] [dim]{error.strip()}[/dim]")
+                else:
+                    console.print(f" > Part {idx} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
+                
+                current_page = end_page + 1
+                idx += 1
+            
+            if current_page <= total_pages:
+                out_file = output_dir / f"part_{idx}_{current_page}-{total_pages}_remainder.pdf"
+                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), 
+                       f"-dFirstPage={current_page}", f"-dLastPage={total_pages}", str(path_obj)]
+                success, error = run_command(cmd)
+                if success:
+                    console.print(f" > Part {idx} (Remainder, Pages {current_page}-{total_pages}): [bold green]DONE[/bold green]")
+            
+            console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
+        else:
+            console.print("[bold yellow]Operation cancelled.[/bold yellow]")
 
     def process(self, source_formats, target_format, path, fps=None):
         path_obj = Path(os.path.expanduser(path))
@@ -289,7 +390,9 @@ def main():
         
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
         console.print(" 0. Combine: PDF")
-        for key, cat in conv.categories.items():
+        console.print(" 1. Split: PDF")
+        for key in sorted(conv.categories.keys()):
+            cat = conv.categories[key]
             exts_str = ", ".join(cat["extensions"])
             console.print(f" {key}. {cat['name']}: {exts_str}")
         console.print(" Q. Quit")
@@ -303,6 +406,14 @@ def main():
             path = get_input("Path: ").strip().strip("'").strip('"').strip()
             if path:
                 conv.combine_pdfs(path)
+                get_char("\nPress any key to continue...")
+            continue
+            
+        if choice == '1':
+            console.print(f"\n[bold yellow]Enter PDF file path to split:[/bold yellow]")
+            path = get_input("Path: ").strip().strip("'").strip('"').strip()
+            if path:
+                conv.split_pdf(path)
                 get_char("\nPress any key to continue...")
             continue
             

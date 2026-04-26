@@ -7,10 +7,10 @@
 
 ## Features
 
--   **Interactive Menu**: A user-friendly, arrow-key driven interface for quick conversions.
+-   **Interactive Menu**: A streamlined numeric interface with category-based source auto-detection for faster workflows.
 -   **Batch Processing**: Convert entire directories of files in one command.
 -   **Multi-Format Support**:
-    -   **PDF Combiner**: Merge multiple PDF files in a directory into a single high-quality document.
+    -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages or custom ranges.
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
     -   **Videos**: MOV/MP4 to MP3, GIF (with customizable FPS), or alternative containers (AVI, MOV, MP4).
     -   **Audio**: WAV and M4A to MP3.
@@ -27,7 +27,7 @@
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) |
 | **Processing Engine** | [FFmpeg](https://ffmpeg.org/) (Audio/Video) |
 | **Image Engine** | [ImageMagick](https://imagemagick.org/) |
-| **PDF Merger** | [Ghostscript](https://ghostscript.com/) |
+| **PDF Engine** | [Ghostscript](https://ghostscript.com/) |
 | **Document Engine** | [Pandoc](https://pandoc.org/) |
 
 ## Getting Started
