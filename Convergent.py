@@ -77,6 +77,33 @@ def get_char(prompt):
     console.print(ch)
     return ch
 
+def clean_path(path_str):
+    if not path_str:
+        return ""
+    import shlex
+    # Remove internal newlines/tabs that might come from messy copy-pastes
+    path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
+    
+    try:
+        # Handle shell-escaped paths and quoted paths
+        # shlex.split correctly handles cases like 'History\ \&\ Practice.pdf'
+        if "\\" in path_str or "'" in path_str or '"' in path_str:
+            parts = shlex.split(path_str)
+            if parts:
+                return " ".join(parts).strip()
+    except:
+        pass
+    
+    # Fallback to manual stripping of quotes
+    return path_str.strip("'").strip('"').strip()
+
+def flush_stdin():
+    try:
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+    except:
+        pass
+
 def run_command(cmd):
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -213,7 +240,8 @@ class Converter:
     def split_pdf(self, path):
         path_obj = Path(os.path.expanduser(path)).resolve()
         if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
-            console.print("[bold red]Error: Split PDF requires a single PDF file.[/bold red]")
+            console.print(f"[bold red]Error: Could not find PDF at: [white]{path}[/white][/bold red]")
+            console.print("[dim]Tip: If you dragged the file, make sure the path is correct and has no extra characters.[/dim]")
             return
 
         total_pages = self.get_pdf_page_count(str(path_obj))
@@ -224,6 +252,7 @@ class Converter:
         console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({total_pages} pages):[/bold yellow]")
         console.print(" 1. Individual Pages (every page becomes its own PDF)")
         console.print(" 2. Custom Split (e.g., 1, 4, 2, 3...)")
+        console.print(" 3. Split into N parts")
         
         mode = get_char("\nPick a #: ")
         
@@ -292,6 +321,51 @@ class Converter:
                     console.print(f" > Part {idx} (Remainder, Pages {current_page}-{total_pages}): [bold green]DONE[/bold green]")
             
             console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
+        elif mode == '3':
+            console.print(f"\n[bold yellow]Enter the number of PDFs you want at the end (Max: {total_pages}):[/bold yellow]")
+            num_str = get_input("Number of PDFs: ")
+            try:
+                num_parts = int(num_str)
+            except ValueError:
+                console.print("[bold red]Invalid input. Please enter a number.[/bold red]")
+                return
+
+            if num_parts < 1:
+                console.print("[bold red]Invalid input. Number of PDFs must be at least 1.[/bold red]")
+                return
+            
+            if num_parts == 1:
+                console.print("[bold yellow]1 PDF requested. Nothing to split.[/bold yellow]")
+                return
+
+            if num_parts > total_pages:
+                console.print(f"[bold red]Invalid input. Cannot exceed total number of pages ({total_pages}).[/bold red]")
+                return
+
+            console.print(f"[bold cyan]Splitting into {num_parts} PDFs...[/bold cyan]")
+            
+            base_size = total_pages // num_parts
+            remainder = total_pages % num_parts
+            
+            current_page = 1
+            for i in range(num_parts):
+                # Distribute remainder pages across the first 'remainder' parts
+                count = base_size + (1 if i < remainder else 0)
+                end_page = current_page + count - 1
+                
+                out_file = output_dir / f"part_{i+1}_{current_page}-{end_page}.pdf"
+                
+                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), 
+                       f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
+                success, error = run_command(cmd)
+                if not success:
+                    console.print(f" > Part {i+1}: [bold red]FAILED[/bold red] [dim]{error.strip()}[/dim]")
+                else:
+                    console.print(f" > Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
+                
+                current_page = end_page + 1
+            
+            console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
         else:
             console.print("[bold yellow]Operation cancelled.[/bold yellow]")
 
@@ -403,7 +477,9 @@ def main():
         
         if choice == '0':
             console.print(f"\n[bold yellow]Enter folder path containing PDFs:[/bold yellow]")
-            path = get_input("Path: ").strip().strip("'").strip('"').strip()
+            flush_stdin()
+            path = clean_path(get_input("Path: "))
+            flush_stdin()
             if path:
                 conv.combine_pdfs(path)
                 get_char("\nPress any key to continue...")
@@ -411,7 +487,9 @@ def main():
             
         if choice == '1':
             console.print(f"\n[bold yellow]Enter PDF file path to split:[/bold yellow]")
-            path = get_input("Path: ").strip().strip("'").strip('"').strip()
+            flush_stdin()
+            path = clean_path(get_input("Path: "))
+            flush_stdin()
             if path:
                 conv.split_pdf(path)
                 get_char("\nPress any key to continue...")
@@ -461,7 +539,9 @@ def main():
             
         console.print(f"\n[bold yellow]Enter file or folder path:[/bold yellow]")
         console.print("[dim](Tip: You can drag and drop a file or folder into this window)[/dim]")
-        path = get_input("Path: ").strip().strip("'").strip('"').strip()
+        flush_stdin()
+        path = clean_path(get_input("Path: "))
+        flush_stdin()
         
         if not path:
             continue

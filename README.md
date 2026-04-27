@@ -10,12 +10,13 @@
 -   **Interactive Menu**: A streamlined numeric interface with category-based source auto-detection for faster workflows.
 -   **Batch Processing**: Convert entire directories of files in one command.
 -   **Multi-Format Support**:
-    -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages or custom ranges.
+    -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages, custom ranges, or a specific number of equal parts.
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
     -   **Videos**: MOV/MP4 to MP3, GIF (with customizable FPS), or alternative containers (AVI, MOV, MP4).
     -   **Audio**: WAV and M4A to MP3.
     -   **Documents**: DOCX and PPTX to PDF (via Pandoc).
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
+-   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop) and messy copy-pastes with hidden newlines.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
 
 ## Tech Stack
