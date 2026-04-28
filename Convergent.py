@@ -126,14 +126,14 @@ class Converter:
             "JPG": ["PNG", "WEBP", "PDF"],
             "PNG": ["JPG", "WEBP", "PDF"],
             "MP4": ["MOV", "GIF", "MP3"],
-            "WAV": ["MP3"],
-            "M4A": ["MP3"],
+            "WAV": ["MP3", "M4A"],
+            "M4A": ["MP3", "WAV"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
             "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG"]},
-            "3": {"name": "Video", "extensions": ["MOV", "MP4", "WAV"]},
-            "4": {"name": "Audio", "extensions": ["M4A"]},
+            "3": {"name": "Video", "extensions": ["MOV", "MP4"]},
+            "4": {"name": "Audio", "extensions": ["WAV", "M4A"]},
             "5": {"name": "Document", "extensions": ["DOCX", "PPTX"]},
         }
 
@@ -162,6 +162,10 @@ class Converter:
         cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
         if target_ext.upper() == "MP3":
             cmd += ["-acodec", "libmp3lame", "-q:a", "2"]
+        elif target_ext.upper() == "M4A":
+            cmd += ["-acodec", "aac", "-q:a", "2"]
+        elif target_ext.upper() == "WAV":
+            cmd += ["-acodec", "pcm_s16le"]
         
         cmd.append(str(output))
         return run_command(cmd)
@@ -413,7 +417,7 @@ class Converter:
                 success, error = self.convert_heic(f, target_format)
             elif source_fmt in ["MOV", "MP4"]:
                 success, error = self.convert_video(f, target_format, fps=fps)
-            elif source_fmt in ["WAV", "M4A"]:
+            elif source_fmt in ["WAV", "M4A", "MP3"]:
                 success, error = self.convert_audio(f, target_format)
             elif source_fmt in ["DOCX", "PPTX"]:
                 success, error = self.convert_office(f, target_format)
