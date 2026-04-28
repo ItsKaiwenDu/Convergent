@@ -285,44 +285,55 @@ class Converter:
                 if error: console.print(f"   [dim]{error.strip()}[/dim]")
 
         elif mode == '2':
-            console.print(f"\n[bold yellow]Enter page counts for each PDF separated by commas:[/bold yellow]")
-            console.print(f"[dim](Example: 1, 4, 2 will create 3 PDFs with 1, 4, and 2 pages, plus 1 PDF for the remaining pages)[/dim]")
-            input_str = get_input("Page counts: ")
+            console.print(f"\n[bold yellow]Enter page ranges for each PDF separated by commas:[/bold yellow]")
+            console.print(f"[dim](Example: 1-5, 6-12, 13-20 will create 3 PDFs covering those exact page ranges)[/dim]")
+            input_str = get_input("Page ranges: ")
+            
+            ranges = []
             try:
-                page_counts = [int(x.strip()) for x in input_str.split(',') if x.strip()]
-            except ValueError:
-                console.print("[bold red]Invalid input. Please use numbers separated by commas.[/bold red]")
+                for part in input_str.split(','):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    if '-' not in part:
+                        raise ValueError(f"'{part}' is not a valid range (use start-end format, e.g. 1-5)")
+                    start_str, end_str = part.split('-', 1)
+                    start, end = int(start_str.strip()), int(end_str.strip())
+                    if start < 1 or end > total_pages:
+                        raise ValueError(f"Range {start}-{end} is out of bounds (1-{total_pages})")
+                    if start > end:
+                        raise ValueError(f"Range {start}-{end} is invalid (start must be <= end)")
+                    ranges.append((start, end))
+            except ValueError as e:
+                console.print(f"[bold red]Invalid input: {e}[/bold red]")
                 return
             
+            if not ranges:
+                console.print("[bold red]No ranges provided.[/bold red]")
+                return
+            
+            # Warn about uncovered pages
+            covered = set()
+            for s, e in ranges:
+                covered.update(range(s, e + 1))
+            uncovered = sorted(set(range(1, total_pages + 1)) - covered)
+            if uncovered:
+                if len(uncovered) <= 10:
+                    pages_str = ", ".join(map(str, uncovered))
+                else:
+                    pages_str = f"{uncovered[0]}-{uncovered[-1]} ({len(uncovered)} pages)"
+                console.print(f"[bold yellow]Warning: Pages not covered by any range: {pages_str}[/bold yellow]")
+            
             console.print(f"[bold cyan]Processing custom split...[/bold cyan]")
-            current_page = 1
-            idx = 1
-            for count in page_counts:
-                if current_page > total_pages:
-                    break
-                if count <= 0: continue
-                
-                end_page = min(current_page + count - 1, total_pages)
-                out_file = output_dir / f"part_{idx}_{current_page}-{end_page}.pdf"
-                
-                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), 
-                       f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
+            for idx, (start, end) in enumerate(ranges, 1):
+                out_file = output_dir / f"part_{idx}_{start}-{end}.pdf"
+                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file),
+                       f"-dFirstPage={start}", f"-dLastPage={end}", str(path_obj)]
                 success, error = run_command(cmd)
                 if not success:
-                    console.print(f" > Part {idx}: [bold red]FAILED[/bold red] [dim]{error.strip()}[/dim]")
+                    console.print(f" > Part {idx} (Pages {start}-{end}): [bold red]FAILED[/bold red] [dim]{error.strip()}[/dim]")
                 else:
-                    console.print(f" > Part {idx} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
-                
-                current_page = end_page + 1
-                idx += 1
-            
-            if current_page <= total_pages:
-                out_file = output_dir / f"part_{idx}_{current_page}-{total_pages}_remainder.pdf"
-                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), 
-                       f"-dFirstPage={current_page}", f"-dLastPage={total_pages}", str(path_obj)]
-                success, error = run_command(cmd)
-                if success:
-                    console.print(f" > Part {idx} (Remainder, Pages {current_page}-{total_pages}): [bold green]DONE[/bold green]")
+                    console.print(f" > Part {idx} (Pages {start}-{end}): [bold green]DONE[/bold green]")
             
             console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
         elif mode == '3':
