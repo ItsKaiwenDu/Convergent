@@ -32,6 +32,7 @@ import tty
 import termios
 import argparse
 from pathlib import Path
+from modules import pdf_manip, image, video, audio, doc
 
 try:
     from rich.console import Console
@@ -138,251 +139,29 @@ class Converter:
         }
 
     def convert_heic(self, source, target_ext):
-        output = source.with_suffix(f".{target_ext.lower()}")
-        return run_command(["magick", str(source), str(output)])
+        return image.convert_heic(source, target_ext)
 
     def convert_video(self, source, target_ext, fps=None):
-        output = source.with_suffix(f".{target_ext.lower()}")
-        cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
-        if target_ext.upper() == "MP4":
-            cmd += ["-c:v", "libx264", "-c:a", "aac", "-strict", "experimental"]
-        elif target_ext.upper() == "GIF":
-            vf = "scale=480:-1:flags=lanczos"
-            if fps:
-                vf = f"fps={fps}," + vf
-            cmd += ["-vf", vf]
-        elif target_ext.upper() == "MP3":
-            cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
-        
-        cmd.append(str(output))
-        return run_command(cmd)
+        return video.convert_video(source, target_ext, fps)
 
     def convert_audio(self, source, target_ext):
-        output = source.with_suffix(f".{target_ext.lower()}")
-        cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
-        if target_ext.upper() == "MP3":
-            cmd += ["-acodec", "libmp3lame", "-q:a", "2"]
-        elif target_ext.upper() == "M4A":
-            cmd += ["-acodec", "aac", "-q:a", "2"]
-        elif target_ext.upper() == "WAV":
-            cmd += ["-acodec", "pcm_s16le"]
-        
-        cmd.append(str(output))
-        return run_command(cmd)
+        return audio.convert_audio(source, target_ext)
 
     def convert_office(self, source, target_ext):
-        if target_ext.upper() == "PDF":
-            output = source.with_suffix(".pdf")
-            success, err = run_command(["pandoc", str(source), "-o", str(output)])
-            if success: return True, ""
-            
-            return False, f"{source.suffix[1:].upper()} to PDF requires 'pandoc'.\nInstall via: brew install pandoc"
-        return False, f"Unsupported target format: {target_ext}"
+        return doc.convert_office(source, target_ext)
 
     def convert_image(self, source, target_ext):
-        output = source.with_suffix(f".{target_ext.lower()}")
-        return run_command(["magick", str(source), str(output)])
+        return image.convert_image(source, target_ext)
 
     def combine_pdfs(self, path):
-        path_obj = Path(os.path.expanduser(path))
-        if not path_obj.is_dir():
-            console.print("[bold red]Error: PDF Combiner requires a directory path.[/bold red]")
-            return
-            
-        pdf_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
-        
-        if not pdf_files:
-            console.print("[bold red]No PDF files found in the directory.[/bold red]")
-            return
-            
-        console.print(f"[bold cyan]Found {len(pdf_files)} PDF files to combine...[/bold cyan]")
-        output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ")
-        if not output_name:
-            output_name = "combined.pdf"
-        if not output_name.endswith(".pdf"):
-            output_name += ".pdf"
-            
-        output_path = path_obj / output_name
-        
-        # Use ghostscript directly for high-quality PDF merging (no rasterization)
-        cmd = [
-            "gs", 
-            "-dNOPAUSE", 
-            "-sDEVICE=pdfwrite", 
-            f"-sOUTPUTFILE={output_path}", 
-            "-dBATCH"
-        ] + [str(f) for f in pdf_files]
-        
-        success, error = run_command(cmd)
-        
-        if success:
-            console.print(f"[bold green]Successfully combined into {output_name}[/bold green]")
-        else:
-            console.print(f"[bold red]FAILED to combine PDFs[/bold red]")
-            if "command not found" in error:
-                console.print("   [bold yellow]Error: 'ghostscript' is required for PDF operations.[/bold yellow]")
-                console.print("   [dim]Install via: brew install ghostscript[/dim]")
-            elif error:
-                console.print(f"   [dim]{error.strip()}[/dim]")
+        return pdf_manip.combine_pdfs(path)
 
     def get_pdf_page_count(self, path):
-        try:
-            # Try mdls first (macOS)
-            result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)
-            if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "(null)":
-                return int(result.stdout.strip())
-            
-            # Fallback to gs
-            cmd = ["gs", "-q", "-dNODISPLAY", "-dNOSAFER", "-c", f"({path}) (r) file runpdfbegin pdfpagecount = quit"]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode == 0:
-                return int(result.stdout.strip())
-        except:
-            pass
-        return 0
+        return pdf_manip.get_pdf_page_count(path)
 
     def split_pdf(self, path):
-        path_obj = Path(os.path.expanduser(path)).resolve()
-        if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
-            console.print(f"[bold red]Error: Could not find PDF at: [white]{path}[/white][/bold red]")
-            console.print("[dim]Tip: If you dragged the file, make sure the path is correct and has no extra characters.[/dim]")
-            return
+        return pdf_manip.split_pdf(path)
 
-        total_pages = self.get_pdf_page_count(str(path_obj))
-        if total_pages == 0:
-            console.print("[bold red]Error: Could not determine PDF page count or file is empty.[/bold red]")
-            return
-
-        console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({total_pages} pages):[/bold yellow]")
-        console.print(" 1. Individual Pages (every page becomes its own PDF)")
-        console.print(" 2. Custom Split (e.g., 1, 4, 2, 3...)")
-        console.print(" 3. Split into N parts")
-        
-        mode = get_char("\nPick a #: ")
-        
-        # Create a directory for the split pages
-        output_dir = path_obj.parent / f"{path_obj.stem}_split"
-        try:
-            output_dir.mkdir(exist_ok=True)
-        except Exception as e:
-            console.print(f"[bold red]Error creating directory: {e}[/bold red]")
-            return
-
-        if mode == '1':
-            console.print(f"[bold cyan]Splitting into {total_pages} individual pages...[/bold cyan]")
-            output_pattern = output_dir / "page_%03d.pdf"
-            cmd = [
-                "gs", 
-                "-sDEVICE=pdfwrite", 
-                "-o", str(output_pattern),
-                str(path_obj)
-            ]
-            success, error = run_command(cmd)
-            if success:
-                console.print(f"[bold green]Successfully split into {output_dir.name}/[/bold green]")
-            else:
-                console.print(f"[bold red]FAILED to split PDF[/bold red]")
-                if error: console.print(f"   [dim]{error.strip()}[/dim]")
-
-        elif mode == '2':
-            console.print(f"\n[bold yellow]Enter page ranges for each PDF separated by commas:[/bold yellow]")
-            console.print(f"[dim](Example: 1-5, 6-12, 13-20 will create 3 PDFs covering those exact page ranges)[/dim]")
-            input_str = get_input("Page ranges: ")
-            
-            ranges = []
-            try:
-                for part in input_str.split(','):
-                    part = part.strip()
-                    if not part:
-                        continue
-                    if '-' not in part:
-                        raise ValueError(f"'{part}' is not a valid range (use start-end format, e.g. 1-5)")
-                    start_str, end_str = part.split('-', 1)
-                    start, end = int(start_str.strip()), int(end_str.strip())
-                    if start < 1 or end > total_pages:
-                        raise ValueError(f"Range {start}-{end} is out of bounds (1-{total_pages})")
-                    if start > end:
-                        raise ValueError(f"Range {start}-{end} is invalid (start must be <= end)")
-                    ranges.append((start, end))
-            except ValueError as e:
-                console.print(f"[bold red]Invalid input: {e}[/bold red]")
-                return
-            
-            if not ranges:
-                console.print("[bold red]No ranges provided.[/bold red]")
-                return
-            
-            # Warn about uncovered pages
-            covered = set()
-            for s, e in ranges:
-                covered.update(range(s, e + 1))
-            uncovered = sorted(set(range(1, total_pages + 1)) - covered)
-            if uncovered:
-                if len(uncovered) <= 10:
-                    pages_str = ", ".join(map(str, uncovered))
-                else:
-                    pages_str = f"{uncovered[0]}-{uncovered[-1]} ({len(uncovered)} pages)"
-                console.print(f"[bold yellow]Warning: Pages not covered by any range: {pages_str}[/bold yellow]")
-            
-            console.print(f"[bold cyan]Processing custom split...[/bold cyan]")
-            for idx, (start, end) in enumerate(ranges, 1):
-                out_file = output_dir / f"part_{idx}_{start}-{end}.pdf"
-                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file),
-                       f"-dFirstPage={start}", f"-dLastPage={end}", str(path_obj)]
-                success, error = run_command(cmd)
-                if not success:
-                    console.print(f" > Part {idx} (Pages {start}-{end}): [bold red]FAILED[/bold red] [dim]{error.strip()}[/dim]")
-                else:
-                    console.print(f" > Part {idx} (Pages {start}-{end}): [bold green]DONE[/bold green]")
-            
-            console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
-        elif mode == '3':
-            console.print(f"\n[bold yellow]Enter the number of PDFs you want at the end (Max: {total_pages}):[/bold yellow]")
-            num_str = get_input("Number of PDFs: ")
-            try:
-                num_parts = int(num_str)
-            except ValueError:
-                console.print("[bold red]Invalid input. Please enter a number.[/bold red]")
-                return
-
-            if num_parts < 1:
-                console.print("[bold red]Invalid input. Number of PDFs must be at least 1.[/bold red]")
-                return
-            
-            if num_parts == 1:
-                console.print("[bold yellow]1 PDF requested. Nothing to split.[/bold yellow]")
-                return
-
-            if num_parts > total_pages:
-                console.print(f"[bold red]Invalid input. Cannot exceed total number of pages ({total_pages}).[/bold red]")
-                return
-
-            console.print(f"[bold cyan]Splitting into {num_parts} PDFs...[/bold cyan]")
-            
-            base_size = total_pages // num_parts
-            remainder = total_pages % num_parts
-            
-            current_page = 1
-            for i in range(num_parts):
-                # Distribute remainder pages across the first 'remainder' parts
-                count = base_size + (1 if i < remainder else 0)
-                end_page = current_page + count - 1
-                
-                out_file = output_dir / f"part_{i+1}_{current_page}-{end_page}.pdf"
-                
-                cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), 
-                       f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
-                success, error = run_command(cmd)
-                if not success:
-                    console.print(f" > Part {i+1}: [bold red]FAILED[/bold red] [dim]{error.strip()}[/dim]")
-                else:
-                    console.print(f" > Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
-                
-                current_page = end_page + 1
-            
-            console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
-        else:
-            console.print("[bold yellow]Operation cancelled.[/bold yellow]")
 
     def process(self, source_formats, target_format, path, fps=None):
         path_obj = Path(os.path.expanduser(path))
