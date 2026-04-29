@@ -31,6 +31,8 @@ import sys
 import tty
 import termios
 import argparse
+import concurrent.futures
+import multiprocessing
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc
 
@@ -162,8 +164,32 @@ class Converter:
     def split_pdf(self, path):
         return pdf_manip.split_pdf(path)
 
+    def process_single_file(self, f, target_format, fps=None):
+        source_fmt = f.suffix.lower()[1:].upper()
+        
+        # Check if this specific source format supports the target format
+        if target_format not in self.formats.get(source_fmt, []):
+            if source_fmt == target_format:
+                return f.name, True, "Skipped (Same format)"
+            return f.name, False, f"Target {target_format} not supported for {source_fmt}"
 
-    def process(self, source_formats, target_format, path, fps=None):
+        success = False
+        error = ""
+        
+        if source_fmt == "HEIC":
+            success, error = self.convert_heic(f, target_format)
+        elif source_fmt in ["MOV", "MP4"]:
+            success, error = self.convert_video(f, target_format, fps=fps)
+        elif source_fmt in ["WAV", "M4A", "MP3"]:
+            success, error = self.convert_audio(f, target_format)
+        elif source_fmt in ["DOCX", "PPTX"]:
+            success, error = self.convert_office(f, target_format)
+        elif source_fmt in ["JPG", "PNG"]:
+            success, error = self.convert_image(f, target_format)
+            
+        return f.name, success, error
+
+    def process(self, source_formats, target_format, path, fps=None, jobs=None):
         path_obj = Path(os.path.expanduser(path))
         files = []
         
@@ -186,41 +212,47 @@ class Converter:
 
         console.print(f"[bold cyan]Found {len(files)} files to convert...[/bold cyan]")
         
+        if not jobs:
+            jobs = multiprocessing.cpu_count()
+            
         success_count = 0
-        for f in files:
-            source_fmt = f.suffix.lower()[1:].upper()
+        
+        try:
+            from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
             
-            # Check if this specific source format supports the target format
-            if target_format not in self.formats.get(source_fmt, []):
-                # Special case: if target is the same as source, skip
-                if source_fmt == target_format:
-                    continue
-                console.print(f" > {f.name}... [bold yellow]SKIPPED[/bold yellow] (Target {target_format} not supported for {source_fmt})")
-                continue
-
-            console.print(f" > {f.name}...", end=" ")
-            
-            success = False
-            error = ""
-            
-            if source_fmt == "HEIC":
-                success, error = self.convert_heic(f, target_format)
-            elif source_fmt in ["MOV", "MP4"]:
-                success, error = self.convert_video(f, target_format, fps=fps)
-            elif source_fmt in ["WAV", "M4A", "MP3"]:
-                success, error = self.convert_audio(f, target_format)
-            elif source_fmt in ["DOCX", "PPTX"]:
-                success, error = self.convert_office(f, target_format)
-            elif source_fmt in ["JPG", "PNG"]:
-                success, error = self.convert_image(f, target_format)
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                console=console
+            ) as progress:
+                task = progress.add_task(f"Converting to {target_format}...", total=len(files))
                 
-            if success:
-                console.print("[bold green]DONE[/bold green]")
-                success_count += 1
-            else:
-                console.print(f"[bold red]FAILED[/bold red]")
-                if error:
-                    console.print(f"   [dim]{error.strip()}[/dim]")
+                with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+                    futures = {executor.submit(self.process_single_file, f, target_format, fps): f for f in files}
+                    
+                    for future in concurrent.futures.as_completed(futures):
+                        name, success, error = future.result()
+                        if success:
+                            success_count += 1
+                            if error != "Skipped (Same format)":
+                                progress.console.print(f" [bold green]✓[/bold green] {name}")
+                        else:
+                            progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()}[/dim]")
+                        progress.update(task, advance=1)
+        except ImportError:
+            # Fallback for systems without rich
+            for f in files:
+                name, success, error = self.process_single_file(f, target_format, fps)
+                if success:
+                    success_count += 1
+                    if error != "Skipped (Same format)":
+                        console.print(f" > {name}... [bold green]DONE[/bold green]")
+                else:
+                    console.print(f" > {name}... [bold red]FAILED[/bold red]")
+                    if error:
+                        console.print(f"   [dim]{error.strip()}[/dim]")
         
         console.print(f"\n[bold green]Finished! Successfully converted {success_count} files.[/bold green]")
 
@@ -232,6 +264,7 @@ def main():
     parser.add_argument("--to", dest="to_fmt", help="Target format (e.g., PNG, MP3)")
     parser.add_argument("--fps", help="Frames per second for GIF conversion (e.g., 30, 60)")
     parser.add_argument("--path", help="Path to file or directory")
+    parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
     args = parser.parse_args()
 
     if args.from_fmt or args.to_fmt or args.path:
@@ -249,7 +282,7 @@ def main():
             console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
             sys.exit(1)
             
-        conv.process([source_fmt], target_fmt, args.path, fps=args.fps)
+        conv.process([source_fmt], target_fmt, args.path, fps=args.fps, jobs=args.jobs)
         return
 
     while True:

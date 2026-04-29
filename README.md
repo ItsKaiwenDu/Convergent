@@ -8,6 +8,7 @@
 ## Features
 
 -   **Interactive Menu**: A streamlined numeric interface with category-based source auto-detection for faster workflows.
+-   **Parallel Processing**: High-speed batch conversions using multi-core execution (configurable via `--jobs`).
 -   **Batch Processing**: Convert entire directories of files in one command.
 -   **Multi-Format Support**:
     -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages, custom ranges, or a specific number of equal parts.
@@ -58,8 +59,8 @@ make start
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using the `ARGS` variable:
 ```bash
-# Convert HEIC images to JPG
-make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos"
+# Convert HEIC images to JPG using 4 parallel jobs
+make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4"
 
 # Convert Video to GIF with 30 FPS
 make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
