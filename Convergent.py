@@ -34,7 +34,7 @@ import argparse
 import concurrent.futures
 import multiprocessing
 from pathlib import Path
-from modules import pdf_manip, image, video, audio, doc
+from modules import pdf_manip, image, video, audio, doc, compress
 
 try:
     from rich.console import Console
@@ -163,6 +163,9 @@ class Converter:
 
     def split_pdf(self, path):
         return pdf_manip.split_pdf(path)
+
+    def compress(self, path, output_name, format_choice, password=None):
+        return compress.compress(path, output_name, format_choice, password)
 
     def process_single_file(self, f, target_format, fps=None):
         source_fmt = f.suffix.lower()[1:].upper()
@@ -296,6 +299,7 @@ def main():
             cat = conv.categories[key]
             exts_str = ", ".join(cat["extensions"])
             console.print(f" {key}. {cat['name']}: {exts_str}")
+        console.print(" 6. Compress: File/Folder")
         console.print(" Q. Quit")
         
         choice = get_char("\nPick a #: ")
@@ -320,6 +324,45 @@ def main():
             if path:
                 conv.split_pdf(path)
                 get_char("\nPress any key to continue...")
+            continue
+            
+        if choice == '6':
+            console.print(f"\n[bold yellow]Enter file or folder path to compress:[/bold yellow]")
+            flush_stdin()
+            path = clean_path(get_input("Path: "))
+            flush_stdin()
+            
+            if not path:
+                continue
+                
+            console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
+            console.print(" 1. ZIP")
+            console.print(" 2. TAR.GZ")
+            fmt_choice = get_char("\nPick a #: ")
+            
+            target_fmt = "ZIP" if fmt_choice == '1' else "TAR.GZ" if fmt_choice == '2' else None
+            if not target_fmt:
+                continue
+                
+            password = None
+            if target_fmt == "ZIP":
+                console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
+                pwd_yn = get_char("")
+                if pwd_yn.lower() == 'y':
+                    password = get_input("\nEnter password: ")
+            
+            output_name = get_input(f"\nEnter name for archive (default: compressed.{target_fmt.lower()}): ")
+            if not output_name:
+                output_name = f"compressed.{target_fmt.lower()}"
+                
+            success, error = conv.compress(path, output_name, target_fmt, password)
+            if success:
+                console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
+            else:
+                console.print(f"\n[bold red]FAILED to compress:[/bold red]")
+                console.print(f"   [dim]{error.strip()}[/dim]")
+            
+            get_char("\nPress any key to continue...")
             continue
             
         if choice not in conv.categories:

@@ -16,6 +16,7 @@
     -   **Videos**: MOV/MP4 to MP3, GIF (with customizable FPS), or alternative containers (AVI, MOV, MP4).
     -   **Audio**: WAV and M4A to MP3.
     -   **Documents**: DOCX and PPTX to PDF (via Pandoc).
+    -   **Compression**: Compress files and folders into **ZIP** (with optional password protection) or **TAR.GZ** archives.
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
 -   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop) and messy copy-pastes with hidden newlines.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
@@ -31,6 +32,7 @@
 | **Image Engine** | [ImageMagick](https://imagemagick.org/) |
 | **PDF Engine** | [Ghostscript](https://ghostscript.com/) |
 | **Document Engine** | [Pandoc](https://pandoc.org/) |
+| **Compression Utilities** | `zip` + `tar` (System) |
 
 ## Getting Started
 
