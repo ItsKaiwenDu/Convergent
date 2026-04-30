@@ -126,6 +126,7 @@ class Converter:
             "MOV": ["MP4", "GIF", "AVI", "MP3"],
             "DOCX": ["PDF"],
             "PPTX": ["PDF"],
+            "RTF": ["PDF"],
             "JPG": ["PNG", "WEBP", "PDF"],
             "PNG": ["JPG", "WEBP", "PDF"],
             "MP4": ["MOV", "GIF", "MP3"],
@@ -137,7 +138,7 @@ class Converter:
             "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A"]},
-            "5": {"name": "Document", "extensions": ["DOCX", "PPTX"]},
+            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF"]},
         }
 
     def convert_heic(self, source, target_ext):
@@ -185,7 +186,7 @@ class Converter:
             success, error = self.convert_video(f, target_format, fps=fps)
         elif source_fmt in ["WAV", "M4A", "MP3"]:
             success, error = self.convert_audio(f, target_format)
-        elif source_fmt in ["DOCX", "PPTX"]:
+        elif source_fmt in ["DOCX", "PPTX", "RTF"]:
             success, error = self.convert_office(f, target_format)
         elif source_fmt in ["JPG", "PNG"]:
             success, error = self.convert_image(f, target_format)

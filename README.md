@@ -15,7 +15,7 @@
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
     -   **Videos**: MOV/MP4 to MP3, GIF (with customizable FPS), or alternative containers (AVI, MOV, MP4).
     -   **Audio**: WAV and M4A to MP3.
-    -   **Documents**: DOCX and PPTX to PDF (via Pandoc).
+    -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc).
     -   **Compression**: Compress files and folders into **ZIP** (with optional password protection) or **TAR.GZ** archives.
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
 -   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop) and messy copy-pastes with hidden newlines.
