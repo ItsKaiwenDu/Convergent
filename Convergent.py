@@ -33,8 +33,10 @@ import termios
 import argparse
 import concurrent.futures
 import multiprocessing
+import json
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress
+from customs import shortcut
 
 try:
     from rich.console import Console
@@ -290,9 +292,16 @@ def main():
         return
 
     while True:
+        shortcuts = shortcut.load_shortcuts()
+        
         clear_screen()
         console.rule("File Converter Machine")
         
+        if shortcuts:
+            console.print("\n[bold yellow]Your Shortcuts:[/bold yellow]")
+            for sym, sc in shortcuts.items():
+                console.print(f" [bold]{sym}[/bold]. {sc['title']}")
+
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
         console.print(" 0. Combine: PDF")
         console.print(" 1. Split: PDF")
@@ -301,11 +310,114 @@ def main():
             exts_str = ", ".join(cat["extensions"])
             console.print(f" {key}. {cat['name']}: {exts_str}")
         console.print(" 6. Compress: File/Folder")
-        console.print(" Q. Quit")
+            
+        console.print(" [bold white]A[/bold white]: Add Shortcut")
+        console.print(" [bold white]Q[/bold white]: Quit")
         
         choice = get_char("\nPick a #: ")
         if choice.lower() == 'q':
             break
+            
+        if choice.lower() == 'a':
+            console.print("\n\n[bold yellow]--- Add New Shortcut ---[/bold yellow]")
+            console.print("Select source category:")
+            category_keys = sorted(conv.categories.keys())
+            for i, key in enumerate(category_keys, 1):
+                cat = conv.categories[key]
+                exts_str = ", ".join(cat["extensions"])
+                console.print(f" [bold]{i}[/bold]. {cat['name']}: {exts_str}")
+            console.print(" [bold white]C[/bold white]. Cancel")
+            cat_choice = get_char("\nPick category #: ")
+            
+            if cat_choice.lower() == 'c':
+                continue
+            
+            selected_cat_key = None
+            try:
+                idx = int(cat_choice) - 1
+                if 0 <= idx < len(category_keys):
+                    selected_cat_key = category_keys[idx]
+            except ValueError:
+                pass
+                
+            if not selected_cat_key:
+                continue
+                
+            category = conv.categories[selected_cat_key]
+            source_fmts = category["extensions"]
+            available_targets = set()
+            for fmt in source_fmts:
+                available_targets.update(conv.formats.get(fmt, []))
+            sorted_targets = sorted(list(available_targets))
+            
+            console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
+            for i, fmt in enumerate(sorted_targets, 1):
+                console.print(f" {i}. {fmt}")
+                
+            target_choice = get_char("\nPick target #: ")
+            try:
+                to_idx = int(target_choice) - 1
+                if to_idx < 0 or to_idx >= len(sorted_targets):
+                    raise ValueError
+                target_fmt = sorted_targets[to_idx]
+            except ValueError:
+                continue
+                
+            console.print(f"\n[bold yellow]Do you want to fix a file/folder path for this shortcut? (y/n)[/bold yellow]")
+            fix_path = get_char("Choice: ")
+            fixed_path = ""
+            if fix_path.lower() == 'y':
+                flush_stdin()
+                fixed_path = clean_path(get_input("\nEnter path: "))
+                flush_stdin()
+                
+            flush_stdin()
+            sym = get_input("\nInput a single symbol/key for this shortcut (e.g., 'S'): ").strip().upper()
+            title = get_input("Input a label title (e.g., 'Quick JPG Convert'): ").strip()
+            
+            if sym and title:
+                shortcuts[sym] = {
+                    "title": title,
+                    "category": selected_cat_key,
+                    "target_fmt": target_fmt,
+                    "fixed_path": fixed_path
+                }
+                shortcut.save_shortcuts(shortcuts)
+                console.print(f"\n[bold green]Shortcut '{sym}' added successfully![/bold green]")
+                get_char("\nPress any key to continue...")
+            continue
+            
+        if choice.upper() in shortcuts:
+            sc = shortcuts[choice.upper()]
+            category = conv.categories[sc["category"]]
+            source_fmts = category["extensions"]
+            target_fmt = sc["target_fmt"]
+            path = sc.get("fixed_path", "")
+            
+            fps = None
+            if target_fmt == "GIF":
+                console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
+                console.print(" 1. Original FPS")
+                console.print(" 2. 30 FPS")
+                console.print(" 3. 60 FPS")
+                fps_choice = get_char("\nPick a #: ")
+                if fps_choice == '2':
+                    fps = 30
+                elif fps_choice == '3':
+                    fps = 60
+            
+            if not path:
+                console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
+                console.print(f"[bold yellow]Enter file or folder path:[/bold yellow]")
+                console.print("[dim](Tip: You can drag and drop a file or folder into this window)[/dim]")
+                flush_stdin()
+                path = clean_path(get_input("Path: "))
+                flush_stdin()
+                
+            if path:
+                conv.process(source_fmts, target_fmt, path, fps=fps)
+                get_char("\nPress any key to continue...")
+            continue
         
         if choice == '0':
             console.print(f"\n[bold yellow]Enter folder path containing PDFs:[/bold yellow]")
