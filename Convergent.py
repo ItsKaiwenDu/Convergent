@@ -312,6 +312,8 @@ def main():
         console.print(" 6. Compress: File/Folder")
             
         console.print(" [bold white]A[/bold white]: Add Shortcut")
+        if shortcuts:
+            console.print(" [bold white]R[/bold white]: Remove Shortcut")
         console.print(" [bold white]Q[/bold white]: Quit")
         
         choice = get_char("\nPick a #: ")
@@ -384,6 +386,29 @@ def main():
                 }
                 shortcut.save_shortcuts(shortcuts)
                 console.print(f"\n[bold green]Shortcut '{sym}' added successfully![/bold green]")
+                get_char("\nPress any key to continue...")
+            continue
+
+        if choice.lower() == 'r' and shortcuts:
+            console.print("\n\n[bold yellow]--- Remove Shortcut ---[/bold yellow]")
+            console.print("Existing shortcuts:")
+            for sym, sc in shortcuts.items():
+                console.print(f" [bold]{sym}[/bold]. {sc['title']}")
+            console.print(" [bold white]C[/bold white]. Cancel")
+            
+            sym_to_remove = get_input("\nEnter symbol to remove (or 'C' to cancel): ").strip().upper()
+            
+            if sym_to_remove == 'C' or not sym_to_remove:
+                continue
+                
+            if sym_to_remove in shortcuts:
+                title = shortcuts[sym_to_remove]['title']
+                del shortcuts[sym_to_remove]
+                shortcut.save_shortcuts(shortcuts)
+                console.print(f"\n[bold green]Shortcut '{sym_to_remove}' ({title}) removed successfully![/bold green]")
+                get_char("\nPress any key to continue...")
+            else:
+                console.print(f"\n[bold red]Shortcut '{sym_to_remove}' not found.[/bold red]")
                 get_char("\nPress any key to continue...")
             continue
             
@@ -494,7 +519,7 @@ def main():
         console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
         for i, fmt in enumerate(sorted_targets, 1):
             console.print(f" {i}. {fmt}")
-        console.print(" B. Back")
+        console.print(" [bold white]B[/bold white]. Back")
         
         target_choice = get_char("\nPick a #: ")
         if target_choice.lower() == 'b':

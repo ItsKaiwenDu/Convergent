@@ -22,6 +22,13 @@
 -   **Quick Shortcuts**: Create and save persistent conversion workflows to trigger them with a single keystroke. Optionally fix a target path to skip prompts entirely.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
 
+### Shortcuts
+- **Create**: Press **A** in the main menu to define a new shortcut with a custom symbol (key) and label title.
+- **Remove**: Press **R** in the main menu to delete existing shortcuts.
+- **Configuration**: Shortcuts store your source category and target format choice.
+- **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip the path prompt entirely.
+- **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in the "Your Shortcuts" section of the main menu.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -68,13 +75,6 @@ make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4"
 # Convert Video to GIF with 30 FPS
 make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
 ```
-
-### Shortcuts
-- Press **A** in the main menu to create a new shortcut.
-- You can assign a custom symbol (key) and a label title.
-- Shortcuts store your source category and target format choice.
-- **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip the path prompt entirely.
-- **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in the "Your Shortcuts" section of the main menu.
 
 ## Owner
 **Kaiwen Du** - [GitHub](https://github.com/ItsKaiwenDu)
