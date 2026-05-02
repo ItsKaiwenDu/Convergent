@@ -20,6 +20,7 @@
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
 -   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop) and messy copy-pastes with hidden newlines.
 -   **Quick Shortcuts**: Create and save persistent conversion workflows to trigger them with a single keystroke. Optionally fix a target path to skip prompts entirely.
+-   **Overwrite Guard**: Protects against accidental data loss by prompting before overwriting existing files. Includes `--overwrite` and `--skip` flags for automated control.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
 
 ### Shortcuts
@@ -74,6 +75,10 @@ make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4"
 
 # Convert Video to GIF with 30 FPS
 make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
+
+# Force overwrite of existing files or skip them silently
+make start ARGS="--from JPG --to PNG --path ./images --overwrite"
+make start ARGS="--from JPG --to PNG --path ./images --skip"
 ```
 
 ## Owner

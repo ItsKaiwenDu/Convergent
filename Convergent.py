@@ -195,7 +195,7 @@ class Converter:
             
         return f.name, success, error
 
-    def process(self, source_formats, target_format, path, fps=None, jobs=None):
+    def process(self, source_formats, target_format, path, fps=None, jobs=None, overwrite=False, skip=False):
         path_obj = Path(os.path.expanduser(path))
         files = []
         
@@ -215,6 +215,43 @@ class Converter:
         if not files:
             console.print(f"[bold red]No matching files found at {path}[/bold red]")
             return
+
+        # --- Overwrite Guard ---
+        collisions = []
+        for f in files:
+            output = f.with_suffix(f".{target_format.lower()}")
+            if output.exists():
+                collisions.append(f)
+        
+        if collisions and not overwrite and not skip:
+            console.print(f"\n[bold yellow]⚠  {len(collisions)} files already exist at the target path.[/bold yellow]")
+            console.print("   [bold][O][/bold] Overwrite all   [bold][S][/bold] Skip existing   [bold][C][/bold] Cancel")
+            
+            while True:
+                choice = get_char("   Choice: ").lower()
+                if choice == 'o':
+                    overwrite = True
+                    break
+                elif choice == 's':
+                    skip = True
+                    break
+                elif choice == 'c':
+                    console.print("[yellow]Operation cancelled.[/yellow]")
+                    return
+                else:
+                    console.print("   [red]Invalid choice. Please pick O, S, or C.[/red]")
+        
+        if skip:
+            original_count = len(files)
+            files = [f for f in files if not f.with_suffix(f".{target_format.lower()}").exists()]
+            skipped_count = original_count - len(files)
+            if skipped_count > 0:
+                console.print(f"[dim]Skipped {skipped_count} already existing files.[/dim]")
+
+        if not files:
+            console.print("[bold green]All files already exist and were skipped.[/bold green]")
+            return
+        # -----------------------
 
         console.print(f"[bold cyan]Found {len(files)} files to convert...[/bold cyan]")
         
@@ -271,6 +308,8 @@ def main():
     parser.add_argument("--fps", help="Frames per second for GIF conversion (e.g., 30, 60)")
     parser.add_argument("--path", help="Path to file or directory")
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
+    parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     args = parser.parse_args()
 
     if args.from_fmt or args.to_fmt or args.path:
@@ -288,7 +327,7 @@ def main():
             console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
             sys.exit(1)
             
-        conv.process([source_fmt], target_fmt, args.path, fps=args.fps, jobs=args.jobs)
+        conv.process([source_fmt], target_fmt, args.path, fps=args.fps, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip)
         return
 
     while True:
