@@ -125,13 +125,13 @@ class Converter:
     def __init__(self):
         self.formats = {
             "HEIC": ["JPG", "PNG"],
-            "MOV": ["MP4", "GIF", "AVI", "MP3"],
+            "MOV": ["MP4", "WEBM", "GIF", "AVI", "MP3"],
             "DOCX": ["PDF"],
             "PPTX": ["PDF"],
             "RTF": ["PDF"],
             "JPG": ["PNG", "WEBP", "PDF"],
             "PNG": ["JPG", "WEBP", "PDF"],
-            "MP4": ["MOV", "GIF", "MP3"],
+            "MP4": ["MOV", "WEBM", "GIF", "MP3"],
             "WAV": ["MP3", "M4A"],
             "M4A": ["MP3", "WAV"],
         }
@@ -414,6 +414,13 @@ def main():
                 
             flush_stdin()
             sym = get_input("\nInput a single symbol/key for this shortcut (e.g., 'S'): ").strip().upper()
+            
+            reserved_keys = [str(i) for i in range(10)] + ['A', 'R', 'Q']
+            if sym in reserved_keys:
+                console.print(f"\n[bold red][!] '{sym}' is a reserved key. Please choose a letter not in: {' '.join(reserved_keys)}[/bold red]")
+                get_char("\nPress any key to continue...")
+                continue
+                
             title = get_input("Input a label title (e.g., 'Quick JPG Convert'): ").strip()
             
             if sym and title:
