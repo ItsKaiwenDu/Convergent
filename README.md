@@ -58,6 +58,11 @@
     make setup
     ```
     *This will install the `rich` Python library and attempt to install `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` via Homebrew.*
+3.  **Check Dependencies**:
+    ```bash
+    make check
+    ```
+    *This will probe your system for all required external tools and ensure they are ready to use.*
 
 ## Usage
 

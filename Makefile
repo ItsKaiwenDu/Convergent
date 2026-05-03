@@ -6,11 +6,12 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start
+.PHONY: help setup start check
 
 help:
 	@echo "Convergent Makefile Commands:"
 	@echo "  make setup     - Install necessary Python and System dependencies"
+	@echo "  make check     - Probe system dependencies to ensure everything is installed"
 	@echo "  make start     - Run the converter (Interactive or with flags)"
 	@echo ""
 	@echo "Usage with flags:"
@@ -29,3 +30,6 @@ setup:
 
 start:
 	$(PYTHON) $(SCRIPT) $(ARGS)
+
+check:
+	@$(PYTHON) customs/check_deps.py
