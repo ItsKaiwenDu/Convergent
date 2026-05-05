@@ -13,8 +13,8 @@
 -   **Multi-Format Support**:
     -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages, custom ranges, or a specific number of equal parts.
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
-    -   **Videos**: MOV/MP4 to MP3, WEBM, GIF (with customizable FPS), or alternative containers (AVI, MOV, MP4).
-    -   **Audio**: WAV and M4A to MP3.
+    -   **Videos**: MOV/MP4 to MP3, WEBM, GIF (with customizable FPS), or alternative containers (**AVI**, **MOV**, **MP4**).
+    -   **Audio**: WAV and M4A to **MP3**, **M4A**, or **WAV**.
     -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc).
     -   **Compression**: Compress files and folders into **ZIP** (with optional password protection) or **TAR.GZ** archives.
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
@@ -23,31 +23,37 @@
 -   **Overwrite Guard**: Protects against accidental data loss by prompting before overwriting existing files. Includes `--overwrite` and `--skip` flags for automated control.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
 
-### Shortcuts
+## Quick Shortcuts
+
+Convergent allows you to save your most frequent workflows as shortcuts for instant access.
+
 - **Create**: Press **A** in the main menu to define a new shortcut with a custom symbol (key) and label title.
 - **Remove**: Press **R** in the main menu to delete existing shortcuts.
-- **Configuration**: Shortcuts store your source category and target format choice.
+- **Example**: Create a shortcut `S` for `HEIC to JPG` to batch convert photos with one key.
 - **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip the path prompt entirely.
 - **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in the "Your Shortcuts" section of the main menu.
 
-## Tech Stack
+## Tech Stack & Requirements
 
-| Layer | Technology |
-|---|---|
-| **Language** | [Python 3](https://www.python.org/) |
-| **CLI Framework** | `argparse` + `tty` |
-| **UI/Styling** | [Rich](https://github.com/Textualize/rich) |
-| **Processing Engine** | [FFmpeg](https://ffmpeg.org/) (Audio/Video) |
-| **Image Engine** | [ImageMagick](https://imagemagick.org/) |
-| **PDF Engine** | [Ghostscript](https://ghostscript.com/) |
-| **Document Engine** | [Pandoc](https://pandoc.org/) |
-| **Compression Utilities** | `zip` + `tar` (System) |
+| Layer | Technology | Tested On |
+|---|---|---|
+| **OS** | macOS | 14+ (Sonoma) |
+| **Language** | [Python 3](https://www.python.org/) | 3.10+ |
+| **Processing Engine** | [FFmpeg](https://ffmpeg.org/) | 6+ |
+| **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
+| **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
+| **Document Engine** | [Pandoc](https://pandoc.org/) | 3+ |
+| **CLI Framework** | `argparse` + `tty` | - |
+| **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
+
+> [!NOTE]
+> **Compatibility**: This utility is **macOS-first**. Linux is supported but requires manual dependency installation. Windows is **not supported** due to the `tty` terminal dependency.
 
 ## Getting Started
 
 ### Prerequisites
 
--   **Python 3.8+**
+-   **Python 3.8+** (3.10+ recommended)
 -   **Homebrew** (recommended for macOS system dependencies)
 
 ### Installation
@@ -73,7 +79,19 @@ make start
 ```
 
 ### CLI Mode (Arguments)
-For automated workflows, you can pass arguments directly using the `ARGS` variable:
+For automated workflows, you can pass arguments directly using the `ARGS` variable.
+
+| Flag | Description | Example |
+|---|---|---|
+| `--from` | Source file extension (e.g., `HEIC`, `MOV`) | `--from HEIC` |
+| `--to` | Target output extension (e.g., `JPG`, `MP3`) | `--to JPG` |
+| `--path` | Absolute path to file or directory | `--path ~/Desktop/Photos` |
+| `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) | `--jobs 4` |
+| `--fps` | Target frames per second (for GIF output) | `--fps 30` |
+| `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
+| `--skip` | Skip existing output files without prompting | `--skip` |
+
+**Example Commands:**
 ```bash
 # Convert HEIC images to JPG using 4 parallel jobs
 make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4"
@@ -83,8 +101,13 @@ make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
 
 # Force overwrite of existing files or skip them silently
 make start ARGS="--from JPG --to PNG --path ./images --overwrite"
-make start ARGS="--from JPG --to PNG --path ./images --skip"
 ```
+
+## Troubleshooting
+
+- **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix the link.
+- **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for the relevant patterns).
+- **Pandoc PDF fonts**: If converting documents to PDF fails, ensure you have a LaTeX distribution installed (e.g., `brew install --cask mactex` or `basictex`).
 
 ## Owner
 **Kaiwen Du** - [GitHub](https://github.com/ItsKaiwenDu)
