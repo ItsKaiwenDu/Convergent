@@ -16,7 +16,7 @@
     -   **Videos**: MOV/MP4 to MP3, WEBM, GIF (with customizable FPS), or alternative containers (**AVI**, **MOV**, **MP4**).
     -   **Audio**: WAV and M4A to **MP3**, **M4A**, or **WAV**.
     -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc).
-    -   **Compression**: Compress files and folders into **ZIP** (with optional password protection) or **TAR.GZ** archives.
+    -   **Archives**: Compress files and folders into **ZIP**, **TAR.GZ**, **7z**, or **RAR** archives (with optional password protection for supported formats). Decompress existing archives to a target directory.
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
 -   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop) and messy copy-pastes with hidden newlines.
 -   **Quick Shortcuts**: Create and save persistent conversion workflows to trigger them with a single keystroke. Optionally fix a target path to skip prompts entirely.

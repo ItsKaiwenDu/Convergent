@@ -37,6 +37,10 @@ def compress(path, output_name, format_choice, password=None):
         output_name += ".zip"
     elif format_choice == "TAR.GZ" and not (output_name.lower().endswith(".tar.gz") or output_name.lower().endswith(".tgz")):
         output_name += ".tar.gz"
+    elif format_choice == "7Z" and not output_name.lower().endswith(".7z"):
+        output_name += ".7z"
+    elif format_choice == "RAR" and not output_name.lower().endswith(".rar"):
+        output_name += ".rar"
         
     output_path = path_obj.parent / output_name
     cwd = path_obj.parent
@@ -50,6 +54,14 @@ def compress(path, output_name, format_choice, password=None):
     elif format_choice == "TAR.GZ":
         # -c create, -z gzip, -f file
         cmd = ["tar", "-czf", str(output_path), path_obj.name]
+    elif format_choice == "7Z":
+        cmd = ["7z", "a", str(output_path), path_obj.name]
+        if password:
+            cmd.insert(2, f"-p{password}")
+    elif format_choice == "RAR":
+        cmd = ["rar", "a", str(output_path), path_obj.name]
+        if password:
+            cmd.insert(2, f"-p{password}")
     else:
         return False, f"Unsupported format: {format_choice}"
 

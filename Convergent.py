@@ -35,7 +35,7 @@ import concurrent.futures
 import multiprocessing
 import json
 from pathlib import Path
-from modules import pdf_manip, image, video, audio, doc, compress
+from modules import pdf_manip, image, video, audio, doc, compress, decompress
 from customs import shortcut
 
 try:
@@ -169,6 +169,9 @@ class Converter:
 
     def compress(self, path, output_name, format_choice, password=None):
         return compress.compress(path, output_name, format_choice, password)
+
+    def decompress(self, path, output_dir=None):
+        return decompress.decompress(path, output_dir)
 
     def process_single_file(self, f, target_format, fps=None):
         source_fmt = f.suffix.lower()[1:].upper()
@@ -348,7 +351,8 @@ def main():
             cat = conv.categories[key]
             exts_str = ", ".join(cat["extensions"])
             console.print(f" {key}. {cat['name']}: {exts_str}")
-        console.print(" 6. Compress: File/Folder")
+        console.print(" 6. Compress: ZIP, RAR, 7z, TAR.GZ")
+        console.print(" 7. Decompress: ZIP, RAR, 7z, TAR.GZ")
             
         console.print(" [bold white]A[/bold white]: Add Shortcut")
         if shortcuts:
@@ -522,9 +526,11 @@ def main():
             console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
             console.print(" 1. ZIP")
             console.print(" 2. TAR.GZ")
+            console.print(" 3. 7z")
+            console.print(" 4. RAR")
             fmt_choice = get_char("\nPick a #: ")
             
-            target_fmt = "ZIP" if fmt_choice == '1' else "TAR.GZ" if fmt_choice == '2' else None
+            target_fmt = "ZIP" if fmt_choice == '1' else "TAR.GZ" if fmt_choice == '2' else "7Z" if fmt_choice == '3' else "RAR" if fmt_choice == '4' else None
             if not target_fmt:
                 continue
                 
@@ -544,6 +550,32 @@ def main():
                 console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
             else:
                 console.print(f"\n[bold red]FAILED to compress:[/bold red]")
+                console.print(f"   [dim]{error.strip()}[/dim]")
+            
+            get_char("\nPress any key to continue...")
+            continue
+            
+        if choice == '7':
+            console.print(f"\n[bold yellow]Enter archive file path to decompress:[/bold yellow]")
+            flush_stdin()
+            path = clean_path(get_input("Path: "))
+            flush_stdin()
+            
+            if not path:
+                continue
+                
+            console.print(f"\n[bold yellow]Enter output directory (leave blank for default):[/bold yellow]")
+            flush_stdin()
+            out_dir = clean_path(get_input("Dir: "))
+            flush_stdin()
+            if not out_dir:
+                out_dir = None
+                
+            success, error = conv.decompress(path, out_dir)
+            if success:
+                console.print(f"\n[bold green]Successfully decompressed archive.[/bold green]")
+            else:
+                console.print(f"\n[bold red]FAILED to decompress:[/bold red]")
                 console.print(f"   [dim]{error.strip()}[/dim]")
             
             get_char("\nPress any key to continue...")
