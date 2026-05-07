@@ -19,7 +19,7 @@ help:
 
 setup:
 	@echo "Checking Python dependencies..."
-	$(PYTHON) -m pip install rich
+	$(PYTHON) -m pip install -r requirements.txt
 	@echo "Checking System dependencies..."
 	@if command -v brew >/dev/null; then \
 		brew install ffmpeg imagemagick pandoc ghostscript; \

@@ -63,7 +63,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
     ```bash
     make setup
     ```
-    *This will install the `rich` Python library and attempt to install `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` using your system's package manager (`brew`, `apt`, `dnf`, or `pacman`).*
+    *This will install Python dependencies from `requirements.txt` (including `rich`) and attempt to install system dependencies like `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` using your system's package manager (`brew`, `apt`, `dnf`, or `pacman`).*
 3.  **Check Dependencies**:
     ```bash
     make check
