@@ -27,8 +27,8 @@
 
 Convergent allows you to save your most frequent workflows as shortcuts for instant access.
 
-- **Create**: Press **A** in the main menu to define a new shortcut with a custom symbol (key) and label title.
-- **Remove**: Press **R** in the main menu to delete existing shortcuts.
+- **Create**: Press **+** in the main menu to define a new shortcut with a custom symbol (key) and label title.
+- **Remove**: Press **-** in the main menu to delete existing shortcuts.
 - **Example**: Create a shortcut `S` for `HEIC to JPG` to batch convert photos with one key.
 - **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip the path prompt entirely.
 - **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in the "Your Shortcuts" section of the main menu.
@@ -77,6 +77,13 @@ Simply run the following command and follow the on-screen prompts:
 ```bash
 make start
 ```
+
+### Desktop Shortcut
+Create a clickable terminal script to launch Convergent from anywhere (e.g., your Desktop) without manual navigation:
+```bash
+make shortcut
+```
+*This generates a `.command` file that you can double-click to open Terminal and run the utility instantly.*
 
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using the `ARGS` variable.

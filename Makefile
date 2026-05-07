@@ -6,13 +6,14 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start check
+.PHONY: help setup start check shortcut
 
 help:
 	@echo "Convergent Makefile Commands:"
 	@echo "  make setup     - Install necessary Python and System dependencies"
 	@echo "  make check     - Probe system dependencies to ensure everything is installed"
 	@echo "  make start     - Run the converter (Interactive or with flags)"
+	@echo "  make shortcut  - Create a clickable Desktop shortcut to run Convergent"
 	@echo ""
 	@echo "Usage with flags:"
 	@echo "  make start ARGS=\"--from JPG --to PNG --path ./images\""
@@ -39,3 +40,15 @@ start:
 
 check:
 	@$(PYTHON) customs/check_deps.py
+
+shortcut:
+	@printf "Path (default: ~/Desktop): "; \
+	read DEST_DIR; \
+	DEST_DIR=$${DEST_DIR:-$(HOME)/Desktop}; \
+	printf "Name (default: Convergent): "; \
+	read SHORTCUT_NAME; \
+	SHORTCUT_NAME=$${SHORTCUT_NAME:-Convergent}; \
+	DEST_PATH="$$DEST_DIR/$$SHORTCUT_NAME.command"; \
+	echo "#!/bin/bash\ncd \"$(CURDIR)\"\nmake start" > "$$DEST_PATH"; \
+	chmod +x "$$DEST_PATH"; \
+	echo "Done! Created $$DEST_PATH"
