@@ -167,6 +167,9 @@ class Converter:
     def split_pdf(self, path):
         return pdf_manip.split_pdf(path)
 
+    def split_video(self, path):
+        return video.split_video(path)
+
     def compress(self, path, output_name, format_choice, password=None):
         return compress.compress(path, output_name, format_choice, password)
 
@@ -347,7 +350,7 @@ def main():
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
         label_w = 14
         console.print(f" [bold cyan]0.[/bold cyan] {'Combine:'.ljust(label_w)} pdf")
-        console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} pdf")
+        console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} pdf, mp4")
         for key in sorted(conv.categories.keys()):
             cat = conv.categories[key]
             exts_str = ", ".join(cat["extensions"]).lower()
@@ -507,12 +510,19 @@ def main():
             continue
             
         if choice == '1':
-            console.print(f"\n[bold yellow]Enter PDF file path to split:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter PDF or MP4 file path to split:[/bold yellow]")
+            console.print("[dim](Tip: You can drag and drop a file into this window)[/dim]")
             flush_stdin()
             path = clean_path(get_input("Path: "))
             flush_stdin()
             if path:
-                conv.split_pdf(path)
+                p = Path(path)
+                if p.suffix.lower() == ".pdf":
+                    conv.split_pdf(path)
+                elif p.suffix.lower() == ".mp4":
+                    conv.split_video(path)
+                else:
+                    console.print(f"[bold red]Error: Unsupported file type '{p.suffix}'. Only PDF and MP4 are supported for splitting.[/bold red]")
                 get_char("\nPress any key to continue...")
             continue
             
