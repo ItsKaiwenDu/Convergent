@@ -20,11 +20,17 @@ help:
 setup:
 	@echo "Checking Python dependencies..."
 	$(PYTHON) -m pip install rich
-	@echo "Checking System dependencies (Homebrew required)..."
+	@echo "Checking System dependencies..."
 	@if command -v brew >/dev/null; then \
 		brew install ffmpeg imagemagick pandoc ghostscript; \
+	elif command -v apt >/dev/null; then \
+		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript; \
+	elif command -v dnf >/dev/null; then \
+		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript; \
+	elif command -v pacman >/dev/null; then \
+		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript; \
 	else \
-		echo "Warning: Homebrew not found. Please install FFmpeg, ImageMagick, Pandoc, and Ghostscript manually."; \
+		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, and Ghostscript manually."; \
 	fi
 	@echo "Setup complete!"
 

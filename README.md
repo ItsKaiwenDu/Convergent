@@ -47,7 +47,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
 
 > [!NOTE]
-> **Compatibility**: This utility is **macOS-first**. Linux is supported but requires manual dependency installation. Windows is **not supported** due to the `tty` terminal dependency.
+> **Compatibility**: This utility is **macOS-first**. Linux is supported and dependencies can be automatically installed via `apt`, `dnf`, or `pacman`. Windows is **not supported** due to the `tty` terminal dependency.
 
 ## Getting Started
 
@@ -63,7 +63,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
     ```bash
     make setup
     ```
-    *This will install the `rich` Python library and attempt to install `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` via Homebrew.*
+    *This will install the `rich` Python library and attempt to install `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` using your system's package manager (`brew`, `apt`, `dnf`, or `pacman`).*
 3.  **Check Dependencies**:
     ```bash
     make check
