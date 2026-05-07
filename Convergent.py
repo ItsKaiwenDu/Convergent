@@ -342,35 +342,37 @@ def main():
         if shortcuts:
             console.print("\n[bold yellow]Your Shortcuts:[/bold yellow]")
             for sym, sc in shortcuts.items():
-                console.print(f" [bold]{sym}[/bold]. {sc['title']}")
+                console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
 
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
-        console.print(" 0. Combine: PDF")
-        console.print(" 1. Split: PDF")
+        label_w = 14
+        console.print(f" [bold cyan]0.[/bold cyan] {'Combine:'.ljust(label_w)} pdf")
+        console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} pdf")
         for key in sorted(conv.categories.keys()):
             cat = conv.categories[key]
-            exts_str = ", ".join(cat["extensions"])
-            console.print(f" {key}. {cat['name']}: {exts_str}")
-        console.print(" 6. Compress: ZIP, RAR, 7z, TAR.GZ")
-        console.print(" 7. Decompress: ZIP, RAR, 7z, TAR.GZ")
+            exts_str = ", ".join(cat["extensions"]).lower()
+            console.print(f" [bold cyan]{key}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
+        console.print(f" [bold cyan]6.[/bold cyan] {'Compress:'.ljust(label_w)} zip, rar, 7z, tar.gz")
+        console.print(f" [bold cyan]7.[/bold cyan] {'Decompress:'.ljust(label_w)} zip, rar, 7z, tar.gz")
             
-        console.print(" [bold white]A[/bold white]: Add Shortcut")
+        console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
-            console.print(" [bold white]R[/bold white]: Remove Shortcut")
-        console.print(" [bold white]Q[/bold white]: Quit")
+            console.print(" [bold white]-.[/bold white] Remove Shortcut")
+        console.print(" [bold white]Q.[/bold white] Quit")
         
         choice = get_char("\nPick a #: ")
         if choice.lower() == 'q':
             break
             
-        if choice.lower() == 'a':
+        if choice == '+':
             console.print("\n\n[bold yellow]--- Add New Shortcut ---[/bold yellow]")
             console.print("Select source category:")
             category_keys = sorted(conv.categories.keys())
+            label_w = 14
             for i, key in enumerate(category_keys, 1):
                 cat = conv.categories[key]
-                exts_str = ", ".join(cat["extensions"])
-                console.print(f" [bold]{i}[/bold]. {cat['name']}: {exts_str}")
+                exts_str = ", ".join(cat["extensions"]).lower()
+                console.print(f" [bold cyan]{i}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
             console.print(" [bold white]C[/bold white]. Cancel")
             cat_choice = get_char("\nPick category #: ")
             
@@ -397,7 +399,7 @@ def main():
             
             console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
             for i, fmt in enumerate(sorted_targets, 1):
-                console.print(f" {i}. {fmt}")
+                console.print(f" {i}. {fmt.lower()}")
                 
             target_choice = get_char("\nPick target #: ")
             try:
@@ -419,7 +421,7 @@ def main():
             flush_stdin()
             sym = get_input("\nInput a single symbol/key for this shortcut (e.g., 'S'): ").strip().upper()
             
-            reserved_keys = [str(i) for i in range(10)] + ['A', 'R', 'Q']
+            reserved_keys = [str(i) for i in range(10)] + ['+', '-', 'Q']
             if sym in reserved_keys:
                 console.print(f"\n[bold red][!] '{sym}' is a reserved key. Please choose a letter not in: {' '.join(reserved_keys)}[/bold red]")
                 get_char("\nPress any key to continue...")
@@ -439,11 +441,11 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
 
-        if choice.lower() == 'r' and shortcuts:
+        if choice == '-' and shortcuts:
             console.print("\n\n[bold yellow]--- Remove Shortcut ---[/bold yellow]")
             console.print("Existing shortcuts:")
             for sym, sc in shortcuts.items():
-                console.print(f" [bold]{sym}[/bold]. {sc['title']}")
+                console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
             console.print(" [bold white]C[/bold white]. Cancel")
             
             sym_to_remove = get_input("\nEnter symbol to remove (or 'C' to cancel): ").strip().upper()
@@ -596,7 +598,7 @@ def main():
         
         console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
         for i, fmt in enumerate(sorted_targets, 1):
-            console.print(f" {i}. {fmt}")
+            console.print(f" {i}. {fmt.lower()}")
         console.print(" [bold white]B[/bold white]. Back")
         
         target_choice = get_char("\nPick a #: ")
