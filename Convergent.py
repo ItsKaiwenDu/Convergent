@@ -131,15 +131,20 @@ class Converter:
             "RTF": ["PDF"],
             "JPG": ["PNG", "WEBP", "PDF"],
             "PNG": ["JPG", "WEBP", "PDF"],
+            "WEBP": ["JPG", "PNG", "PDF"],
             "MP4": ["MOV", "WEBM", "GIF", "MP3"],
+            "WEBM": ["MOV", "MP4", "GIF", "AVI", "MP3"],
+            "GIF": ["MOV", "MP4", "WEBM", "AVI"],
+            "AVI": ["MOV", "MP4", "WEBM", "GIF", "MP3"],
             "WAV": ["MP3", "M4A"],
             "M4A": ["MP3", "WAV"],
+            "MP3": ["WAV", "M4A"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
-            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG"]},
-            "3": {"name": "Video", "extensions": ["MOV", "MP4"]},
-            "4": {"name": "Audio", "extensions": ["WAV", "M4A"]},
+            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP"]},
+            "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
+            "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
             "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF"]},
         }
 
@@ -190,13 +195,13 @@ class Converter:
         
         if source_fmt == "HEIC":
             success, error = self.convert_heic(f, target_format)
-        elif source_fmt in ["MOV", "MP4"]:
+        elif source_fmt in ["MOV", "MP4", "WEBM", "GIF", "AVI"]:
             success, error = self.convert_video(f, target_format, fps=fps)
         elif source_fmt in ["WAV", "M4A", "MP3"]:
             success, error = self.convert_audio(f, target_format)
         elif source_fmt in ["DOCX", "PPTX", "RTF"]:
             success, error = self.convert_office(f, target_format)
-        elif source_fmt in ["JPG", "PNG"]:
+        elif source_fmt in ["JPG", "PNG", "WEBP"]:
             success, error = self.convert_image(f, target_format)
             
         return f.name, success, error
