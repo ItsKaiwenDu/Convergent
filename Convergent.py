@@ -82,9 +82,9 @@ def get_char(prompt):
     console.print(ch)
     return ch
 
-def clean_path(path_str):
+def clean_paths(path_str):
     if not path_str:
-        return ""
+        return []
     import shlex
     # Remove internal newlines/tabs that might come from messy copy-pastes
     path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
@@ -92,15 +92,16 @@ def clean_path(path_str):
     try:
         # Handle shell-escaped paths and quoted paths
         # shlex.split correctly handles cases like 'History\ \&\ Practice.pdf'
+        # or multiple paths like '/path/1' '/path/2'
         if "\\" in path_str or "'" in path_str or '"' in path_str:
             parts = shlex.split(path_str)
             if parts:
-                return " ".join(parts).strip()
+                return [p.strip() for p in parts if p.strip()]
     except:
         pass
     
-    # Fallback to manual stripping of quotes
-    return path_str.strip("'").strip('"').strip()
+    # Fallback to manual stripping of quotes if shlex fails or no special chars
+    return [path_str.strip("'").strip('"').strip()]
 
 def flush_stdin():
     try:
@@ -163,8 +164,8 @@ class Converter:
     def convert_image(self, source, target_ext):
         return image.convert_image(source, target_ext)
 
-    def combine_pdfs(self, path):
-        return pdf_manip.combine_pdfs(path)
+    def combine_pdfs(self, paths):
+        return pdf_manip.combine_pdfs(paths)
 
     def get_pdf_page_count(self, path):
         return pdf_manip.get_pdf_page_count(path)
@@ -175,8 +176,8 @@ class Converter:
     def split_video(self, path):
         return video.split_video(path)
 
-    def compress(self, path, output_name, format_choice, password=None):
-        return compress.compress(path, output_name, format_choice, password)
+    def compress(self, paths, output_name, format_choice, password=None):
+        return compress.compress(paths, output_name, format_choice, password)
 
     def decompress(self, path, output_dir=None):
         return decompress.decompress(path, output_dir)
@@ -206,25 +207,28 @@ class Converter:
             
         return f.name, success, error
 
-    def process(self, source_formats, target_format, path, fps=None, jobs=None, overwrite=False, skip=False):
-        path_obj = Path(os.path.expanduser(path))
+    def process(self, source_formats, target_format, paths, fps=None, jobs=None, overwrite=False, skip=False):
+        if isinstance(paths, str):
+            paths = [paths]
+            
         files = []
-        
         source_fmts_upper = [fmt.upper() for fmt in source_formats]
         
-        if path_obj.is_file():
-            ext = path_obj.suffix.lower()[1:].upper()
-            if ext in source_fmts_upper:
-                files = [path_obj]
-        elif path_obj.is_dir():
-            for item in path_obj.iterdir():
-                if item.is_file():
-                    ext = item.suffix.lower()[1:].upper()
-                    if ext in source_fmts_upper:
-                        files.append(item)
+        for p in paths:
+            path_obj = Path(os.path.expanduser(p))
+            if path_obj.is_file():
+                ext = path_obj.suffix.lower()[1:].upper()
+                if ext in source_fmts_upper:
+                    files.append(path_obj)
+            elif path_obj.is_dir():
+                for item in path_obj.iterdir():
+                    if item.is_file():
+                        ext = item.suffix.lower()[1:].upper()
+                        if ext in source_fmts_upper:
+                            files.append(item)
         
         if not files:
-            console.print(f"[bold red]No matching files found at {path}[/bold red]")
+            console.print(f"[bold red]No matching files found in the provided paths.[/bold red]")
             return
 
         # --- Overwrite Guard ---
@@ -338,7 +342,9 @@ def main():
             console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
             sys.exit(1)
             
-        conv.process([source_fmt], target_fmt, args.path, fps=args.fps, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip)
+        # For CLI, we treat the path as a single path or split it if it looks like multiple
+        paths = clean_paths(args.path)
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip)
         return
 
     while True:
@@ -423,7 +429,8 @@ def main():
             fixed_path = ""
             if fix_path.lower() == 'y':
                 flush_stdin()
-                fixed_path = clean_path(get_input("\nEnter path: "))
+                fixed_paths = clean_paths(get_input("\nEnter path: "))
+                fixed_path = " ".join([f'"{p}"' for p in fixed_paths]) if fixed_paths else ""
                 flush_stdin()
                 
             flush_stdin()
@@ -493,51 +500,54 @@ def main():
             
             if not path:
                 console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
-                console.print(f"[bold yellow]Enter file or folder path:[/bold yellow]")
-                console.print("[dim](Tip: You can drag and drop a file or folder into this window)[/dim]")
+                console.print(f"[bold yellow]Enter file or folder path(s):[/bold yellow]")
+                console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
                 flush_stdin()
-                path = clean_path(get_input("Path: "))
+                paths = clean_paths(get_input("Path: "))
                 flush_stdin()
+            else:
+                paths = clean_paths(path)
                 
-            if path:
-                conv.process(source_fmts, target_fmt, path, fps=fps)
+            if paths:
+                conv.process(source_fmts, target_fmt, paths, fps=fps)
                 get_char("\nPress any key to continue...")
             continue
         
         if choice == '0':
-            console.print(f"\n[bold yellow]Enter folder path containing PDFs:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter folder path or multiple PDF files:[/bold yellow]")
             flush_stdin()
-            path = clean_path(get_input("Path: "))
+            paths = clean_paths(get_input("Path: "))
             flush_stdin()
-            if path:
-                conv.combine_pdfs(path)
+            if paths:
+                conv.combine_pdfs(paths)
                 get_char("\nPress any key to continue...")
             continue
             
         if choice == '1':
-            console.print(f"\n[bold yellow]Enter PDF or MP4 file path to split:[/bold yellow]")
-            console.print("[dim](Tip: You can drag and drop a file into this window)[/dim]")
+            console.print(f"\n[bold yellow]Enter file path(s) to split (PDF or MP4):[/bold yellow]")
+            console.print("[dim](Tip: You can drag and drop multiple files into this window)[/dim]")
             flush_stdin()
-            path = clean_path(get_input("Path: "))
+            paths = clean_paths(get_input("Path: "))
             flush_stdin()
-            if path:
-                p = Path(path)
-                if p.suffix.lower() == ".pdf":
-                    conv.split_pdf(path)
-                elif p.suffix.lower() == ".mp4":
-                    conv.split_video(path)
-                else:
-                    console.print(f"[bold red]Error: Unsupported file type '{p.suffix}'. Only PDF and MP4 are supported for splitting.[/bold red]")
+            if paths:
+                for path in paths:
+                    p = Path(path)
+                    if p.suffix.lower() == ".pdf":
+                        conv.split_pdf(path)
+                    elif p.suffix.lower() == ".mp4":
+                        conv.split_video(path)
+                    else:
+                        console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF and MP4 are supported for splitting.[/bold red]")
                 get_char("\nPress any key to continue...")
             continue
             
         if choice == '6':
-            console.print(f"\n[bold yellow]Enter file or folder path to compress:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter file or folder path(s) to compress:[/bold yellow]")
             flush_stdin()
-            path = clean_path(get_input("Path: "))
+            paths = clean_paths(get_input("Path: "))
             flush_stdin()
             
-            if not path:
+            if not paths:
                 continue
                 
             console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
@@ -562,7 +572,7 @@ def main():
             if not output_name:
                 output_name = f"compressed.{target_fmt.lower()}"
                 
-            success, error = conv.compress(path, output_name, target_fmt, password)
+            success, error = conv.compress(paths, output_name, target_fmt, password)
             if success:
                 console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
             else:
@@ -573,27 +583,27 @@ def main():
             continue
             
         if choice == '7':
-            console.print(f"\n[bold yellow]Enter archive file path to decompress:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter archive file path(s) to decompress:[/bold yellow]")
             flush_stdin()
-            path = clean_path(get_input("Path: "))
+            paths = clean_paths(get_input("Path: "))
             flush_stdin()
             
-            if not path:
+            if not paths:
                 continue
                 
             console.print(f"\n[bold yellow]Enter output directory (leave blank for default):[/bold yellow]")
             flush_stdin()
-            out_dir = clean_path(get_input("Dir: "))
+            out_dirs = clean_paths(get_input("Dir: "))
+            out_dir = out_dirs[0] if out_dirs else None
             flush_stdin()
-            if not out_dir:
-                out_dir = None
                 
-            success, error = conv.decompress(path, out_dir)
-            if success:
-                console.print(f"\n[bold green]Successfully decompressed archive.[/bold green]")
-            else:
-                console.print(f"\n[bold red]FAILED to decompress:[/bold red]")
-                console.print(f"   [dim]{error.strip()}[/dim]")
+            for path in paths:
+                success, error = conv.decompress(path, out_dir)
+                if success:
+                    console.print(f"\n[bold green]Successfully decompressed {Path(path).name}.[/bold green]")
+                else:
+                    console.print(f"\n[bold red]FAILED to decompress {Path(path).name}:[/bold red]")
+                    console.print(f"   [dim]{error.strip()}[/dim]")
             
             get_char("\nPress any key to continue...")
             continue
@@ -640,16 +650,16 @@ def main():
             elif fps_choice == '3':
                 fps = 60
             
-        console.print(f"\n[bold yellow]Enter file or folder path:[/bold yellow]")
-        console.print("[dim](Tip: You can drag and drop a file or folder into this window)[/dim]")
+        console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
+        console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
         flush_stdin()
-        path = clean_path(get_input("Path: "))
+        paths = clean_paths(get_input("Path: "))
         flush_stdin()
         
-        if not path:
+        if not paths:
             continue
             
-        conv.process(source_fmts, target_fmt, path, fps=fps)
+        conv.process(source_fmts, target_fmt, paths, fps=fps)
         get_char("\nPress any key to continue...")
 
 if __name__ == "__main__":

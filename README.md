@@ -9,7 +9,7 @@
 
 -   **Interactive Menu**: A streamlined numeric interface with category-based source auto-detection for faster workflows.
 -   **Parallel Processing**: High-speed batch conversions using multi-core execution (configurable via `--jobs`).
--   **Batch Processing**: Convert entire directories of files in one command.
+-   **Batch Processing**: Convert entire directories or a **space-separated list of files** in one command.
 -   **Multi-Format Support**:
     -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages, custom ranges, or a specific number of equal parts.
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
@@ -18,7 +18,8 @@
     -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc).
     -   **Archives**: Compress files and folders into **ZIP**, **TAR.GZ**, **7z**, or **RAR** archives (with optional password protection for supported formats). Decompress existing archives to a target directory.
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
--   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop) and messy copy-pastes with hidden newlines.
+-   **Multi-File Drag-and-Drop**: Drag multiple individual files (or folders) into the terminal. Convergent handles the space-separated list of paths automatically, even if they contain spaces or special characters.
+-   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop), quoted paths, and messy copy-pastes with hidden newlines.
 -   **Quick Shortcuts**: Create and save persistent conversion workflows to trigger them with a single keystroke. Optionally fix a target path to skip prompts entirely.
 -   **Overwrite Guard**: Protects against accidental data loss by prompting before overwriting existing files. Includes `--overwrite` and `--skip` flags for automated control.
 -   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.

@@ -62,22 +62,43 @@ def get_pdf_page_count(path):
         pass
     return 0
 
-def combine_pdfs(path):
-    path_obj = Path(os.path.expanduser(path))
-    if not path_obj.is_dir():
-        console.print("[bold red]Error: PDF Combiner requires a directory path.[/bold red]")
-        return
-    pdf_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
-    if not pdf_files:
-        console.print("[bold red]No PDF files found in the directory.[/bold red]")
-        return
+def combine_pdfs(paths):
+    if isinstance(paths, str):
+        paths = [paths]
+    
+    pdf_files = []
+    
+    if len(paths) == 1:
+        path_obj = Path(os.path.expanduser(paths[0]))
+        if path_obj.is_dir():
+            pdf_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
+            if not pdf_files:
+                console.print("[bold red]No PDF files found in the directory.[/bold red]")
+                return
+            base_dir = path_obj
+        else:
+            pdf_files = [path_obj]
+            base_dir = path_obj.parent
+    else:
+        for p in paths:
+            path_obj = Path(os.path.expanduser(p))
+            if path_obj.is_file() and path_obj.suffix.lower() == ".pdf":
+                pdf_files.append(path_obj)
+            elif path_obj.is_dir():
+                pdf_files.extend(sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"]))
+        
+        if not pdf_files:
+            console.print("[bold red]No PDF files found in the provided paths.[/bold red]")
+            return
+        base_dir = pdf_files[0].parent
+
     console.print(f"[bold cyan]Found {len(pdf_files)} PDF files to combine...[/bold cyan]")
     output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ")
     if not output_name:
         output_name = "combined.pdf"
     if not output_name.endswith(".pdf"):
         output_name += ".pdf"
-    output_path = path_obj / output_name
+    output_path = base_dir / output_name
     cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={output_path}", "-dBATCH"] + [str(f) for f in pdf_files]
     success, error = run_command(cmd)
     if success:

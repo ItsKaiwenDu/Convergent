@@ -27,10 +27,15 @@ def run_command(cmd, cwd=None):
     except Exception as e:
         return False, str(e)
 
-def compress(path, output_name, format_choice, password=None):
-    path_obj = Path(os.path.expanduser(path)).resolve()
-    if not path_obj.exists():
-        return False, f"Path does not exist: {path}"
+def compress(paths, output_name, format_choice, password=None):
+    if isinstance(paths, str):
+        paths = [paths]
+        
+    path_objs = [Path(os.path.expanduser(p)).resolve() for p in paths]
+    valid_paths = [p for p in path_objs if p.exists()]
+    
+    if not valid_paths:
+        return False, "No valid paths provided for compression."
     
     # Ensure output name has correct extension
     if format_choice == "ZIP" and not output_name.lower().endswith(".zip"):
@@ -42,24 +47,32 @@ def compress(path, output_name, format_choice, password=None):
     elif format_choice == "RAR" and not output_name.lower().endswith(".rar"):
         output_name += ".rar"
         
-    output_path = path_obj.parent / output_name
-    cwd = path_obj.parent
+    # We'll put the output in the same directory as the first valid path's parent
+    output_path = valid_paths[0].parent / output_name
+    cwd = valid_paths[0].parent
+    
+    # Use relative paths for the command to avoid absolute paths in the archive
+    rel_paths = []
+    for p in valid_paths:
+        try:
+            rel_paths.append(str(p.relative_to(cwd)))
+        except ValueError:
+            # If not in the same directory tree, use absolute path (less ideal but necessary)
+            rel_paths.append(str(p))
     
     if format_choice == "ZIP":
         if password:
-            # -r for recursive, -P for password
-            cmd = ["zip", "-P", password, "-r", str(output_path), path_obj.name]
+            cmd = ["zip", "-P", password, "-r", str(output_path)] + rel_paths
         else:
-            cmd = ["zip", "-r", str(output_path), path_obj.name]
+            cmd = ["zip", "-r", str(output_path)] + rel_paths
     elif format_choice == "TAR.GZ":
-        # -c create, -z gzip, -f file
-        cmd = ["tar", "-czf", str(output_path), path_obj.name]
+        cmd = ["tar", "-czf", str(output_path)] + rel_paths
     elif format_choice == "7Z":
-        cmd = ["7z", "a", str(output_path), path_obj.name]
+        cmd = ["7z", "a", str(output_path)] + rel_paths
         if password:
             cmd.insert(2, f"-p{password}")
     elif format_choice == "RAR":
-        cmd = ["rar", "a", str(output_path), path_obj.name]
+        cmd = ["rar", "a", str(output_path)] + rel_paths
         if password:
             cmd.insert(2, f"-p{password}")
     else:
