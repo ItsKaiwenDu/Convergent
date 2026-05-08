@@ -37,7 +37,6 @@ def compress(paths, output_name, format_choice, password=None):
     if not valid_paths:
         return False, "No valid paths provided for compression."
     
-    # Ensure output name has correct extension
     if format_choice == "ZIP" and not output_name.lower().endswith(".zip"):
         output_name += ".zip"
     elif format_choice == "TAR.GZ" and not (output_name.lower().endswith(".tar.gz") or output_name.lower().endswith(".tgz")):
@@ -47,7 +46,6 @@ def compress(paths, output_name, format_choice, password=None):
     elif format_choice == "RAR" and not output_name.lower().endswith(".rar"):
         output_name += ".rar"
         
-    # We'll put the output in the same directory as the first valid path's parent
     output_path = valid_paths[0].parent / output_name
     cwd = valid_paths[0].parent
     

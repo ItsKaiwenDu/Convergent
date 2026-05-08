@@ -86,7 +86,6 @@ def clean_paths(path_str):
     if not path_str:
         return []
     import shlex
-    # Remove internal newlines/tabs that might come from messy copy-pastes
     path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
     
     try:
@@ -185,7 +184,6 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None):
         source_fmt = f.suffix.lower()[1:].upper()
         
-        # Check if this specific source format supports the target format
         if target_format not in self.formats.get(source_fmt, []):
             if source_fmt == target_format:
                 return f.name, True, "Skipped (Same format)"
@@ -231,7 +229,6 @@ class Converter:
             console.print(f"[bold red]No matching files found in the provided paths.[/bold red]")
             return
 
-        # --- Overwrite Guard ---
         collisions = []
         for f in files:
             output = f.with_suffix(f".{target_format.lower()}")
@@ -266,7 +263,6 @@ class Converter:
         if not files:
             console.print("[bold green]All files already exist and were skipped.[/bold green]")
             return
-        # -----------------------
 
         console.print(f"[bold cyan]Found {len(files)} files to convert...[/bold cyan]")
         
@@ -614,7 +610,6 @@ def main():
         category = conv.categories[choice]
         source_fmts = category["extensions"]
         
-        # Determine available targets for this category (union of targets)
         available_targets = set()
         for fmt in source_fmts:
             available_targets.update(conv.formats.get(fmt, []))

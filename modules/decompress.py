@@ -24,7 +24,6 @@ def decompress(path, output_dir=None):
     else:
         output_dir = Path(output_dir).resolve()
         
-    # Ensure output dir exists
     output_dir.mkdir(parents=True, exist_ok=True)
     cwd = path_obj.parent
     
