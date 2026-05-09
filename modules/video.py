@@ -111,8 +111,11 @@ def split_video(path):
     console.print(" 1. Fixed Segments (e.g., every 60 seconds)")
     console.print(" 2. Custom Range (e.g., 00:00:00-00:01:00)")
     console.print(" 3. Split into N parts")
+    console.print(" [bold white]B[/bold white]. Back")
     
     mode = get_char("\nPick a #: ")
+    if mode.lower() == 'b':
+        return
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
     output_dir.mkdir(exist_ok=True)
     

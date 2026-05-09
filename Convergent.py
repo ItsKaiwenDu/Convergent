@@ -410,8 +410,12 @@ def main():
             console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
             for i, fmt in enumerate(sorted_targets, 1):
                 console.print(f" {i}. {fmt.lower()}")
+            console.print(" [bold white]B[/bold white]. Back")
                 
             target_choice = get_char("\nPick target #: ")
+            if target_choice.lower() == 'b':
+                continue
+                
             try:
                 to_idx = int(target_choice) - 1
                 if to_idx < 0 or to_idx >= len(sorted_targets):
@@ -488,7 +492,10 @@ def main():
                 console.print(" 1. Original FPS")
                 console.print(" 2. 30 FPS")
                 console.print(" 3. 60 FPS")
+                console.print(" [bold white]B[/bold white]. Back")
                 fps_choice = get_char("\nPick a #: ")
+                if fps_choice.lower() == 'b':
+                    continue
                 if fps_choice == '2':
                     fps = 30
                 elif fps_choice == '3':
@@ -551,8 +558,12 @@ def main():
             console.print(" 2. TAR.GZ")
             console.print(" 3. 7z")
             console.print(" 4. RAR")
+            console.print(" [bold white]B[/bold white]. Back")
             fmt_choice = get_char("\nPick a #: ")
             
+            if fmt_choice.lower() == 'b':
+                continue
+                
             target_fmt = "ZIP" if fmt_choice == '1' else "TAR.GZ" if fmt_choice == '2' else "7Z" if fmt_choice == '3' else "RAR" if fmt_choice == '4' else None
             if not target_fmt:
                 continue
@@ -639,7 +650,10 @@ def main():
             console.print(" 1. Original FPS")
             console.print(" 2. 30 FPS")
             console.print(" 3. 60 FPS")
+            console.print(" [bold white]B[/bold white]. Back")
             fps_choice = get_char("\nPick a #: ")
+            if fps_choice.lower() == 'b':
+                continue
             if fps_choice == '2':
                 fps = 30
             elif fps_choice == '3':

@@ -124,7 +124,10 @@ def split_pdf(path):
     console.print(" 1. Individual Pages (every page becomes its own PDF)")
     console.print(" 2. Custom Split (e.g., 1-5, 6-10...)")
     console.print(" 3. Split into N parts")
+    console.print(" [bold white]B[/bold white]. Back")
     mode = get_char("\nPick a #: ")
+    if mode.lower() == 'b':
+        return
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
     output_dir.mkdir(exist_ok=True)
     if mode == '1':
