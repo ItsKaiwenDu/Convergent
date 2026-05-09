@@ -92,7 +92,14 @@ def combine_pdfs(paths):
             return
         base_dir = pdf_files[0].parent
 
-    console.print(f"[bold cyan]Found {len(pdf_files)} PDF files to combine...[/bold cyan]")
+    num_files = len(pdf_files)
+    if num_files > 50:
+        console.print(f"\n[bold yellow]Found {num_files} PDF files. Proceed? (y/n)[/bold yellow]")
+        if get_char("   Choice: ").lower() != 'y':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return
+
+    console.print(f"[bold cyan]Found {num_files} PDF files to combine...[/bold cyan]")
     output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ")
     if not output_name:
         output_name = "combined.pdf"
@@ -131,6 +138,11 @@ def split_pdf(path):
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
     output_dir.mkdir(exist_ok=True)
     if mode == '1':
+        if total_pages > 50:
+            console.print(f"\n[bold yellow]Found {total_pages} pages to split. Proceed? (y/n)[/bold yellow]")
+            if get_char("   Choice: ").lower() != 'y':
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
         console.print(f"[bold cyan]Splitting into {total_pages} individual pages...[/bold cyan]")
         output_pattern = output_dir / "page_%03d.pdf"
         cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(output_pattern), str(path_obj)]

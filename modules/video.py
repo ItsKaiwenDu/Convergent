@@ -128,8 +128,15 @@ def split_video(path):
             console.print("[bold red]Invalid interval.[/bold red]")
             return
         
-        console.print(f"[bold cyan]Splitting into segments of {interval}s...[/bold cyan]")
         num_segments = int(duration // interval) + (1 if duration % interval > 0 else 0)
+        
+        if num_segments > 50:
+            console.print(f"\n[bold yellow]Found {num_segments} segments to create. Proceed? (y/n)[/bold yellow]")
+            if get_char("   Choice: ").lower() != 'y':
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
+
+        console.print(f"[bold cyan]Splitting into segments of {interval}s...[/bold cyan]")
         
         for i in range(num_segments):
             start = i * interval
@@ -178,6 +185,12 @@ def split_video(path):
             return
             
         interval = duration / num_parts
+        if num_parts > 50:
+            console.print(f"\n[bold yellow]Found {num_parts} parts to create. Proceed? (y/n)[/bold yellow]")
+            if get_char("   Choice: ").lower() != 'y':
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
+
         console.print(f"[bold cyan]Splitting into {num_parts} equal parts (~{interval:.2f}s each)...[/bold cyan]")
         
         for i in range(num_parts):

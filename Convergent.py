@@ -264,7 +264,14 @@ class Converter:
             console.print("[bold green]All files already exist and were skipped.[/bold green]")
             return
 
-        console.print(f"[bold cyan]Found {len(files)} files to convert...[/bold cyan]")
+        num_files = len(files)
+        if num_files > 50:
+            console.print(f"\n[bold yellow]Found {num_files} files. Proceed? (y/n)[/bold yellow]")
+            if get_char("   Choice: ").lower() != 'y':
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return
+
+        console.print(f"[bold cyan]Found {num_files} files to convert...[/bold cyan]")
         
         if not jobs:
             jobs = multiprocessing.cpu_count()
@@ -552,6 +559,23 @@ def main():
             
             if not paths:
                 continue
+
+            total_files = 0
+            for p in paths:
+                path_obj = Path(os.path.expanduser(p))
+                if path_obj.is_file():
+                    total_files += 1
+                elif path_obj.is_dir():
+                    for _ in path_obj.rglob('*'):
+                        if _.is_file():
+                            total_files += 1
+            
+            if total_files > 50:
+                console.print(f"\n[bold yellow]Found {total_files} files to compress. Proceed? (y/n)[/bold yellow]")
+                if get_char("   Choice: ").lower() != 'y':
+                    console.print("[yellow]Operation cancelled.[/yellow]")
+                    get_char("\nPress any key to continue...")
+                    continue
                 
             console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
             console.print(" 1. ZIP")
@@ -604,6 +628,14 @@ def main():
             out_dir = out_dirs[0] if out_dirs else None
             flush_stdin()
                 
+            num_archives = len(paths)
+            if num_archives > 50:
+                console.print(f"\n[bold yellow]Found {num_archives} archives to decompress. Proceed? (y/n)[/bold yellow]")
+                if get_char("   Choice: ").lower() != 'y':
+                    console.print("[yellow]Operation cancelled.[/yellow]")
+                    get_char("\nPress any key to continue...")
+                    continue
+
             for path in paths:
                 success, error = conv.decompress(path, out_dir)
                 if success:
