@@ -26,6 +26,7 @@ Description:
 """
 
 import os
+import time
 import subprocess
 import sys
 import tty
@@ -79,7 +80,7 @@ def get_char(prompt):
     if ch == '\x03':
         raise KeyboardInterrupt
         
-    console.print(ch)
+    console.print(ch, end="")
     return ch
 
 def clean_paths(path_str):
@@ -242,16 +243,20 @@ class Converter:
             while True:
                 choice = get_char("   Choice: ").lower()
                 if choice == 'o':
+                    console.print()
                     overwrite = True
                     break
                 elif choice == 's':
+                    console.print()
                     skip = True
                     break
                 elif choice == 'c':
+                    console.print()
                     console.print("[yellow]Operation cancelled.[/yellow]")
                     return
                 else:
-                    console.print("   [red]Invalid choice. Please pick O, S, or C.[/red]")
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
         
         if skip:
             original_count = len(files)
@@ -379,9 +384,11 @@ def main():
         
         choice = get_char("\nPick a #: ")
         if choice.lower() == 'q':
+            console.print()
             break
             
-        if choice == '+':
+        elif choice == '+':
+            console.print()
             console.print("\n\n[bold yellow]--- Add New Shortcut ---[/bold yellow]")
             console.print("Select source category:")
             category_keys = sorted(conv.categories.keys())
@@ -405,7 +412,11 @@ def main():
                 pass
                 
             if not selected_cat_key:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
                 continue
+            
+            console.print()
                 
             category = conv.categories[selected_cat_key]
             source_fmts = category["extensions"]
@@ -421,6 +432,7 @@ def main():
                 
             target_choice = get_char("\nPick target #: ")
             if target_choice.lower() == 'b':
+                console.print()
                 continue
                 
             try:
@@ -429,7 +441,11 @@ def main():
                     raise ValueError
                 target_fmt = sorted_targets[to_idx]
             except ValueError:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
                 continue
+            
+            console.print()
                 
             console.print(f"\n[bold yellow]Do you want to fix a file/folder path for this shortcut? (y/n)[/bold yellow]")
             fix_path = get_char("Choice: ")
@@ -463,7 +479,8 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
 
-        if choice == '-' and shortcuts:
+        elif choice == '-' and shortcuts:
+            console.print()
             console.print("\n\n[bold yellow]--- Remove Shortcut ---[/bold yellow]")
             console.print("Existing shortcuts:")
             for sym, sc in shortcuts.items():
@@ -486,7 +503,8 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
             
-        if choice.upper() in shortcuts:
+        elif choice.upper() in shortcuts:
+            console.print()
             sc = shortcuts[choice.upper()]
             category = conv.categories[sc["category"]]
             source_fmts = category["extensions"]
@@ -502,11 +520,21 @@ def main():
                 console.print(" [bold white]B[/bold white]. Back")
                 fps_choice = get_char("\nPick a #: ")
                 if fps_choice.lower() == 'b':
+                    console.print()
                     continue
-                if fps_choice == '2':
+                elif fps_choice == '1':
+                    console.print()
+                    fps = None
+                elif fps_choice == '2':
+                    console.print()
                     fps = 30
                 elif fps_choice == '3':
+                    console.print()
                     fps = 60
+                else:
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
+                    continue
             
             if not path:
                 console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
@@ -523,7 +551,8 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
         
-        if choice == '0':
+        elif choice == '0':
+            console.print()
             console.print(f"\n[bold yellow]Enter folder path or multiple PDF files:[/bold yellow]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -533,7 +562,8 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
             
-        if choice == '1':
+        elif choice == '1':
+            console.print()
             console.print(f"\n[bold yellow]Enter file path(s) to split (PDF or MP4):[/bold yellow]")
             console.print("[dim](Tip: You can drag and drop multiple files into this window)[/dim]")
             flush_stdin()
@@ -551,7 +581,8 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
             
-        if choice == '6':
+        elif choice == '6':
+            console.print()
             console.print(f"\n[bold yellow]Enter file or folder path(s) to compress:[/bold yellow]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -590,7 +621,11 @@ def main():
                 
             target_fmt = "ZIP" if fmt_choice == '1' else "TAR.GZ" if fmt_choice == '2' else "7Z" if fmt_choice == '3' else "RAR" if fmt_choice == '4' else None
             if not target_fmt:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
                 continue
+            
+            console.print()
                 
             password = None
             if target_fmt == "ZIP":
@@ -613,7 +648,8 @@ def main():
             get_char("\nPress any key to continue...")
             continue
             
-        if choice == '7':
+        elif choice == '7':
+            console.print()
             console.print(f"\n[bold yellow]Enter archive file path(s) to decompress:[/bold yellow]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -647,61 +683,80 @@ def main():
             get_char("\nPress any key to continue...")
             continue
             
-        if choice not in conv.categories:
-            continue
+        elif choice in conv.categories:
+            console.print()
             
-        category = conv.categories[choice]
-        source_fmts = category["extensions"]
-        
-        available_targets = set()
-        for fmt in source_fmts:
-            available_targets.update(conv.formats.get(fmt, []))
-        
-        sorted_targets = sorted(list(available_targets))
-        
-        console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
-        for i, fmt in enumerate(sorted_targets, 1):
-            console.print(f" {i}. {fmt.lower()}")
-        console.print(" [bold white]B[/bold white]. Back")
-        
-        target_choice = get_char("\nPick a #: ")
-        if target_choice.lower() == 'b':
-            continue
+            category = conv.categories[choice]
+            source_fmts = category["extensions"]
             
-        try:
-            to_idx = int(target_choice) - 1
-            if to_idx < 0 or to_idx >= len(sorted_targets):
-                raise ValueError
-            target_fmt = sorted_targets[to_idx]
-        except ValueError:
-            continue
+            available_targets = set()
+            for fmt in source_fmts:
+                available_targets.update(conv.formats.get(fmt, []))
             
-        fps = None
-        if target_fmt == "GIF":
-            console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
-            console.print(" 1. Original FPS")
-            console.print(" 2. 30 FPS")
-            console.print(" 3. 60 FPS")
+            sorted_targets = sorted(list(available_targets))
+            
+            console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
+            for i, fmt in enumerate(sorted_targets, 1):
+                console.print(f" {i}. {fmt.lower()}")
             console.print(" [bold white]B[/bold white]. Back")
-            fps_choice = get_char("\nPick a #: ")
-            if fps_choice.lower() == 'b':
+            
+            target_choice = get_char("\nPick a #: ")
+            if target_choice.lower() == 'b':
+                console.print()
                 continue
-            if fps_choice == '2':
-                fps = 30
-            elif fps_choice == '3':
-                fps = 60
+                
+            try:
+                to_idx = int(target_choice) - 1
+                if to_idx < 0 or to_idx >= len(sorted_targets):
+                    raise ValueError
+                target_fmt = sorted_targets[to_idx]
+            except ValueError:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
             
-        console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
-        console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
-        flush_stdin()
-        paths = clean_paths(get_input("Path: "))
-        flush_stdin()
-        
-        if not paths:
-            continue
+            console.print()
+                
+            fps = None
+            if target_fmt == "GIF":
+                console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
+                console.print(" 1. Original FPS")
+                console.print(" 2. 30 FPS")
+                console.print(" 3. 60 FPS")
+                console.print(" [bold white]B[/bold white]. Back")
+                fps_choice = get_char("\nPick a #: ")
+                if fps_choice.lower() == 'b':
+                    console.print()
+                    continue
+                elif fps_choice == '1':
+                    console.print()
+                    fps = None
+                elif fps_choice == '2':
+                    console.print()
+                    fps = 30
+                elif fps_choice == '3':
+                    console.print()
+                    fps = 60
+                else:
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
+                    continue
+                
+            console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
+            console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
+            flush_stdin()
+            paths = clean_paths(get_input("Path: "))
+            flush_stdin()
             
-        conv.process(source_fmts, target_fmt, paths, fps=fps)
-        get_char("\nPress any key to continue...")
+            if not paths:
+                continue
+                
+            conv.process(source_fmts, target_fmt, paths, fps=fps)
+            get_char("\nPress any key to continue...")
+
+        else:
+            console.print(" [dim]Invalid choice[/dim]")
+            time.sleep(0.5)
 
 if __name__ == "__main__":
     try:
