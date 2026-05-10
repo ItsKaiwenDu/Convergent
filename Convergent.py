@@ -274,7 +274,7 @@ class Converter:
         console.print(f"[bold cyan]Found {num_files} files to convert...[/bold cyan]")
         
         if not jobs:
-            jobs = multiprocessing.cpu_count()
+            jobs = min(multiprocessing.cpu_count(), len(files))
             
         success_count = 0
         
