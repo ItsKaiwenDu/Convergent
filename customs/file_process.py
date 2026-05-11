@@ -26,6 +26,8 @@ def process_single_file(conv, f, target_format, fps=None):
         success, error = conv.convert_audio(f, target_format)
     elif source_fmt in ["DOCX", "PPTX", "RTF"]:
         success, error = conv.convert_office(f, target_format)
+    elif source_fmt == "PDF":
+        success, error = conv.convert_pdf(f, target_format)
     elif source_fmt in ["JPG", "PNG", "WEBP"]:
         success, error = conv.convert_image(f, target_format)
         

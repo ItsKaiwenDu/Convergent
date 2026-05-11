@@ -137,13 +137,14 @@ class Converter:
             "WAV": ["MP3", "M4A"],
             "M4A": ["MP3", "WAV"],
             "MP3": ["WAV", "M4A"],
+            "PDF": ["JPG", "PNG"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
             "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
-            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF"]},
+            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF"]},
         }
 
     def convert_heic(self, source, target_ext):
@@ -160,6 +161,9 @@ class Converter:
 
     def convert_image(self, source, target_ext):
         return image.convert_image(source, target_ext)
+
+    def convert_pdf(self, source, target_ext):
+        return pdf_manip.convert_pdf_to_image(source, target_ext)
 
     def combine_pdfs(self, paths):
         return pdf_manip.combine_pdfs(paths)

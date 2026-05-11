@@ -11,11 +11,11 @@
 -   **Parallel Processing**: High-speed batch conversions using multi-core execution (configurable via `--jobs`).
 -   **Batch Processing**: Convert entire directories or a **space-separated list of files** in one command.
 -   **Multi-Format Support**:
-    -   **PDF Combiner & Splitter**: Merge multiple PDFs or split a single PDF into individual pages, custom ranges, or a specific number of equal parts.
+    -   **PDF Tools**: Merge multiple PDFs, split into ranges, or **extract individual pages as JPG/PNG images**.
     -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
     -   **Videos**: MOV/MP4 to MP3, WEBM, GIF (with customizable FPS), or alternative containers (**AVI**, **MOV**, **MP4**).
     -   **Audio**: WAV and M4A to **MP3**, **M4A**, or **WAV**.
-    -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc).
+    -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc), and **PDF to Image extraction (JPG/PNG)**.
     -   **Archives**: Compress files and folders into **ZIP**, **TAR.GZ**, **7z**, or **RAR** archives (with optional password protection for supported formats). Decompress existing archives to a target directory.
 -   **CLI First**: Support for direct command-line arguments for automation and power users.
 -   **Multi-File Drag-and-Drop**: Drag multiple individual files (or folders) into the terminal. Convergent handles the space-separated list of paths automatically, even if they contain spaces or special characters.

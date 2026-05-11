@@ -191,3 +191,32 @@ def split_pdf(path):
             if success: console.print(f" > Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
             current_page = end_page + 1
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
+
+def convert_pdf_to_image(source, target_ext):
+    path_obj = Path(os.path.expanduser(source)).resolve()
+    if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
+        return False, f"Not a valid PDF file: {source}"
+    
+    output_dir = path_obj.parent / f"{path_obj.stem}_images"
+    output_dir.mkdir(exist_ok=True)
+    
+    target_ext = target_ext.lower()
+    # Ghostscript devices: jpeg, png16m (24-bit color)
+    device = "jpeg" if target_ext in ["jpg", "jpeg"] else "png16m"
+    output_pattern = output_dir / f"page_%03d.{target_ext}"
+    
+    cmd = [
+        "gs", 
+        "-dNOPAUSE", 
+        "-dBATCH", 
+        "-dNOSAFER",
+        "-sDEVICE=" + device, 
+        "-r300", 
+        f"-sOUTPUTFILE={output_pattern}", 
+        str(path_obj)
+    ]
+    
+    success, error = run_command(cmd)
+    if success:
+        return True, ""
+    return False, error
