@@ -247,6 +247,7 @@ def main():
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
             console.print(" [bold white]-.[/bold white] Remove Shortcut")
+            console.print(" [bold white]=.[/bold white] Edit Shortcut")
         console.print(" [bold white]Q.[/bold white] Quit")
         
         choice = get_char("\nPick a #: ")
@@ -255,119 +256,15 @@ def main():
             break
             
         elif choice == '+':
-            console.print()
-            console.print("\n\n[bold yellow]--- Add New Shortcut ---[/bold yellow]")
-            console.print("Select source category:")
-            category_keys = sorted(conv.categories.keys())
-            label_w = 14
-            for i, key in enumerate(category_keys, 1):
-                cat = conv.categories[key]
-                exts_str = ", ".join(cat["extensions"]).lower()
-                console.print(f" [bold cyan]{i}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
-            console.print(" [bold white]C[/bold white]. Cancel")
-            cat_choice = get_char("\nPick category #: ")
-            
-            if cat_choice.lower() == 'c':
-                continue
-            
-            selected_cat_key = None
-            try:
-                idx = int(cat_choice) - 1
-                if 0 <= idx < len(category_keys):
-                    selected_cat_key = category_keys[idx]
-            except ValueError:
-                pass
-                
-            if not selected_cat_key:
-                console.print(" [dim]Invalid choice[/dim]")
-                time.sleep(0.5)
-                continue
-            
-            console.print()
-                
-            category = conv.categories[selected_cat_key]
-            source_fmts = category["extensions"]
-            available_targets = set()
-            for fmt in source_fmts:
-                available_targets.update(conv.formats.get(fmt, []))
-            sorted_targets = sorted(list(available_targets))
-            
-            console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
-            for i, fmt in enumerate(sorted_targets, 1):
-                console.print(f" {i}. {fmt.lower()}")
-            console.print(" [bold white]B[/bold white]. Back")
-                
-            target_choice = get_char("\nPick target #: ")
-            if target_choice.lower() == 'b':
-                console.print()
-                continue
-                
-            try:
-                to_idx = int(target_choice) - 1
-                if to_idx < 0 or to_idx >= len(sorted_targets):
-                    raise ValueError
-                target_fmt = sorted_targets[to_idx]
-            except ValueError:
-                console.print(" [dim]Invalid choice[/dim]")
-                time.sleep(0.5)
-                continue
-            
-            console.print()
-                
-            console.print(f"\n[bold yellow]Do you want to fix a file/folder path for this shortcut? (y/n)[/bold yellow]")
-            fix_path = get_char("Choice: ")
-            fixed_path = ""
-            if fix_path.lower() == 'y':
-                flush_stdin()
-                fixed_paths = clean_paths(get_input("\nEnter path: "))
-                fixed_path = " ".join([f'"{p}"' for p in fixed_paths]) if fixed_paths else ""
-                flush_stdin()
-                
-            flush_stdin()
-            sym = get_input("\nInput a single symbol/key for this shortcut (e.g., 'S'): ").strip().upper()
-            
-            reserved_keys = [str(i) for i in range(10)] + ['+', '-', 'Q']
-            if sym in reserved_keys:
-                console.print(f"\n[bold red][!] '{sym}' is a reserved key. Please choose a letter not in: {' '.join(reserved_keys)}[/bold red]")
-                get_char("\nPress any key to continue...")
-                continue
-                
-            title = get_input("Input a label title (e.g., 'Quick JPG Convert'): ").strip()
-            
-            if sym and title:
-                shortcuts[sym] = {
-                    "title": title,
-                    "category": selected_cat_key,
-                    "target_fmt": target_fmt,
-                    "fixed_path": fixed_path
-                }
-                shortcut.save_shortcuts(shortcuts)
-                console.print(f"\n[bold green]Shortcut '{sym}' added successfully![/bold green]")
-                get_char("\nPress any key to continue...")
+            shortcut.add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths)
             continue
 
         elif choice == '-' and shortcuts:
-            console.print()
-            console.print("\n\n[bold yellow]--- Remove Shortcut ---[/bold yellow]")
-            console.print("Existing shortcuts:")
-            for sym, sc in shortcuts.items():
-                console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
-            console.print(" [bold white]C[/bold white]. Cancel")
-            
-            sym_to_remove = get_input("\nEnter symbol to remove (or 'C' to cancel): ").strip().upper()
-            
-            if sym_to_remove == 'C' or not sym_to_remove:
-                continue
-                
-            if sym_to_remove in shortcuts:
-                title = shortcuts[sym_to_remove]['title']
-                del shortcuts[sym_to_remove]
-                shortcut.save_shortcuts(shortcuts)
-                console.print(f"\n[bold green]Shortcut '{sym_to_remove}' ({title}) removed successfully![/bold green]")
-                get_char("\nPress any key to continue...")
-            else:
-                console.print(f"\n[bold red]Shortcut '{sym_to_remove}' not found.[/bold red]")
-                get_char("\nPress any key to continue...")
+            shortcut.remove_shortcut(shortcuts, console, get_input, get_char)
+            continue
+
+        elif choice == '=' and shortcuts:
+            shortcut.edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths)
             continue
             
         elif choice.upper() in shortcuts:
