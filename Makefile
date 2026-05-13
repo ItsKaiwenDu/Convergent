@@ -8,17 +8,16 @@ SCRIPT = Convergent.py
 
 .PHONY: help setup start check shortcut
 
-help:
-	@echo "Convergent Makefile Commands:"
-	@echo "  make setup     - Install necessary Python and System dependencies"
-	@echo "  make check     - Probe system dependencies to ensure everything is installed"
-	@echo "  make start     - Run the converter (Interactive or with flags)"
-	@echo "  make shortcut  - Create a clickable Desktop shortcut to run Convergent"
+help: ## Show this help message
+	@echo "\033[1mUsage:\033[0m make [target]"
 	@echo ""
-	@echo "Usage with flags:"
-	@echo "  make start ARGS=\"--from JPG --to PNG --path ./images\""
+	@echo "\033[1mTargets:\033[0m"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "\033[1mExample:\033[0m"
+	@echo "  make start ARGS=\"--from JPG --to PNG\""
 
-setup:
+setup: ## Install dependencies
 	@echo "Checking Python dependencies..."
 	$(PYTHON) -m pip install -r requirements.txt
 	@echo "Checking System dependencies..."
@@ -35,13 +34,13 @@ setup:
 	fi
 	@echo "Setup complete!"
 
-start:
+start: ## Run converter
 	$(PYTHON) $(SCRIPT) $(ARGS)
 
-check:
+check: ## Verify dependencies
 	@$(PYTHON) customs/check_deps.py
 
-shortcut:
+shortcut: ## Create desktop shortcut
 	@printf "Path (default: ~/Desktop): "; \
 	read DEST_DIR; \
 	DEST_DIR=$${DEST_DIR:-$(HOME)/Desktop}; \
