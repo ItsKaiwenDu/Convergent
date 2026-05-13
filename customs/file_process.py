@@ -67,8 +67,18 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             collisions.append(f)
     
     if collisions and not overwrite and not skip:
-        console.print(f"\n[bold yellow]⚠  {len(collisions)} files already exist at the target path.[/bold yellow]")
-        console.print("   [bold][O][/bold] Overwrite all   [bold][S][/bold] Skip existing   [bold][C][/bold] Cancel")
+        console.print(f"\n[bold yellow]⚠  {len(collisions)} files already exist at the target path:[/bold yellow]")
+        
+        # Collision preview list
+        limit = 15
+        for f in collisions[:limit]:
+            output_name = f.with_suffix(f".{target_format.lower()}").name
+            console.print(f"   [dim]- {output_name}[/dim]")
+            
+        if len(collisions) > limit:
+            console.print(f"   [dim]... and {len(collisions) - limit} more files.[/dim]")
+            
+        console.print("\n   [bold][O][/bold] Overwrite all   [bold][S][/bold] Skip existing   [bold][C][/bold] Cancel")
         
         while True:
             choice = get_char("   Choice: ").lower()

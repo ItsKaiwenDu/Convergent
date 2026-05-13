@@ -2,27 +2,25 @@
 
 # Convergent: Local File Converter Utility
 
+**Version**: 1.0.0 (May 13, 2026)
+
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages the power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
 
 ## Features
 
--   **Interactive Menu**: A streamlined numeric interface with category-based source auto-detection for faster workflows.
--   **Parallel Processing**: High-speed batch conversions using multi-core execution (configurable via `--jobs`).
--   **Batch Processing**: Convert entire directories or a **space-separated list of files** in one command.
+-   **Interactive & CLI**: Streamlined numeric menu or direct command-line arguments for automation.
+-   **High Performance**: Multi-core parallel batch processing for high-speed conversions.
+-   **Smart Input**: Drag-and-drop multiple files/folders; handles messy paths and escaped characters automatically.
 -   **Multi-Format Support**:
-    -   **PDF Tools**: Merge multiple PDFs, split into ranges, or **extract individual pages as JPG/PNG images**.
-    -   **Images**: HEIC to JPG/PNG, JPG/PNG to WEBP/PDF, and cross-conversion between JPG/PNG.
-    -   **Videos**: MOV/MP4 to MP3, WEBM, GIF (with customizable FPS), or alternative containers (**AVI**, **MOV**, **MP4**).
-    -   **Audio**: WAV and M4A to **MP3**, **M4A**, or **WAV**.
-    -   **Documents**: DOCX, PPTX, and RTF to PDF (via Pandoc), and **PDF to Image extraction (JPG/PNG)**.
-    -   **Archives**: Compress files and folders into **ZIP**, **TAR.GZ**, **7z**, or **RAR** archives (with optional password protection for supported formats). Decompress existing archives to a target directory.
--   **CLI First**: Support for direct command-line arguments for automation and power users.
--   **Multi-File Drag-and-Drop**: Drag multiple individual files (or folders) into the terminal. Convergent handles the space-separated list of paths automatically, even if they contain spaces or special characters.
--   **Robust Path Recognition**: Automatically handles shell-escaped paths (from drag-and-drop), quoted paths, and messy copy-pastes with hidden newlines.
--   **Quick Shortcuts**: Create and save persistent conversion workflows to trigger them with a single keystroke. Optionally fix a target path to skip prompts entirely.
--   **Overwrite Guard**: Protects against accidental data loss by prompting before overwriting existing files. Includes `--overwrite` and `--skip` flags for automated control.
--   **Rich UI**: Powered by the `rich` library for beautiful terminal output and progress tracking.
+    -   **PDF**: Merge, split, or export pages as JPG/PNG.
+    -   **Images**: HEIC, JPG, PNG, and WEBP cross-conversion.
+    -   **Video/Audio**: MOV, MP4, WEBM, GIF, MP3, WAV, and M4A support.
+    -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
+    -   **Archives**: Compress (ZIP, RAR, 7z, TAR) with passwords or decompress existing archives.
+-   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
+-   **Safety First**: Overwrite guard with an interactive **collision preview list** and skip flags.
+-   **Premium UI**: Rich terminal output with progress bars and status indicators.
 
 ## Quick Shortcuts
 
@@ -30,6 +28,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 
 - **Create**: Press **+** in the main menu to define a new shortcut with a custom symbol (key) and label title.
 - **Remove**: Press **-** in the main menu to delete existing shortcuts.
+- **Edit**: Press **=** in the main menu to modify an existing shortcut's properties.
 - **Example**: Create a shortcut `S` for `HEIC to JPG` to batch convert photos with one key.
 - **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip the path prompt entirely.
 - **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in the "Your Shortcuts" section of the main menu.
