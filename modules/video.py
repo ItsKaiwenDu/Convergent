@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from customs.run_command import run_command
 
 try:
     from rich.console import Console
@@ -15,18 +16,6 @@ except ImportError:
             if 'end' in kwargs: print(msg, end=kwargs['end'])
             else: print(msg)
     console = MockConsole()
-
-def run_command(cmd):
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return True, ""
-        else:
-            return False, result.stderr
-    except FileNotFoundError:
-        return False, f"Command not found: {cmd[0]}"
-    except Exception as e:
-        return False, str(e)
 
 def get_input(prompt):
     try:

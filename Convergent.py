@@ -35,6 +35,7 @@ import argparse
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress
 from customs import shortcut, file_process
+from customs.run_command import run_command
 
 try:
     from rich.console import Console
@@ -107,17 +108,6 @@ def flush_stdin():
     except:
         pass
 
-def run_command(cmd):
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return True, ""
-        else:
-            return False, result.stderr
-    except FileNotFoundError:
-        return False, f"Command not found: {cmd[0]}"
-    except Exception as e:
-        return False, str(e)
 
 class Converter:
     def __init__(self):
