@@ -124,13 +124,15 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     success_count = 0
     
     try:
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
         
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
             console=console
         ) as progress:
             task = progress.add_task(f"Converting to {target_format}...", total=len(files))
