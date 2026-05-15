@@ -2,10 +2,10 @@
 
 # Convergent: Local File Converter Utility
 
-**Version**: 1.0.0 (May 13, 2026)
+**Version**: 1.0.0 (May 15, 2026)
 
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
-> It leverages the power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
+> It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
 
 ## Features
 
@@ -15,9 +15,10 @@
 -   **Multi-Format Support**:
     -   **PDF**: Merge, split, or export pages as JPG/PNG.
     -   **Images**: HEIC, JPG, PNG, and WEBP cross-conversion.
-    -   **Video/Audio**: MOV, MP4, WEBM, GIF, MP3, WAV, and M4A support.
+    -   **Video/Audio**: MOV, MP4, WEBM, GIF, AVI, MP3, WAV, and M4A support.
     -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
-    -   **Archives**: Compress (ZIP, RAR, 7z, TAR) with passwords or decompress existing archives.
+    -   **Archives**: Compress (ZIP, RAR, 7z, TAR.GZ) with optional password protection (ZIP only), or decompress existing archives.
+    -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
 -   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
 -   **Safety First**: Overwrite guard with an interactive **collision preview list** and skip flags.
 -   **Premium UI**: Rich terminal output with progress bars and status indicators.
@@ -26,12 +27,12 @@
 
 Convergent allows you to save your most frequent workflows as shortcuts for instant access.
 
-- **Create**: Press **+** in the main menu to define a new shortcut with a custom symbol (key) and label title.
-- **Remove**: Press **-** in the main menu to delete existing shortcuts.
-- **Edit**: Press **=** in the main menu to modify an existing shortcut's properties.
+- **Create**: Press **+** in main menu to define a new shortcut with a custom symbol (key) and label title.
+- **Remove**: Press **-** in main menu to delete existing shortcuts.
+- **Edit**: Press **=** in main menu to modify an existing shortcut's properties.
 - **Example**: Create a shortcut `S` for `HEIC to JPG` to batch convert photos with one key.
-- **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip the path prompt entirely.
-- **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in the "Your Shortcuts" section of the main menu.
+- **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip path prompt entirely.
+- **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in "Your Shortcuts" section of main menu.
 
 ## Tech Stack & Requirements
 
@@ -47,7 +48,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
 
 > [!NOTE]
-> **Compatibility**: This utility is **macOS-first**. Linux is supported and dependencies can be automatically installed via `apt`, `dnf`, or `pacman`. Windows is **not supported** due to the `tty` terminal dependency.
+> **Compatibility**: This utility is **macOS-first**. Linux is supported and dependencies can be automatically installed via `apt`, `dnf`, or `pacman`. Windows is **not supported** due to `tty` terminal dependency.
 
 ## Getting Started
 
@@ -58,7 +59,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 
 ### Installation
 
-1.  **Clone or Download**: Ensure `Convergent.py` and `Makefile` are in the same directory.
+1.  **Clone Repository**: Clone or download full repo — `Convergent.py`, `Makefile`, `modules/`, and `customs/` must all be present in same directory.
 2.  **Run Setup**:
     ```bash
     make setup
@@ -73,7 +74,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 ## Usage
 
 ### Interactive Mode
-Simply run the following command and follow the on-screen prompts:
+Simply run following command and follow on-screen prompts:
 ```bash
 make start
 ```
@@ -83,10 +84,10 @@ Create a clickable terminal script to launch Convergent from anywhere (e.g., you
 ```bash
 make shortcut
 ```
-*This generates a `.command` file that you can double-click to open Terminal and run the utility instantly.*
+*This generates a `.command` file that you can double-click to open Terminal and run utility instantly.*
 
 ### CLI Mode (Arguments)
-For automated workflows, you can pass arguments directly using the `ARGS` variable.
+For automated workflows, you can pass arguments directly using `ARGS` variable.
 
 | Flag | Description | Example |
 |---|---|---|
@@ -112,9 +113,31 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 
 ## Troubleshooting
 
-- **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix the link.
-- **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for the relevant patterns).
+- **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.
+- **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts**: If converting documents to PDF fails, ensure you have a LaTeX distribution installed (e.g., `brew install --cask mactex` or `basictex`).
+
+## Project Structure
+
+```
+Convergent/
+├── Convergent.py        # Entry point: CLI args, main menu, Converter class
+├── Makefile             # Build targets: setup, start, check, shortcut
+├── requirements.txt     # Python dependencies (rich)
+├── modules/             # Format-specific conversion logic
+│   ├── audio.py
+│   ├── compress.py
+│   ├── decompress.py
+│   ├── doc.py
+│   ├── image.py
+│   ├── pdf_manip.py
+│   └── video.py
+└── customs/             # Shared utilities and helpers
+    ├── check_deps.py
+    ├── file_process.py
+    ├── run_command.py
+    └── shortcut.py
+```
 
 ## Owner
 **Kaiwen Du** - [GitHub](https://github.com/ItsKaiwenDu)
