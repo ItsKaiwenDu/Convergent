@@ -8,12 +8,14 @@ def process_single_file(conv, f, target_format, fps=None):
     """
     Processes a single file conversion using the provided Converter instance.
     """
+    start_time = time.perf_counter()
     source_fmt = f.suffix.lower()[1:].upper()
     
     if target_format not in conv.formats.get(source_fmt, []):
+        duration = time.perf_counter() - start_time
         if source_fmt == target_format:
-            return f.name, True, "Skipped (Same format)"
-        return f.name, False, f"Target {target_format} not supported for {source_fmt}"
+            return f.name, True, "Skipped (Same format)", duration
+        return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
     success = False
     error = ""
@@ -28,10 +30,11 @@ def process_single_file(conv, f, target_format, fps=None):
         success, error = conv.convert_office(f, target_format)
     elif source_fmt == "PDF":
         success, error = conv.convert_pdf(f, target_format)
-    elif source_fmt in ["JPG", "PNG", "WEBP"]:
+    elif source_fmt in ["JPG", "PNG", "WEBP", "ARW"]:
         success, error = conv.convert_image(f, target_format)
-        
-    return f.name, success, error
+    
+    duration = time.perf_counter() - start_time
+    return f.name, success, error, duration
 
 def process(conv, console, get_char, source_formats, target_format, paths, fps=None, jobs=None, overwrite=False, skip=False):
     """
@@ -141,24 +144,24 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 futures = {executor.submit(process_single_file, conv, f, target_format, fps): f for f in files}
                 
                 for future in concurrent.futures.as_completed(futures):
-                    name, success, error = future.result()
+                    name, success, error, duration = future.result()
                     if success:
                         success_count += 1
                         if error != "Skipped (Same format)":
-                            progress.console.print(f" [bold green]✓[/bold green] {name}")
+                            progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
                     else:
-                        progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()}[/dim]")
+                        progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()} ({duration:.1f}s)[/dim]")
                     progress.update(task, advance=1)
     except ImportError:
         # Fallback for systems without rich
         for f in files:
-            name, success, error = process_single_file(conv, f, target_format, fps)
+            name, success, error, duration = process_single_file(conv, f, target_format, fps)
             if success:
                 success_count += 1
                 if error != "Skipped (Same format)":
-                    console.print(f" > {name}... [bold green]DONE[/bold green]")
+                    console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
             else:
-                console.print(f" > {name}... [bold red]FAILED[/bold red]")
+                console.print(f" > {name}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
                 if error:
                     console.print(f"   [dim]{error.strip()}[/dim]")
     
