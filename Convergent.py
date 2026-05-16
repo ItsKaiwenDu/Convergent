@@ -43,17 +43,7 @@ try:
     from rich.table import Table
     console = Console()
 except ImportError:
-    class MockConsole:
-        def print(self, *args, **kwargs):
-            import re
-            msg = " ".join(map(str, args))
-            msg = re.sub(r"\[.*?\]", "", msg)
-            if 'end' in kwargs:
-                print(msg, end=kwargs['end'])
-            else:
-                print(msg)
-        def rule(self, title):
-            print(f"\n{'='*20} {title} {'='*20}")
+    from customs.console import MockConsole
     console = MockConsole()
 
 def clear_screen():

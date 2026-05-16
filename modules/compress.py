@@ -7,13 +7,7 @@ try:
     from rich.console import Console
     console = Console()
 except ImportError:
-    class MockConsole:
-        def print(self, *args, **kwargs):
-            import re
-            msg = " ".join(map(str, args))
-            msg = re.sub(r"\[.*?\]", "", msg)
-            if 'end' in kwargs: print(msg, end=kwargs['end'])
-            else: print(msg)
+    from customs.console import MockConsole
     console = MockConsole()
 
 def compress(paths, output_name, format_choice, password=None):
