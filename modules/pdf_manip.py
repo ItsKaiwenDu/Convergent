@@ -158,7 +158,8 @@ def split_pdf(path):
             out_file = output_dir / f"part_{idx}_{start}-{end}.pdf"
             cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), f"-dFirstPage={start}", f"-dLastPage={end}", str(path_obj)]
             success, _ = run_command(cmd)
-            if success: console.print(f" > Part {idx} (Pages {start}-{end}): [bold green]DONE[/bold green]")
+            if success: console.print(f" [bold green]✓[/bold green] Part {idx} (Pages {start}-{end}): [bold green]DONE[/bold green]")
+            else: console.print(f" [bold red]✗[/bold red] Part {idx} (Pages {start}-{end}): [bold red]FAILED[/bold red]")
         console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
     elif mode == '3':
         num_str = get_input("Number of PDFs: ")
@@ -177,7 +178,8 @@ def split_pdf(path):
             out_file = output_dir / f"part_{i+1}_{current_page}-{end_page}.pdf"
             cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
             success, _ = run_command(cmd)
-            if success: console.print(f" > Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
+            if success: console.print(f" [bold green]✓[/bold green] Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
+            else: console.print(f" [bold red]✗[/bold red] Part {i+1} (Pages {current_page}-{end_page}): [bold red]FAILED[/bold red]")
             current_page = end_page + 1
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
 

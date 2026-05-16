@@ -132,8 +132,8 @@ def split_video(path):
             out_file = output_dir / f"part_{i+1:03d}.mp4"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
-            if success: console.print(f" > Part {i+1}: [bold green]DONE[/bold green]")
-            else: console.print(f" > Part {i+1}: [bold red]FAILED[/bold red]")
+            if success: console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
+            else: console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
             
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
 
@@ -160,7 +160,8 @@ def split_video(path):
             out_file = output_dir / f"part_{idx}_{int(start)}-{int(end)}.mp4"
             cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
-            if success: console.print(f" > Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
+            if success: console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
+            else: console.print(f" [bold red]✗[/bold red] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold red]FAILED[/bold red]")
             
         console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
 
@@ -187,6 +188,7 @@ def split_video(path):
             out_file = output_dir / f"part_{i+1:03d}.mp4"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
-            if success: console.print(f" > Part {i+1}: [bold green]DONE[/bold green]")
+            if success: console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
+            else: console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
             
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
