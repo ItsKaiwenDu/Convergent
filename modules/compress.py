@@ -24,6 +24,10 @@ def compress(paths, output_name, format_choice, password=None):
         output_name += ".zip"
     elif format_choice == "TAR.GZ" and not (output_name.lower().endswith(".tar.gz") or output_name.lower().endswith(".tgz")):
         output_name += ".tar.gz"
+    elif format_choice == "TAR.BZ2" and not (output_name.lower().endswith(".tar.bz2") or output_name.lower().endswith(".tbz2")):
+        output_name += ".tar.bz2"
+    elif format_choice == "TAR.XZ" and not (output_name.lower().endswith(".tar.xz") or output_name.lower().endswith(".txz")):
+        output_name += ".tar.xz"
     elif format_choice == "7Z" and not output_name.lower().endswith(".7z"):
         output_name += ".7z"
     elif format_choice == "RAR" and not output_name.lower().endswith(".rar"):
@@ -48,6 +52,10 @@ def compress(paths, output_name, format_choice, password=None):
             cmd = ["zip", "-r", str(output_path)] + rel_paths
     elif format_choice == "TAR.GZ":
         cmd = ["tar", "-czf", str(output_path)] + rel_paths
+    elif format_choice == "TAR.BZ2":
+        cmd = ["tar", "-cjf", str(output_path)] + rel_paths
+    elif format_choice == "TAR.XZ":
+        cmd = ["tar", "-cJf", str(output_path)] + rel_paths
     elif format_choice == "7Z":
         cmd = ["7z", "a", str(output_path)] + rel_paths
         if password:

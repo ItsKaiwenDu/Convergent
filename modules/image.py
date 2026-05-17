@@ -10,9 +10,9 @@ def convert_heic(source, target_ext):
 def convert_image(source, target_ext):
     output = source.with_suffix(f".{target_ext.lower()}")
     
-    # Use sips on macOS for better RAW support if magick fails or specifically for ARW
-    if sys.platform == "darwin" and source.suffix.lower() == ".arw":
-        # sips supports: jpeg, tiff, png, gif, jp2, pict, bmp, qtif, psd, sgi, tga
+    # Use sips on macOS for better RAW support if magick fails or specifically for ARW/DNG
+    if sys.platform == "darwin" and source.suffix.lower() in (".arw", ".dng"):
+        # sips supports: jpeg, tiff, png, gif, jp2, pict, bmp, qtif, psd, sgi, tga, pdf
         sips_targets = {
             "JPG": "jpeg",
             "JPEG": "jpeg",
@@ -20,10 +20,24 @@ def convert_image(source, target_ext):
             "TIFF": "tiff",
             "TIF": "tiff",
             "BMP": "bmp",
-            "GIF": "gif"
+            "GIF": "gif",
+            "PDF": "pdf"
         }
         target_upper = target_ext.upper()
         if target_upper in sips_targets:
             return run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
+        elif target_upper == "WEBP":
+            # Convert to temp PNG first using sips, then use magick to convert PNG to WEBP
+            temp_png = source.with_suffix(".temp.png")
+            try:
+                success, err = run_command(["sips", "-s", "format", "png", str(source), "--out", str(temp_png)])
+                if not success:
+                    return False, f"Failed to convert raw to temp PNG: {err}"
+                
+                success, err = run_command(["magick", str(temp_png), str(output)])
+                return success, err
+            finally:
+                if temp_png.exists():
+                    temp_png.unlink()
             
     return run_command(["magick", str(source), str(output)])

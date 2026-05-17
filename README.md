@@ -14,10 +14,10 @@
 -   **Smart Input**: Drag-and-drop multiple files/folders; handles messy paths and escaped characters automatically.
 -   **Multi-Format Support**:
     -   **PDF**: Merge, split, or export pages as JPG/PNG.
-    -   **Images**: HEIC, JPG, PNG, WEBP, and Sony ARW (RAW) cross-conversion.
+    -   **Images**: HEIC, JPG, PNG, WEBP, Sony ARW, and Adobe DNG (RAW) cross-conversion.
     -   **Video/Audio**: MOV, MP4, WEBM, GIF, AVI, MP3, WAV, and M4A support.
     -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
-    -   **Archives**: Compress (ZIP, RAR, 7z, TAR.GZ) with optional password protection (ZIP only), or decompress existing archives.
+    -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP).
     -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
 -   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
 -   **Safety First**: Overwrite guard with an interactive **collision preview list** and skip flags.
@@ -116,7 +116,7 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 - **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts**: If converting documents to PDF fails, ensure you have a LaTeX distribution installed (e.g., `brew install --cask mactex` or `basictex`).
-- **ARW/RAW Support**: On macOS, `ARW` is supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide the necessary delegates for ImageMagick.
+- **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide the necessary delegates for ImageMagick.
 
 ## Project Structure
 

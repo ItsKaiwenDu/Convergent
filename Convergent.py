@@ -119,10 +119,11 @@ class Converter:
             "MP3": ["WAV", "M4A"],
             "PDF": ["JPG", "PNG"],
             "ARW": ["JPG", "PNG", "WEBP", "PDF"],
+            "DNG": ["JPG", "PNG", "WEBP", "PDF"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
-            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW"]},
+            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
             "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF"]},
@@ -222,8 +223,8 @@ def main():
             cat = conv.categories[key]
             exts_str = ", ".join(cat["extensions"]).lower()
             console.print(f" [bold cyan]{key}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
-        console.print(f" [bold cyan]6.[/bold cyan] {'Compress:'.ljust(label_w)} zip, rar, 7z, tar.gz")
-        console.print(f" [bold cyan]7.[/bold cyan] {'Decompress:'.ljust(label_w)} zip, rar, 7z, tar.gz")
+        console.print(f" [bold cyan]6.[/bold cyan] {'Compress:'.ljust(label_w)} zip, rar, 7z, tar.(gz/bz2/xz)")
+        console.print(f" [bold cyan]7.[/bold cyan] {'Decompress:'.ljust(label_w)} zip, rar, 7z, tar.(gz/bz2/xz)")
             
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
@@ -356,15 +357,25 @@ def main():
             console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
             console.print(" 1. ZIP")
             console.print(" 2. TAR.GZ")
-            console.print(" 3. 7z")
-            console.print(" 4. RAR")
+            console.print(" 3. TAR.BZ2")
+            console.print(" 4. TAR.XZ")
+            console.print(" 5. 7z")
+            console.print(" 6. RAR")
             console.print(" [bold white]B[/bold white]. Back")
             fmt_choice = get_char("\nPick a #: ")
             
             if fmt_choice.lower() == 'b':
                 continue
                 
-            target_fmt = "ZIP" if fmt_choice == '1' else "TAR.GZ" if fmt_choice == '2' else "7Z" if fmt_choice == '3' else "RAR" if fmt_choice == '4' else None
+            target_fmt = (
+                "ZIP" if fmt_choice == '1' else
+                "TAR.GZ" if fmt_choice == '2' else
+                "TAR.BZ2" if fmt_choice == '3' else
+                "TAR.XZ" if fmt_choice == '4' else
+                "7Z" if fmt_choice == '5' else
+                "RAR" if fmt_choice == '6' else
+                None
+            )
             if not target_fmt:
                 console.print(" [dim]Invalid choice[/dim]")
                 time.sleep(0.5)

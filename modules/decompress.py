@@ -22,6 +22,10 @@ def decompress(path, output_dir=None):
         cmd = ["unzip", str(path_obj), "-d", str(output_dir)]
     elif ext.endswith(".tar.gz") or ext.endswith(".tgz"):
         cmd = ["tar", "-xzf", str(path_obj), "-C", str(output_dir)]
+    elif ext.endswith(".tar.bz2") or ext.endswith(".tbz2"):
+        cmd = ["tar", "-xjf", str(path_obj), "-C", str(output_dir)]
+    elif ext.endswith(".tar.xz") or ext.endswith(".txz"):
+        cmd = ["tar", "-xJf", str(path_obj), "-C", str(output_dir)]
     elif ext.endswith(".7z"):
         # 7z x archive.7z -o/path/to/dir
         cmd = ["7z", "x", str(path_obj), f"-o{str(output_dir)}"]
