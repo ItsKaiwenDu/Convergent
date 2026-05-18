@@ -45,6 +45,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         
     files = []
     source_fmts_upper = [fmt.upper() for fmt in source_formats]
+    found_extensions = set()
     
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
@@ -52,15 +53,29 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             ext = path_obj.suffix.lower()[1:].upper()
             if ext in source_fmts_upper:
                 files.append(path_obj)
+            else:
+                if path_obj.suffix:
+                    found_extensions.add(path_obj.suffix.lower())
         elif path_obj.is_dir():
             for item in path_obj.iterdir():
                 if item.is_file():
                     ext = item.suffix.lower()[1:].upper()
                     if ext in source_fmts_upper:
                         files.append(item)
+                    if item.suffix:
+                        found_extensions.add(item.suffix.lower())
     
     if not files:
-        console.print(f"[bold red]No matching files found in the provided paths.[/bold red]")
+        if len(source_formats) == 1:
+            msg = f"No {source_formats[0]} files found in the provided paths."
+        else:
+            msg = "No matching files found in the provided paths."
+        
+        if found_extensions:
+            sorted_exts = sorted(list(found_extensions))
+            msg += f" Found: {', '.join(sorted_exts)}"
+            
+        console.print(f"[bold red]{msg}[/bold red]")
         return
 
     collisions = []
