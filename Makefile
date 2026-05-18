@@ -6,7 +6,7 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start check shortcut
+.PHONY: help setup start check shortcut clean
 
 help: ## Show this help message
 	@echo "\033[1mUsage:\033[0m make [target]"
@@ -51,3 +51,7 @@ shortcut: ## Create desktop shortcut
 	echo "#!/bin/bash\ncd \"$(CURDIR)\"\nmake start" > "$$DEST_PATH"; \
 	chmod +x "$$DEST_PATH"; \
 	echo "Done! Created $$DEST_PATH"
+
+clean: ## Clean up __pycache__ directories
+	find . -type d -name __pycache__ -exec rm -rf {} +
+

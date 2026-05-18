@@ -2,7 +2,7 @@
 
 # Convergent: Local File Converter Utility
 
-**Version**: Build 46 (May 16, 2026)
+**Version**: Build 48 (May 17, 2026)
 
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
@@ -86,6 +86,12 @@ make shortcut
 ```
 *This generates a `.command` file that you can double-click to open Terminal and run utility instantly.*
 
+### Clean Workspace
+Remove all compiled Python cache (`__pycache__`) directories across the project:
+```bash
+make clean
+```
+
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using `ARGS` variable.
 
@@ -123,7 +129,7 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 ```
 Convergent/
 ├── Convergent.py        # Entry point: CLI args, main menu, Converter class
-├── Makefile             # Build targets: setup, start, check, shortcut
+├── Makefile             # Build targets: setup, start, check, shortcut, clean
 ├── requirements.txt     # Python dependencies (rich)
 ├── modules/             # Format-specific conversion logic
 │   ├── audio.py
