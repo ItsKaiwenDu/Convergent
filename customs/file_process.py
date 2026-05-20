@@ -4,7 +4,7 @@ import concurrent.futures
 import multiprocessing
 from pathlib import Path
 
-def process_single_file(conv, f, target_format, fps=None):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None):
     """
     Processes a single file conversion using the provided Converter instance.
     """
@@ -23,9 +23,9 @@ def process_single_file(conv, f, target_format, fps=None):
     if source_fmt == "HEIC":
         success, error = conv.convert_heic(f, target_format)
     elif source_fmt in ["MOV", "MP4", "WEBM", "GIF", "AVI"]:
-        success, error = conv.convert_video(f, target_format, fps=fps)
+        success, error = conv.convert_video(f, target_format, fps=fps, bitrate=bitrate)
     elif source_fmt in ["WAV", "M4A", "MP3"]:
-        success, error = conv.convert_audio(f, target_format)
+        success, error = conv.convert_audio(f, target_format, bitrate=bitrate)
     elif source_fmt in ["DOCX", "PPTX", "RTF"]:
         success, error = conv.convert_office(f, target_format)
     elif source_fmt == "PDF":
@@ -36,7 +36,7 @@ def process_single_file(conv, f, target_format, fps=None):
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, jobs=None, overwrite=False, skip=False):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False):
     """
     Processes a batch of files for conversion.
     """
@@ -161,7 +161,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                futures = {executor.submit(process_single_file, conv, f, target_format, fps): f for f in files}
+                futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate): f for f in files}
                 
                 for future in concurrent.futures.as_completed(futures):
                     name, success, error, duration = future.result()
@@ -175,7 +175,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     except ImportError:
         # Fallback for systems without rich
         for f in files:
-            name, success, error, duration = process_single_file(conv, f, target_format, fps)
+            name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate)
             if success:
                 success_count += 1
                 if error != "Skipped (Same format)":

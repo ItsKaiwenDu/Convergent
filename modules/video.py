@@ -61,7 +61,7 @@ def parse_timestamp(ts):
     except:
         return None
 
-def convert_video(source, target_ext, fps=None):
+def convert_video(source, target_ext, fps=None, bitrate=None):
     output = source.with_suffix(f".{target_ext.lower()}")
     cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]
     if target_ext.upper() == "MP4":
@@ -74,7 +74,10 @@ def convert_video(source, target_ext, fps=None):
             vf = f"fps={fps}," + vf
         cmd += ["-vf", vf]
     elif target_ext.upper() == "MP3":
-        cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
+        if bitrate in ["128k", "192k", "320k"]:
+            cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", bitrate]
+        else:
+            cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
     
     cmd.append(str(output))
     return run_command(cmd)

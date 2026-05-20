@@ -132,11 +132,11 @@ class Converter:
     def convert_heic(self, source, target_ext):
         return image.convert_heic(source, target_ext)
 
-    def convert_video(self, source, target_ext, fps=None):
-        return video.convert_video(source, target_ext, fps)
+    def convert_video(self, source, target_ext, fps=None, bitrate=None):
+        return video.convert_video(source, target_ext, fps, bitrate)
 
-    def convert_audio(self, source, target_ext):
-        return audio.convert_audio(source, target_ext)
+    def convert_audio(self, source, target_ext, bitrate=None):
+        return audio.convert_audio(source, target_ext, bitrate)
 
     def convert_office(self, source, target_ext):
         return doc.convert_office(source, target_ext)
@@ -168,8 +168,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None):
         return file_process.process_single_file(self, f, target_format, fps)
 
-    def process(self, source_formats, target_format, paths, fps=None, jobs=None, overwrite=False, skip=False):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, jobs, overwrite, skip)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip)
 
 def main():
     conv = Converter()
@@ -178,6 +178,7 @@ def main():
     parser.add_argument("--from", dest="from_fmt", help="Source format (e.g., JPG, MOV)")
     parser.add_argument("--to", dest="to_fmt", help="Target format (e.g., PNG, MP3)")
     parser.add_argument("--fps", help="Frames per second for GIF conversion (e.g., 30, 60)")
+    parser.add_argument("--bitrate", help="Audio bitrate for MP3 conversion (e.g., 128k, 192k, 320k)")
     parser.add_argument("--path", help="Path to file or directory")
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
@@ -199,9 +200,13 @@ def main():
             console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
             sys.exit(1)
             
+        if args.bitrate and args.bitrate not in ["128k", "192k", "320k"]:
+            console.print("[bold red]Error: Invalid bitrate. Choose from 128k, 192k, 320k.[/bold red]")
+            sys.exit(1)
+            
         # For CLI, we treat the path as a single path or split it if it looks like multiple
         paths = clean_paths(args.path)
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip)
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip)
         return
 
     while True:
@@ -282,6 +287,35 @@ def main():
                     time.sleep(0.5)
                     continue
             
+            bitrate = None
+            if target_fmt == "MP3":
+                console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
+                console.print(" 1. Default")
+                console.print(" 2. 128k")
+                console.print(" 3. 192k")
+                console.print(" 4. 320k")
+                console.print(" [bold white]B[/bold white]. Back")
+                bitrate_choice = get_char("\nPick a #: ")
+                if bitrate_choice.lower() == 'b':
+                    console.print()
+                    continue
+                elif bitrate_choice == '1':
+                    console.print()
+                    bitrate = None
+                elif bitrate_choice == '2':
+                    console.print()
+                    bitrate = "128k"
+                elif bitrate_choice == '3':
+                    console.print()
+                    bitrate = "192k"
+                elif bitrate_choice == '4':
+                    console.print()
+                    bitrate = "320k"
+                else:
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
+                    continue
+            
             if not path:
                 console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
                 console.print(f"[bold yellow]Enter file or folder path(s):[/bold yellow]")
@@ -293,7 +327,7 @@ def main():
                 paths = clean_paths(path)
                 
             if paths:
-                conv.process(source_fmts, target_fmt, paths, fps=fps)
+                conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate)
                 get_char("\nPress any key to continue...")
             continue
         
@@ -498,6 +532,35 @@ def main():
                     time.sleep(0.5)
                     continue
                 
+            bitrate = None
+            if target_fmt == "MP3":
+                console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
+                console.print(" 1. Default")
+                console.print(" 2. 128k")
+                console.print(" 3. 192k")
+                console.print(" 4. 320k")
+                console.print(" [bold white]B[/bold white]. Back")
+                bitrate_choice = get_char("\nPick a #: ")
+                if bitrate_choice.lower() == 'b':
+                    console.print()
+                    continue
+                elif bitrate_choice == '1':
+                    console.print()
+                    bitrate = None
+                elif bitrate_choice == '2':
+                    console.print()
+                    bitrate = "128k"
+                elif bitrate_choice == '3':
+                    console.print()
+                    bitrate = "192k"
+                elif bitrate_choice == '4':
+                    console.print()
+                    bitrate = "320k"
+                else:
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
+                    continue
+                
             console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
             console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
             flush_stdin()
@@ -507,7 +570,7 @@ def main():
             if not paths:
                 continue
                 
-            conv.process(source_fmts, target_fmt, paths, fps=fps)
+            conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate)
             get_char("\nPress any key to continue...")
 
         else:
