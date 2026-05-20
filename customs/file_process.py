@@ -144,6 +144,11 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     try:
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
         
+        actual_source_formats = sorted(list(set(f.suffix.lower()[1:].upper() for f in files if f.suffix)))
+        if not actual_source_formats:
+            actual_source_formats = [fmt.upper() for fmt in source_formats]
+        source_label = " + ".join(actual_source_formats) if actual_source_formats else "Files"
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -153,7 +158,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             TimeRemainingColumn(),
             console=console
         ) as progress:
-            task = progress.add_task(f"Converting to {target_format}...", total=len(files))
+            task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
                 futures = {executor.submit(process_single_file, conv, f, target_format, fps): f for f in files}
