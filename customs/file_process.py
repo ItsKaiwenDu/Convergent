@@ -140,6 +140,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         jobs = min(multiprocessing.cpu_count(), len(files))
         
     success_count = 0
+    fail_count = 0
+    batch_start_time = time.perf_counter()
     
     try:
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
@@ -170,6 +172,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         if error != "Skipped (Same format)":
                             progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
                     else:
+                        fail_count += 1
                         progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()} ({duration:.1f}s)[/dim]")
                     progress.update(task, advance=1)
     except ImportError:
@@ -181,8 +184,10 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 if error != "Skipped (Same format)":
                     console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
             else:
+                fail_count += 1
                 console.print(f" > {name}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
                 if error:
                     console.print(f"   [dim]{error.strip()}[/dim]")
     
-    console.print(f"\n[bold green]Finished! Successfully converted {success_count} files.[/bold green]")
+    total_time = time.perf_counter() - batch_start_time
+    console.print(f"\n[bold green]✓ {success_count} converted[/bold green], [bold red]✗ {fail_count} failed[/bold red], [bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
