@@ -78,6 +78,10 @@ def convert_video(source, target_ext, fps=None, bitrate=None):
             cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", bitrate]
         else:
             cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
+    elif target_ext.upper() == "WAV":
+        cmd += ["-vn", "-acodec", "pcm_s16le"]
+    elif target_ext.upper() == "M4A":
+        cmd += ["-vn", "-acodec", "aac", "-q:a", "2"]
     
     cmd.append(str(output))
     return run_command(cmd)
