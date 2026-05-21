@@ -134,10 +134,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 else:
                     final_files.append(f)
         
-        if skip:
-            skipped_count = len(files) - len(final_files)
-            if skipped_count > 0:
-                console.print(f"[dim]Skipped {skipped_count} already existing files.[/dim]")
+        skipped_count = len(files) - len(final_files)
+        if skipped_count > 0 and skip:
+            console.print(f"[dim]Skipped {skipped_count} already existing files.[/dim]")
                 
         files = final_files
         
@@ -208,7 +207,15 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     console.print(f"   [dim]{error.strip()}[/dim]")
         
         total_time = time.perf_counter() - batch_start_time
-        console.print(f"\n[bold green]✓ {success_count} converted[/bold green], [bold red]✗ {fail_count} failed[/bold red], [bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
+        summary_parts = [
+            f"[bold green]✓ {success_count} converted[/bold green]",
+            f"[bold red]✗ {fail_count} failed[/bold red]"
+        ]
+        if skipped_count > 0:
+            summary_parts.append(f"[bold yellow]↷ {skipped_count} skipped[/bold yellow]")
+        summary_parts.append(f"[bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
+        
+        console.print(f"\n{', '.join(summary_parts)}")
     finally:
         for sym in temp_symlinks:
             try:
