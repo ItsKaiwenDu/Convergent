@@ -2,7 +2,7 @@
 
 # Convergent: Local File Converter Utility
 
-**Version**: Build 51 (May 22, 2026)
+**Version**: Build 52 (May 22, 2026)
 
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
@@ -17,7 +17,7 @@
     -   **Images**: HEIC, JPG, PNG, WEBP, Sony ARW, and Adobe DNG (RAW) cross-conversion.
     -   **Video/Audio**: MOV, MP4, WEBM, GIF, AVI, MP3, WAV, and M4A support.
     -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
-    -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP).
+    -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP, RAR, and 7z).
     -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
 -   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
 -   **Safety First**: Overwrite guard with an interactive **collision preview list** and skip flags.
@@ -32,6 +32,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 - **Edit**: Press **=** in main menu to modify an existing shortcut's properties.
 - **Example**: Create a shortcut `S` for `HEIC to JPG` to batch convert photos with one key.
 - **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip path prompt entirely.
+- **Audio Bitrate Selection**: Shortcuts support pre-selecting a custom audio bitrate for MP3 target formats (Choose from: Ask every time, Default, 128k, 192k, 320k).
 - **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in "Your Shortcuts" section of main menu.
 
 ## Tech Stack & Requirements
@@ -102,6 +103,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--path` | Absolute path to file or directory | `--path ~/Desktop/Photos` |
 | `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) | `--jobs 4` |
 | `--fps` | Target frames per second (for GIF output) | `--fps 30` |
+| `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |
 
@@ -141,6 +143,7 @@ Convergent/
 │   └── video.py
 └── customs/             # Shared utilities and helpers
     ├── check_deps.py
+    ├── console.py       # Fallback mock console for rich-less environments
     ├── file_process.py
     ├── run_command.py
     └── shortcut.py
