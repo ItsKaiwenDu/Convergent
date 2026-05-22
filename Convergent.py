@@ -289,32 +289,38 @@ def main():
             
             bitrate = None
             if target_fmt == "MP3":
-                console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
-                console.print(" 1. Default")
-                console.print(" 2. 128k")
-                console.print(" 3. 192k")
-                console.print(" 4. 320k")
-                console.print(" [bold white]B[/bold white]. Back")
-                bitrate_choice = get_char("\nPick a #: ")
-                if bitrate_choice.lower() == 'b':
-                    console.print()
-                    continue
-                elif bitrate_choice == '1':
-                    console.print()
+                preselected_bitrate = sc.get("bitrate", "ask")
+                if preselected_bitrate == "ask":
+                    console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
+                    console.print(" 1. Default")
+                    console.print(" 2. 128k")
+                    console.print(" 3. 192k")
+                    console.print(" 4. 320k")
+                    console.print(" [bold white]B[/bold white]. Back")
+                    bitrate_choice = get_char("\nPick a #: ")
+                    if bitrate_choice.lower() == 'b':
+                        console.print()
+                        continue
+                    elif bitrate_choice == '1':
+                        console.print()
+                        bitrate = None
+                    elif bitrate_choice == '2':
+                        console.print()
+                        bitrate = "128k"
+                    elif bitrate_choice == '3':
+                        console.print()
+                        bitrate = "192k"
+                    elif bitrate_choice == '4':
+                        console.print()
+                        bitrate = "320k"
+                    else:
+                        console.print(" [dim]Invalid choice[/dim]")
+                        time.sleep(0.5)
+                        continue
+                elif preselected_bitrate == "default":
                     bitrate = None
-                elif bitrate_choice == '2':
-                    console.print()
-                    bitrate = "128k"
-                elif bitrate_choice == '3':
-                    console.print()
-                    bitrate = "192k"
-                elif bitrate_choice == '4':
-                    console.print()
-                    bitrate = "320k"
                 else:
-                    console.print(" [dim]Invalid choice[/dim]")
-                    time.sleep(0.5)
-                    continue
+                    bitrate = preselected_bitrate
             
             if not path:
                 console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")

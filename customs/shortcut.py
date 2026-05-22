@@ -77,6 +77,32 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
     
     console.print()
         
+    # 3. Bitrate selection (only if target format is MP3)
+    bitrate = "ask"
+    if target_fmt == "MP3":
+        console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
+        console.print(" 1. Ask every time")
+        console.print(" 2. Default")
+        console.print(" 3. 128k")
+        console.print(" 4. 192k")
+        console.print(" 5. 320k")
+        bitrate_choice = get_char("\nPick a #: ")
+        if bitrate_choice == '1':
+            bitrate = "ask"
+        elif bitrate_choice == '2':
+            bitrate = "default"
+        elif bitrate_choice == '3':
+            bitrate = "128k"
+        elif bitrate_choice == '4':
+            bitrate = "192k"
+        elif bitrate_choice == '5':
+            bitrate = "320k"
+        else:
+            console.print("\n [dim]Invalid choice. Defaulting to 'Ask every time'[/dim]")
+            bitrate = "ask"
+            time.sleep(0.5)
+        console.print()
+
     console.print(f"\n[bold yellow]Do you want to fix a file/folder path for this shortcut? (y/n)[/bold yellow]")
     fix_path = get_char("Choice: ")
     fixed_path = ""
@@ -98,12 +124,15 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
     title = get_input("Input a label title (e.g., 'Quick JPG Convert'): ").strip()
     
     if sym and title:
-        shortcuts[sym] = {
+        sc_data = {
             "title": title,
             "category": selected_cat_key,
             "target_fmt": target_fmt,
             "fixed_path": fixed_path
         }
+        if target_fmt == "MP3":
+            sc_data["bitrate"] = bitrate
+        shortcuts[sym] = sc_data
         save_shortcuts(shortcuts)
         console.print(f"\n[bold green]Shortcut '{sym}' added successfully![/bold green]")
         get_char("\nPress any key to continue...")
@@ -206,6 +235,35 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
         fixed_paths = clean_paths(new_path_input)
         new_fixed_path = " ".join([f'"{p}"' for p in fixed_paths]) if fixed_paths else ""
 
+    # 3b. Update Bitrate (only if target format is MP3)
+    new_bitrate = old_sc.get("bitrate", "ask")
+    if new_target_fmt == "MP3":
+        current_bitrate_str = {
+            "ask": "Ask every time",
+            "default": "Default",
+            "128k": "128k",
+            "192k": "192k",
+            "320k": "320k"
+        }.get(new_bitrate, "Ask every time")
+        console.print(f"\n[bold yellow]3b. Bitrate for MP3[/bold yellow] (Current: {current_bitrate_str})")
+        console.print(" 1. Ask every time")
+        console.print(" 2. Default")
+        console.print(" 3. 128k")
+        console.print(" 4. 192k")
+        console.print(" 5. 320k")
+        console.print(" [bold white]Enter[/bold white]. Keep Current")
+        bitrate_choice = get_input("Pick bitrate # (or Enter): ")
+        if bitrate_choice == '1':
+            new_bitrate = "ask"
+        elif bitrate_choice == '2':
+            new_bitrate = "default"
+        elif bitrate_choice == '3':
+            new_bitrate = "128k"
+        elif bitrate_choice == '4':
+            new_bitrate = "192k"
+        elif bitrate_choice == '5':
+            new_bitrate = "320k"
+
     # 4. Update Symbol
     console.print(f"\n[bold yellow]4. Shortcut Key[/bold yellow] (Current: {sym_to_edit})")
     console.print(" [bold white]Enter[/bold white]. Keep Current")
@@ -230,12 +288,16 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
     if new_sym != sym_to_edit:
         del shortcuts[sym_to_edit]
     
-    shortcuts[new_sym] = {
+    sc_data = {
         "title": new_title,
         "category": new_cat_key,
         "target_fmt": new_target_fmt,
         "fixed_path": new_fixed_path
     }
+    if new_target_fmt == "MP3":
+        sc_data["bitrate"] = new_bitrate
+        
+    shortcuts[new_sym] = sc_data
     save_shortcuts(shortcuts)
     console.print(f"\n[bold green]Shortcut '{new_sym}' updated successfully![/bold green]")
     get_char("\nPress any key to continue...")
