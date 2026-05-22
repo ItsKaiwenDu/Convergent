@@ -2,7 +2,7 @@
 
 # Convergent: Local File Converter Utility
 
-**Version**: Build 49 (May 19, 2026)
+**Version**: Build 51 (May 22, 2026)
 
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.

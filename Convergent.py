@@ -418,7 +418,7 @@ def main():
             console.print()
                 
             password = None
-            if target_fmt == "ZIP":
+            if target_fmt in ["ZIP", "7Z", "RAR"]:
                 console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
                 pwd_yn = get_char("")
                 if pwd_yn.lower() == 'y':
