@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from customs.run_command import run_command
+from customs.run_command import run_command, send_to_trash
 
 from customs.console import console, get_input, get_char
 
@@ -65,6 +65,7 @@ def combine_pdfs(paths):
     if not output_name.endswith(".pdf"):
         output_name += ".pdf"
     output_path = base_dir / output_name
+    send_to_trash(output_path)
     cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={output_path}", "-dBATCH"] + [str(f) for f in pdf_files]
     success, error = run_command(cmd)
     if success:
@@ -96,6 +97,7 @@ def split_pdf(path):
     if mode.lower() == 'b':
         return
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
+    send_to_trash(output_dir)
     output_dir.mkdir(exist_ok=True)
     if mode == '1':
         if total_pages > 50:
@@ -162,6 +164,7 @@ def convert_pdf_to_image(source, target_ext):
         return False, f"Not a valid PDF file: {source}"
     
     output_dir = path_obj.parent / f"{path_obj.stem}_images"
+    send_to_trash(output_dir)
     output_dir.mkdir(exist_ok=True)
     
     target_ext = target_ext.lower()

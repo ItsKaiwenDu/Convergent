@@ -18,7 +18,7 @@
     -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP, RAR, and 7z).
     -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
 -   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
--   **Safety First**: Overwrite guard with an interactive collision preview table and shift-modified global shortcuts.
+-   **Safety First**: Overwrite guard with macOS Trash integration (moves original to Trash using `trash` CLI or AppleScript to avoid permanent accidental deletions), interactive collision preview table, and shift-modified global shortcuts.
 -   **Premium UI**: Rich terminal output with progress bars, status indicators, and real-time per-file timing for benchmarking.
 
 ## Quick Shortcuts
@@ -33,7 +33,7 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 - **Audio Bitrate Selection**: Shortcuts support pre-selecting a custom audio bitrate for MP3 target formats (Choose from: Ask every time, Default, 128k, 192k, 320k).
 - **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in "Your Shortcuts" section of main menu.
 
-## Smart Collision Handling
+## Smart Collision Handling & Overwrite Guard
 
 When converting batch files, Convergent protects your existing work with an interactive collision guard:
 
@@ -50,6 +50,12 @@ When converting batch files, Convergent protects your existing work with an inte
    If you choose to decide individually, you are prompted for each conflict. To save time, you can hold **Shift** when selecting your option to apply it to all remaining conflicts immediately:
    - **`o` / `s` / `k`** (lowercase): Overwrite / Skip / Keep **only this file**.
    - **`O` / `S` / `K`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
+
+3. **macOS Trash Integration (Undo Support)**:
+   Instead of overwriting original files or directories directly on macOS, Convergent automatically moves the existing outputs to the **macOS Trash** before writing the new content.
+   - Leverages the high-performance `trash` CLI utility if available.
+   - Falls back gracefully to system-wide AppleScript (`osascript`) Finder integration.
+   - Notifies you with a dim console print (e.g., `Original moved to Trash: <name>`) when files are safely trashed, enabling immediate recovery.
 
 ## Tech Stack & Requirements
 

@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from customs.run_command import run_command
+from customs.run_command import run_command, send_to_trash
 
 from customs.console import console, get_input, get_char
 
@@ -82,6 +82,7 @@ def split_video(path):
     if mode.lower() == 'b':
         return
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
+    send_to_trash(output_dir)
     output_dir.mkdir(exist_ok=True)
     
     if mode == '1':

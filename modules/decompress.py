@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from customs.run_command import run_command
+from customs.run_command import run_command, send_to_trash
 
 def decompress(path, output_dir=None):
     path_obj = Path(os.path.expanduser(path)).resolve()
@@ -13,6 +13,7 @@ def decompress(path, output_dir=None):
     else:
         output_dir = Path(output_dir).resolve()
         
+    send_to_trash(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     cwd = path_obj.parent
     

@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from customs.run_command import run_command
+from customs.run_command import run_command, send_to_trash
 
 from customs.console import console
 
@@ -29,6 +29,7 @@ def compress(paths, output_name, format_choice, password=None):
         output_name += ".rar"
         
     output_path = valid_paths[0].parent / output_name
+    send_to_trash(output_path)
     cwd = valid_paths[0].parent
     
     # Use relative paths for the command to avoid absolute paths in the archive

@@ -3,6 +3,7 @@ import time
 import concurrent.futures
 import multiprocessing
 from pathlib import Path
+from customs.run_command import send_to_trash
 
 def process_single_file(conv, f, target_format, fps=None, bitrate=None):
     """
@@ -17,8 +18,14 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None):
             return f.name, True, "Skipped (Same format)", duration
         return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
+    # Move existing single output file to Trash if it exists
+    if source_fmt != "PDF":
+        output_file = f.with_suffix(f".{target_format.lower()}")
+        send_to_trash(output_file)
+
     success = False
     error = ""
+
     
     if source_fmt == "HEIC":
         success, error = conv.convert_heic(f, target_format)
