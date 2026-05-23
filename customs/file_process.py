@@ -81,21 +81,130 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     final_files = []
     temp_symlinks = {}
     
+    # 1. Identify conflicts
+    conflicts = []
+    for f in files:
+        output = f.with_suffix(f".{target_format.lower()}")
+        if output.exists():
+            conflicts.append((f, output))
+
+    keep_all = False
+    
     try:
+        # Determine global action if multiple conflicts exist
+        if len(conflicts) > 1 and not overwrite and not skip:
+            try:
+                from rich.table import Table
+                has_table = True
+            except ImportError:
+                has_table = False
+
+            is_mock = (console.__class__.__name__ == 'MockConsole')
+            if has_table and not is_mock:
+                table = Table(title="\n[bold yellow]⚠ Collision Preview: The following files already exist[/bold yellow]", show_header=True, header_style="bold magenta")
+                table.add_column("Source File", style="cyan")
+                table.add_column("Existing Output File", style="green")
+                table.add_column("Size", justify="right")
+                table.add_column("Last Modified", justify="right")
+                
+                for src, out in conflicts:
+                    try:
+                        stat = out.stat()
+                        import datetime
+                        mtime = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+                        size = stat.st_size
+                        # human readable size
+                        for unit in ['B', 'KB', 'MB', 'GB']:
+                            if size < 1024:
+                                size_str = f"{size:.1f} {unit}"
+                                break
+                            size /= 1024
+                        else:
+                            size_str = f"{size:.1f} TB"
+                    except Exception:
+                        size_str = "Unknown"
+                        mtime = "Unknown"
+                    table.add_row(src.name, out.name, size_str, mtime)
+                
+                console.print(table)
+            else:
+                console.print("\n[bold yellow]⚠ Collision Preview: The following files already exist[/bold yellow]")
+                console.print(f"   {'Source File':<30} | {'Existing Output':<30} | {'Size':<10} | {'Last Modified'}")
+                console.print(f"   {'-'*90}")
+                for src, out in conflicts:
+                    try:
+                        stat = out.stat()
+                        import datetime
+                        mtime = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+                        size = stat.st_size
+                        for unit in ['B', 'KB', 'MB', 'GB']:
+                            if size < 1024:
+                                size_str = f"{size:.1f} {unit}"
+                                break
+                            size /= 1024
+                        else:
+                            size_str = f"{size:.1f} TB"
+                    except Exception:
+                        size_str = "Unknown"
+                        mtime = "Unknown"
+                    console.print(f"   {src.name:<30} | {out.name:<30} | {size_str:<10} | {mtime}")
+
+            console.print("\n[bold yellow]Options for all conflicts:[/bold yellow]")
+            console.print("   [bold]\\[O][/bold] Overwrite All")
+            console.print("   [bold]\\[S][/bold] Skip All")
+            console.print("   [bold]\\[K][/bold] Keep All (auto-rename)")
+            console.print("   [bold]\\[I][/bold] Decide Individually")
+            console.print("   [bold]\\[C][/bold] Cancel entire operation")
+            
+            while True:
+                choice = get_char("   Choice: ").lower()
+                if choice == 'o':
+                    console.print()
+                    overwrite = True
+                    break
+                elif choice == 's':
+                    console.print()
+                    skip = True
+                    break
+                elif choice == 'k':
+                    console.print()
+                    keep_all = True
+                    break
+                elif choice == 'i':
+                    console.print()
+                    break
+                elif choice == 'c':
+                    console.print()
+                    console.print("[yellow]Operation cancelled.[/yellow]")
+                    return
+                else:
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
+
         for f in files:
             output = f.with_suffix(f".{target_format.lower()}")
-            if output.exists() and not overwrite and not skip:
+            if output.exists() and not overwrite and not skip and not keep_all:
                 console.print(f"\n[bold yellow]⚠  File already exists: {output.name}[/bold yellow]")
-                console.print("   [bold][O][/bold] Overwrite   [bold][S][/bold] Skip   [bold][K][/bold] Keep both   [bold][C][/bold] Cancel")
+                console.print("   [bold]\\[o][/bold] Overwrite   [bold]\\[s][/bold] Skip   [bold]\\[k][/bold] Keep both   [bold]\\[c][/bold] Cancel")
+                console.print("   [dim](Or hold SHIFT for all: \\[O] Overwrite All  \\[S] Skip All  \\[K] Keep All)[/dim]")
                 
                 while True:
-                    choice = get_char("   Choice: ").lower()
+                    choice = get_char("   Choice: ")
                     if choice == 'o':
                         console.print()
                         final_files.append(f)
                         break
+                    elif choice == 'O':
+                        console.print()
+                        overwrite = True
+                        final_files.append(f)
+                        break
                     elif choice == 's':
                         console.print()
+                        break
+                    elif choice == 'S':
+                        console.print()
+                        skip = True
                         break
                     elif choice == 'k':
                         console.print()
@@ -120,7 +229,31 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         except Exception as e:
                             console.print(f"   [bold red]Error creating temporary file: {e}[/bold red]")
                         break
-                    elif choice == 'c':
+                    elif choice == 'K':
+                        console.print()
+                        keep_all = True
+                        counter = 1
+                        stem = f.stem
+                        suffix = f.suffix
+                        target_suffix = f".{target_format.lower()}"
+                        while True:
+                            candidate_output = f.parent / f"{stem} ({counter}){target_suffix}"
+                            if not candidate_output.exists():
+                                break
+                            counter += 1
+                        
+                        temp_source = f.parent / f"{stem} ({counter}){suffix}"
+                        try:
+                            if temp_source.exists() or temp_source.is_symlink():
+                                temp_source.unlink()
+                            os.symlink(f.name, str(temp_source))
+                            final_files.append(temp_source)
+                            temp_symlinks[temp_source] = f
+                            console.print(f"   [dim]Will save as: {candidate_output.name}[/dim]")
+                        except Exception as e:
+                            console.print(f"   [bold red]Error creating temporary file: {e}[/bold red]")
+                        break
+                    elif choice.lower() == 'c':
                         console.print()
                         console.print("[yellow]Operation cancelled.[/yellow]")
                         return
@@ -131,6 +264,26 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 if output.exists():
                     if overwrite:
                         final_files.append(f)
+                    elif keep_all:
+                        counter = 1
+                        stem = f.stem
+                        suffix = f.suffix
+                        target_suffix = f".{target_format.lower()}"
+                        while True:
+                            candidate_output = f.parent / f"{stem} ({counter}){target_suffix}"
+                            if not candidate_output.exists():
+                                break
+                            counter += 1
+                        
+                        temp_source = f.parent / f"{stem} ({counter}){suffix}"
+                        try:
+                            if temp_source.exists() or temp_source.is_symlink():
+                                temp_source.unlink()
+                            os.symlink(f.name, str(temp_source))
+                            final_files.append(temp_source)
+                            temp_symlinks[temp_source] = f
+                        except Exception as e:
+                            console.print(f"   [bold red]Error creating temporary file: {e}[/bold red]")
                 else:
                     final_files.append(f)
         

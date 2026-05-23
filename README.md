@@ -2,8 +2,6 @@
 
 # Convergent: Local File Converter Utility
 
-**Version**: Build 52 (May 22, 2026)
-
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
 
@@ -20,7 +18,7 @@
     -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP, RAR, and 7z).
     -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
 -   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
--   **Safety First**: Overwrite guard with an interactive **collision preview list** and skip flags.
+-   **Safety First**: Overwrite guard with an interactive collision preview table and shift-modified global shortcuts.
 -   **Premium UI**: Rich terminal output with progress bars, status indicators, and real-time per-file timing for benchmarking.
 
 ## Quick Shortcuts
@@ -34,6 +32,24 @@ Convergent allows you to save your most frequent workflows as shortcuts for inst
 - **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip path prompt entirely.
 - **Audio Bitrate Selection**: Shortcuts support pre-selecting a custom audio bitrate for MP3 target formats (Choose from: Ask every time, Default, 128k, 192k, 320k).
 - **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in "Your Shortcuts" section of main menu.
+
+## Smart Collision Handling
+
+When converting batch files, Convergent protects your existing work with an interactive collision guard:
+
+1. **Batch Collision Preview Table**: If multiple output files already exist, Convergent displays a unified **Rich Table** showing details of all conflicts, including:
+   - File Size (formatted cleanly)
+   - Last Modified timestamp
+   Users can apply a quick action globally across all conflicts:
+   - **`[O] Overwrite All`**
+   - **`[S] Skip All`**
+   - **`[K] Keep All (Auto-Rename)`**
+   - **`[I] Decide Individually`**
+
+2. **Shift Key "Apply to All" Shortcut (Individual Mode)**:
+   If you choose to decide individually, you are prompted for each conflict. To save time, you can hold **Shift** when selecting your option to apply it to all remaining conflicts immediately:
+   - **`o` / `s` / `k`** (lowercase): Overwrite / Skip / Keep **only this file**.
+   - **`O` / `S` / `K`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
 
 ## Tech Stack & Requirements
 
