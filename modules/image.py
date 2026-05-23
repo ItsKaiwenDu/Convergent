@@ -10,6 +10,16 @@ def convert_heic(source, target_ext):
 def convert_image(source, target_ext):
     output = source.with_suffix(f".{target_ext.lower()}")
     
+    # SVG conversion with high quality density and transparency flattening settings
+    if source.suffix.lower() == ".svg":
+        target_upper = target_ext.upper()
+        if target_upper in ("JPG", "JPEG"):
+            # For JPG/JPEG, since they do not support transparency, flatten on a clean white background
+            return run_command(["magick", "-density", "300", "-background", "white", str(source), "-alpha", "remove", "-alpha", "off", str(output)])
+        else:
+            # For formats supporting transparency (PNG, WEBP, PDF), maintain transparent background
+            return run_command(["magick", "-density", "300", "-background", "none", str(source), str(output)])
+
     # Use sips on macOS for better RAW support if magick fails or specifically for ARW/DNG
     if sys.platform == "darwin" and source.suffix.lower() in (".arw", ".dng"):
         # sips supports: jpeg, tiff, png, gif, jp2, pict, bmp, qtif, psd, sgi, tga, pdf

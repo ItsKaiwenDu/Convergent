@@ -12,7 +12,7 @@
 -   **Smart Input**: Drag-and-drop multiple files/folders; handles messy paths and escaped characters automatically.
 -   **Multi-Format Support**:
     -   **PDF**: Merge, split, or export pages as JPG/PNG.
-    -   **Images**: HEIC, JPG, PNG, WEBP, Sony ARW, and Adobe DNG (RAW) cross-conversion.
+    -   **Images**: HEIC, JPG, PNG, WEBP, Sony ARW, Adobe DNG (RAW), and SVG (vector) to raster formats.
     -   **Video/Audio**: MOV, MP4, WEBM, GIF, AVI, MP3, WAV, and M4A support.
     -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
     -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP, RAR, and 7z).

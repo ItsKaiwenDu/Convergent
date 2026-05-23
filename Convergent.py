@@ -88,10 +88,11 @@ class Converter:
             "PDF": ["JPG", "PNG"],
             "ARW": ["JPG", "PNG", "WEBP", "PDF"],
             "DNG": ["JPG", "PNG", "WEBP", "PDF"],
+            "SVG": ["JPG", "PNG", "WEBP", "PDF"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
-            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG"]},
+            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
             "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF"]},
