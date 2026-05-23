@@ -29,47 +29,15 @@ import os
 import time
 import subprocess
 import sys
-import tty
-import termios
 import argparse
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress
 from customs import shortcut, file_process
 from customs.run_command import run_command
-
-try:
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-    console = Console()
-except ImportError:
-    from customs.console import MockConsole
-    console = MockConsole()
+from customs.console import console, get_input, get_char
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
-
-def get_input(prompt):
-    try:
-        return input(prompt).strip()
-    except EOFError:
-        return ""
-
-def get_char(prompt):
-    console.print(prompt, end="")
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    
-    if ch == '\x03':
-        raise KeyboardInterrupt
-        
-    console.print(ch, end="")
-    return ch
 
 def clean_paths(path_str):
     if not path_str:

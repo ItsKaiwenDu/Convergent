@@ -3,12 +3,7 @@ import subprocess
 from pathlib import Path
 from customs.run_command import run_command
 
-try:
-    from rich.console import Console
-    console = Console()
-except ImportError:
-    from customs.console import MockConsole
-    console = MockConsole()
+from customs.console import console
 
 def compress(paths, output_name, format_choice, password=None):
     if isinstance(paths, str):

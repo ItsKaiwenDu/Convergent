@@ -4,33 +4,7 @@ import sys
 from pathlib import Path
 from customs.run_command import run_command
 
-try:
-    from rich.console import Console
-    console = Console()
-except ImportError:
-    from customs.console import MockConsole
-    console = MockConsole()
-
-def get_input(prompt):
-    try:
-        return input(prompt).strip()
-    except EOFError:
-        return ""
-
-def get_char(prompt):
-    import tty, termios
-    console.print(prompt, end="")
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    if ch == '\x03':
-        raise KeyboardInterrupt
-    console.print(ch)
-    return ch
+from customs.console import console, get_input, get_char
 
 def get_pdf_page_count(path):
     try:
@@ -78,7 +52,9 @@ def combine_pdfs(paths):
     num_files = len(pdf_files)
     if num_files > 50:
         console.print(f"\n[bold yellow]Found {num_files} PDF files. Proceed? (y/n)[/bold yellow]")
-        if get_char("   Choice: ").lower() != 'y':
+        choice = get_char("   Choice: ")
+        console.print()
+        if choice.lower() != 'y':
             console.print("[yellow]Operation cancelled.[/yellow]")
             return
 
@@ -116,6 +92,7 @@ def split_pdf(path):
     console.print(" 3. Split into N parts")
     console.print(" [bold white]B[/bold white]. Back")
     mode = get_char("\nPick a #: ")
+    console.print()
     if mode.lower() == 'b':
         return
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
@@ -123,7 +100,9 @@ def split_pdf(path):
     if mode == '1':
         if total_pages > 50:
             console.print(f"\n[bold yellow]Found {total_pages} pages to split. Proceed? (y/n)[/bold yellow]")
-            if get_char("   Choice: ").lower() != 'y':
+            choice = get_char("   Choice: ")
+            console.print()
+            if choice.lower() != 'y':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return
         console.print(f"[bold cyan]Splitting into {total_pages} individual pages...[/bold cyan]")
