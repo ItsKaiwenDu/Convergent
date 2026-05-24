@@ -15,6 +15,7 @@
     -   **Images**: HEIC, JPG, PNG, WEBP, Sony ARW, Adobe DNG (RAW), and SVG (vector) to raster formats.
     -   **Video/Audio**: MOV, MP4, WEBM, GIF, AVI, MP3, WAV, and M4A support.
     -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
+    -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF (extracts embedded high-resolution asset PDFs or converts page preview thumbnails).
     -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP, RAR, and 7z).
     -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
 -   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
@@ -161,6 +162,7 @@ Convergent/
 │   ├── decompress.py
 │   ├── doc.py
 │   ├── image.py
+│   ├── ntb.py            # Notability .ntb to PDF conversion (Beta)
 │   ├── pdf_manip.py
 │   └── video.py
 └── customs/             # Shared utilities and helpers

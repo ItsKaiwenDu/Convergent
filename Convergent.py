@@ -31,7 +31,7 @@ import subprocess
 import sys
 import argparse
 from pathlib import Path
-from modules import pdf_manip, image, video, audio, doc, compress, decompress
+from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb
 from customs import shortcut, file_process
 from customs.run_command import run_command
 from customs.console import console, get_input, get_char
@@ -89,13 +89,14 @@ class Converter:
             "ARW": ["JPG", "PNG", "WEBP", "PDF"],
             "DNG": ["JPG", "PNG", "WEBP", "PDF"],
             "SVG": ["JPG", "PNG", "WEBP", "PDF"],
+            "NTB": ["PDF"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
             "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
-            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF"]},
+            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF", "NTB"]},
         }
 
     def convert_heic(self, source, target_ext):
@@ -115,6 +116,9 @@ class Converter:
 
     def convert_pdf(self, source, target_ext):
         return pdf_manip.convert_pdf_to_image(source, target_ext)
+
+    def convert_ntb(self, source, target_ext):
+        return ntb.convert_ntb(source, target_ext)
 
     def combine_pdfs(self, paths):
         return pdf_manip.combine_pdfs(paths)

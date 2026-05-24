@@ -37,6 +37,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None):
         success, error = conv.convert_office(f, target_format)
     elif source_fmt == "PDF":
         success, error = conv.convert_pdf(f, target_format)
+    elif source_fmt == "NTB":
+        success, error = conv.convert_ntb(f, target_format)
     elif source_fmt in ["JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]:
         success, error = conv.convert_image(f, target_format)
     
