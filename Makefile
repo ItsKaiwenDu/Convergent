@@ -1,6 +1,6 @@
 # Convergent: Local File Converter Utility
 # Owner: Kaiwen Du
-# License: Free to use
+# License: Apache License 2.0
 
 # Configuration
 PYTHON = python3

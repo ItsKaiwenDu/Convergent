@@ -78,7 +78,7 @@ When converting batch files, Convergent protects your existing work with an inte
 
 ### Prerequisites
 
--   **Python 3.8+** (3.10+ recommended)
+-   **Python 3.10+**
 -   **Homebrew** (recommended for macOS system dependencies)
 
 ### Installation
@@ -96,6 +96,12 @@ When converting batch files, Convergent protects your existing work with an inte
     *This will probe your system for all required external tools and ensure they are ready to use.*
 
 ## Usage
+
+### Help
+View all available Makefile targets:
+```bash
+make help
+```
 
 ### Interactive Mode
 Simply run following command and follow on-screen prompts:
