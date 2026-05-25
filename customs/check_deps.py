@@ -47,6 +47,12 @@ def check_dependencies():
             "cmd": ["pandoc", "--version"],
             "version_regex": r"pandoc ([\d\.]+)",
             "install_hint": "brew install pandoc"
+        },
+        {
+            "name": "Typst",
+            "cmd": ["typst", "--version"],
+            "version_regex": r"typst ([\d\.]+)",
+            "install_hint": "brew install typst"
         }
     ]
 

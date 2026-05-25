@@ -88,7 +88,7 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
     -   **PDF**: Merge, split, or export pages to JPG/PNG.
     -   **Images**: Convert HEIC, JPG, PNG, WEBP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MP3, WAV, M4A; split MP4 by chapter/segment.
-    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF.
+    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT.
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
 -   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
@@ -119,7 +119,7 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 
 - **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
-- **Pandoc PDF fonts**: If converting documents to PDF fails, ensure you have a LaTeX distribution installed (e.g., `brew install --cask mactex` or `basictex`).
+- **Pandoc PDF fonts / Markdown to PDF**: If converting documents to PDF fails, ensure you have a LaTeX distribution or Typst installed (e.g., `brew install pandoc typst`).
 - **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide necessary delegates for ImageMagick.
 
 ## Tech Stack & Requirements
@@ -131,7 +131,7 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 | **Processing Engine** | [FFmpeg](https://ffmpeg.org/) | 6+ |
 | **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
 | **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
-| **Document Engine** | [Pandoc](https://pandoc.org/) | 3+ |
+| **Document Engine** | [Pandoc](https://pandoc.org/) + [Typst](https://typst.app/) | 3+ / 0.14+ |
 | **CLI Framework** | `argparse` + `tty` | - |
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
 
@@ -151,6 +151,7 @@ Convergent/
 │   ├── decompress.py
 │   ├── doc.py
 │   ├── image.py
+│   ├── markdown_conv.py  # Markdown .md to PDF/HTML/TXT conversion
 │   ├── ntb.py            # Notability .ntb to PDF conversion (Beta)
 │   ├── pdf_manip.py
 │   └── video.py

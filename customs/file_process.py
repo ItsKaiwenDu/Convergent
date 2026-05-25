@@ -5,7 +5,7 @@ import multiprocessing
 from pathlib import Path
 from customs.run_command import send_to_trash
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None):
     """
     Processes a single file conversion using the provided Converter instance.
     """
@@ -39,13 +39,15 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None):
         success, error = conv.convert_pdf(f, target_format)
     elif source_fmt == "NTB":
         success, error = conv.convert_ntb(f, target_format)
+    elif source_fmt == "MD":
+        success, error = conv.convert_markdown(f, target_format, md_pdf_mode=md_pdf_mode)
     elif source_fmt in ["JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]:
         success, error = conv.convert_image(f, target_format)
     
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None):
     """
     Processes a batch of files for conversion.
     """
@@ -312,7 +314,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate): f for f in files}
+                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode): f for f in files}
                     
                     for future in concurrent.futures.as_completed(futures):
                         name, success, error, duration = future.result()
@@ -327,7 +329,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         except ImportError:
             # Fallback for systems without rich
             for f in files:
-                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate)
+                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode)
                 if success:
                     success_count += 1
                     if error != "Skipped (Same format)":

@@ -22,15 +22,15 @@ setup: ## Install dependencies
 	$(PYTHON) -m pip install -r requirements.txt
 	@echo "Checking System dependencies..."
 	@if command -v brew >/dev/null; then \
-		brew install ffmpeg imagemagick pandoc ghostscript; \
+		brew install ffmpeg imagemagick pandoc ghostscript typst; \
 	elif command -v apt >/dev/null; then \
-		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript; \
+		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript typst; \
 	elif command -v dnf >/dev/null; then \
-		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript; \
+		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript typst; \
 	elif command -v pacman >/dev/null; then \
-		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript; \
+		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript typst; \
 	else \
-		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, and Ghostscript manually."; \
+		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, Ghostscript, and Typst manually."; \
 	fi
 	@echo "Setup complete!"
 

@@ -90,13 +90,14 @@ class Converter:
             "DNG": ["JPG", "PNG", "WEBP", "PDF"],
             "SVG": ["JPG", "PNG", "WEBP", "PDF"],
             "NTB": ["PDF"],
+            "MD": ["PDF", "HTML", "TXT"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
             "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
-            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF", "NTB"]},
+            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF", "NTB", "MD"]},
         }
 
     def convert_heic(self, source, target_ext):
@@ -120,6 +121,9 @@ class Converter:
     def convert_ntb(self, source, target_ext):
         return ntb.convert_ntb(source, target_ext)
 
+    def convert_markdown(self, source, target_ext, md_pdf_mode=None):
+        return doc.convert_markdown(source, target_ext, md_pdf_mode)
+
     def combine_pdfs(self, paths):
         return pdf_manip.combine_pdfs(paths)
 
@@ -138,11 +142,54 @@ class Converter:
     def decompress(self, path, output_dir=None):
         return decompress.decompress(path, output_dir)
 
-    def process_single_file(self, f, target_format, fps=None):
-        return file_process.process_single_file(self, f, target_format, fps)
+    def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None):
+        return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode)
+
+def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
+    if target_fmt != "PDF" or not paths:
+        return None
+        
+    has_md = False
+    for p in paths:
+        path_obj = Path(os.path.expanduser(p))
+        if path_obj.is_file() and path_obj.suffix.lower() == ".md":
+            has_md = True
+            break
+        elif path_obj.is_dir():
+            try:
+                for item in path_obj.iterdir():
+                    if item.is_file() and item.suffix.lower() == ".md":
+                        has_md = True
+                        break
+            except:
+                pass
+            if has_md:
+                break
+                
+    if not has_md:
+        return None
+        
+    while True:
+        console.print("\n[bold yellow]Markdown (.md) files detected! Select rendering mode for PDF:[/bold yellow]")
+        console.print(" 1. Human-friendly PDF (renders bold, tables, lists, etc. correctly)")
+        console.print(" 2. Raw PDF (displays raw Markdown text and symbols)")
+        console.print(" [bold white]B[/bold white]. Back")
+        md_choice = get_char("\nPick a #: ")
+        if md_choice.lower() == 'b':
+            console.print()
+            return "back"
+        elif md_choice == '1':
+            console.print()
+            return "formatted"
+        elif md_choice == '2':
+            console.print()
+            return "raw"
+        else:
+            console.print(" [dim]Invalid choice[/dim]")
+            time.sleep(0.5)
 
 def main():
     conv = Converter()
@@ -152,6 +199,7 @@ def main():
     parser.add_argument("--to", dest="to_fmt", help="Target format (e.g., PNG, MP3)")
     parser.add_argument("--fps", help="Frames per second for GIF conversion (e.g., 30, 60)")
     parser.add_argument("--bitrate", help="Audio bitrate for MP3 conversion (e.g., 128k, 192k, 320k)")
+    parser.add_argument("--md-pdf-mode", choices=["formatted", "raw"], default="formatted", help="Rendering mode for Markdown to PDF (default: formatted)")
     parser.add_argument("--path", help="Path to file or directory")
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
@@ -179,7 +227,7 @@ def main():
             
         # For CLI, we treat the path as a single path or split it if it looks like multiple
         paths = clean_paths(args.path)
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip)
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode)
         return
 
     while True:
@@ -306,7 +354,10 @@ def main():
                 paths = clean_paths(path)
                 
             if paths:
-                conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate)
+                md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
+                if md_pdf_mode == "back":
+                    continue
+                conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
                 get_char("\nPress any key to continue...")
             continue
         
@@ -549,7 +600,10 @@ def main():
             if not paths:
                 continue
                 
-            conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate)
+            md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
+            if md_pdf_mode == "back":
+                continue
+            conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
             get_char("\nPress any key to continue...")
 
         else:
