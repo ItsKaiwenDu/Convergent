@@ -14,17 +14,17 @@
 
 ### Installation
 
-1.  **Clone Repository**: Clone or download full repo — `Convergent.py`, `Makefile`, `modules/`, and `customs/` must all be present in same directory.
+1.  **Clone Repository**: Clone or download full repository. Ensure `Convergent.py`, `Makefile`, `modules/`, and `customs/` are all present in same directory.
 2.  **Run Setup**:
     ```bash
     make setup
     ```
-    *This will install Python dependencies from `requirements.txt` (including `rich`) and attempt to install system dependencies like `ffmpeg`, `imagemagick`, `ghostscript`, and `pandoc` using your system's package manager (`brew`, `apt`, `dnf`, or `pacman`).*
+    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `ghostscript`, `pandoc`) via your package manager (`brew`, `apt`, `dnf`, `pacman`).*
 3.  **Check Dependencies**:
     ```bash
     make check
     ```
-    *This will probe your system for all required external tools and ensure they are ready to use.*
+    *Probes system for all required external tools and ensures they are ready to use.*
 
 ## Usage
 
@@ -100,29 +100,25 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 Save frequent workflows as persistent shortcuts for instant access.
 
 - **Manage Shortcuts**: Manage your workflows directly from main menu:
-  - **`[+]`** Create
-  - **`[=]`** Edit
-  - **`[-]`** Delete
+  - `[+]` Create
+  - `[=]` Edit
+  - `[-]` Delete
 - **Skip Prompts**: Save a fixed file or folder path in any shortcut to completely skip input path prompt.
 - **Persistence**: Saved automatically to `~/.convergent_shortcuts.json` and loaded into main menu on startup.
 
 ## Collision Handling & Overwrite Guard
 
-When output files already exist, Convergent protects your work with an interactive collision guard:
+When an output file already exists, Convergent shows a **Rich Table** summarizing all conflicts (size, last‑modified). Use shortcuts to resolve them globally:
 
-1. **Batch Collision Preview Table**: If multiple output files already exist, Convergent displays a unified **Rich Table** showing details of all conflicts, including:
-   - File Size (formatted cleanly)
-   - Last Modified timestamp
-   Users can apply a quick action globally across all conflicts:
-   - **`[O]`** Overwrite All
-   - **`[S]`** Skip All
-   - **`[K]`** Keep All (Auto-Rename)
-   - **`[I]`** Decide Individually
+- `[O]` Overwrite All
+- `[S]` Skip All
+- `[K]` Keep All (auto‑rename)
+- `[I]` Decide Individually
 
-2. **Shift Key "Apply to All" Shortcut (Individual Mode)**:
-   If you choose to decide individually, you are prompted for each conflict. To save time, you can hold **Shift** when selecting your option to apply it to all remaining conflicts immediately:
-   - **`[o]`** / **`[s]`** / **`[k]`** (lowercase): Overwrite / Skip / Keep **only this file**.
-   - **`[O]`** / **`[S]`** / **`[K]`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
+If you pick **Decide Individually**, you are prompted per conflict. Hold **Shift** while choosing an option to apply it to all remaining files:
+
+- `[o]` / `[s]` / `[k]`: Overwrite/skip/keep **this file only**
+- `[O]` / `[S]` / `[K]`: Apply the same action to **all remaining files**
 
 ## Troubleshooting
 
