@@ -158,37 +158,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         mtime = "Unknown"
                     console.print(f"   {src.name:<30} | {out.name:<30} | {size_str:<10} | {mtime}")
 
-            console.print("\n[bold yellow]Options for all conflicts:[/bold yellow]")
-            console.print("   [bold]\\[O][/bold] Overwrite All")
-            console.print("   [bold]\\[S][/bold] Skip All")
-            console.print("   [bold]\\[K][/bold] Keep All (auto-rename)")
-            console.print("   [bold]\\[I][/bold] Decide Individually")
-            console.print("   [bold]\\[C][/bold] Cancel entire operation")
-            
-            while True:
-                choice = get_char("   Choice: ").lower()
-                if choice == 'o':
-                    console.print()
-                    overwrite = True
-                    break
-                elif choice == 's':
-                    console.print()
-                    skip = True
-                    break
-                elif choice == 'k':
-                    console.print()
-                    keep_all = True
-                    break
-                elif choice == 'i':
-                    console.print()
-                    break
-                elif choice == 'c':
-                    console.print()
-                    console.print("[yellow]Operation cancelled.[/yellow]")
-                    return
-                else:
-                    console.print(" [dim]Invalid choice[/dim]")
-                    time.sleep(0.5)
+
 
         for f in files:
             output = f.with_suffix(f".{target_format.lower()}")

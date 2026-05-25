@@ -108,17 +108,12 @@ Save frequent workflows as persistent shortcuts for instant access.
 
 ## Collision Handling & Overwrite Guard
 
-When an output file already exists, Convergent shows a **Rich Table** summarizing all conflicts (size, last‑modified). Use shortcuts to resolve them globally:
+If output files already exist, a **Collision Preview** table lists conflicts and prompts you immediately:
 
-- `[O]` Overwrite All
-- `[S]` Skip All
-- `[K]` Keep All (auto‑rename)
-- `[I]` Decide Individually
-
-If you pick **Decide Individually**, you are prompted per conflict. Hold **Shift** while choosing an option to apply it to all remaining files:
-
-- `[o]` / `[s]` / `[k]`: Overwrite/skip/keep **this file only**
-- `[O]` / `[S]` / `[K]`: Apply the same action to **all remaining files**
+- `[o]`: Overwrite once | `[Shift] + [o]`: Overwrite all
+- `[s]`: Skip once | `[Shift] + [s]`: Skip all
+- `[k]`: Keep both (auto-rename) once | `[Shift] + [k]`: Keep all
+- `[c]`: Cancel entire operation
 
 ## Troubleshooting
 
