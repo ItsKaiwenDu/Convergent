@@ -100,9 +100,9 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 Save frequent workflows as persistent shortcuts for instant access.
 
 - **Manage Shortcuts**: Manage your workflows directly from main menu:
-  - `[+]` Create
-  - `[=]` Edit
-  - `[-]` Delete
+  - **`[+]`** Create
+  - **`[=]`** Edit
+  - **`[-]`** Delete
 - **Skip Prompts**: Save a fixed file or folder path in any shortcut to completely skip input path prompt.
 - **Persistence**: Saved automatically to `~/.convergent_shortcuts.json` and loaded into main menu on startup.
 
@@ -114,15 +114,15 @@ When output files already exist, Convergent protects your work with an interacti
    - File Size (formatted cleanly)
    - Last Modified timestamp
    Users can apply a quick action globally across all conflicts:
-   - `[O]` Overwrite All
-   - `[S]` Skip All
-   - `[K]` Keep All (Auto-Rename)
-   - `[I]` Decide Individually
+   - **`[O]`** Overwrite All
+   - **`[S]`** Skip All
+   - **`[K]`** Keep All (Auto-Rename)
+   - **`[I]`** Decide Individually
 
 2. **Shift Key "Apply to All" Shortcut (Individual Mode)**:
    If you choose to decide individually, you are prompted for each conflict. To save time, you can hold **Shift** when selecting your option to apply it to all remaining conflicts immediately:
-   - **`o` / `s` / `k`** (lowercase): Overwrite / Skip / Keep **only this file**.
-   - **`O` / `S` / `K`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
+   - **`[o]`** / **`[s]`** / **`[k]`** (lowercase): Overwrite / Skip / Keep **only this file**.
+   - **`[O]`** / **`[S]`** / **`[K]`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
 
 ## Troubleshooting
 
