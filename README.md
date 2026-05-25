@@ -142,25 +142,24 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 
 ```
 Convergent/
-├── Convergent.py        # Entry point: CLI args, main menu, Converter class
-├── Makefile             # Build targets: setup, start, check, shortcut, clean
-├── requirements.txt     # Python dependencies (rich)
-├── modules/             # Format-specific conversion logic
-│   ├── audio.py
-│   ├── compress.py
-│   ├── decompress.py
-│   ├── doc.py
-│   ├── image.py
-│   ├── markdown_conv.py  # Markdown .md to PDF/HTML/TXT conversion
-│   ├── ntb.py            # Notability .ntb to PDF conversion (Beta)
-│   ├── pdf_manip.py
-│   └── video.py
-└── customs/             # Shared utilities and helpers
-    ├── check_deps.py
-    ├── console.py       # Fallback mock console for rich-less environments
-    ├── file_process.py
-    ├── run_command.py
-    └── shortcut.py
+├── Convergent.py        # Main CLI entry point and menu orchestrator
+├── Makefile             # Task automation (setup, run, check, clean)
+├── requirements.txt     # Python dependencies
+├── modules/             # Format-specific conversion engines
+│   ├── audio.py         # Audio format conversion
+│   ├── compress.py      # Archive compression (ZIP, TAR, 7Z, RAR)
+│   ├── decompress.py    # Archive decompression
+│   ├── doc.py           # Document conversion (Office & Markdown)
+│   ├── image.py         # Image conversion (HEIC, JPG, PNG, RAW, etc.)
+│   ├── ntb.py           # Notability .ntb to vector PDF conversion
+│   ├── pdf_manip.py     # PDF tools (merge, split, page export)
+│   └── video.py         # Video conversion and segment splitting
+└── customs/             # Shared helpers and utility frameworks
+    ├── check_deps.py    # CLI dependency validator
+    ├── console.py       # Terminal UI and rich-text helper
+    ├── file_process.py  # Queue manager and collision handler
+    ├── run_command.py   # Subprocess shell command runner
+    └── shortcut.py      # Custom workflow CRUD manager
 ```
 
 ## Owner
