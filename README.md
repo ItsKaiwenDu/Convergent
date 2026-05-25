@@ -5,75 +5,6 @@
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
 
-## Features
-
--   **Interactive & CLI**: Streamlined numeric menu or direct command-line arguments for automation.
--   **High Performance**: Multi-core parallel batch processing for high-speed conversions.
--   **Smart Input**: Drag-and-drop multiple files/folders; handles messy paths and escaped characters automatically.
--   **Multi-Format Support**:
-    -   **PDF**: Merge, split, or export pages as JPG/PNG.
-    -   **Images**: HEIC, JPG, PNG, WEBP, Sony ARW, Adobe DNG (RAW), and SVG (vector) to raster formats.
-    -   **Video/Audio**: MOV, MP4, WEBM, GIF, AVI, MP3, WAV, and M4A support.
-    -   **Documents**: Convert Office files (DOCX, PPTX, RTF) to PDF.
-    -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF (extracts embedded high-resolution asset PDFs or converts page preview thumbnails).
-    -   **Archives**: Compress or decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) archives (optional password protection for ZIP, RAR, and 7z).
-    -   **Split**: Split a PDF into individual pages, or split an MP4 by chapter/segment.
--   **Shortcuts**: Save and edit persistent workflows for one-key triggers.
--   **Safety First**: Overwrite guard with macOS Trash integration (moves original to Trash using `trash` CLI or AppleScript to avoid permanent accidental deletions), interactive collision preview table, and shift-modified global shortcuts.
--   **Premium UI**: Rich terminal output with progress bars, status indicators, and real-time per-file timing for benchmarking.
-
-## Quick Shortcuts
-
-Convergent allows you to save your most frequent workflows as shortcuts for instant access.
-
-- **Create**: Press **+** in main menu to define a new shortcut with a custom symbol (key) and label title.
-- **Remove**: Press **-** in main menu to delete existing shortcuts.
-- **Edit**: Press **=** in main menu to modify an existing shortcut's properties.
-- **Example**: Create a shortcut `S` for `HEIC to JPG` to batch convert photos with one key.
-- **Fixed Paths**: You can optionally save a specific file or folder path in a shortcut to skip path prompt entirely.
-- **Audio Bitrate Selection**: Shortcuts support pre-selecting a custom audio bitrate for MP3 target formats (Choose from: Ask every time, Default, 128k, 192k, 320k).
-- **Persistence**: Shortcuts are saved in `~/.convergent_shortcuts.json` and appear in "Your Shortcuts" section of main menu.
-
-## Smart Collision Handling & Overwrite Guard
-
-When converting batch files, Convergent protects your existing work with an interactive collision guard:
-
-1. **Batch Collision Preview Table**: If multiple output files already exist, Convergent displays a unified **Rich Table** showing details of all conflicts, including:
-   - File Size (formatted cleanly)
-   - Last Modified timestamp
-   Users can apply a quick action globally across all conflicts:
-   - **`[O] Overwrite All`**
-   - **`[S] Skip All`**
-   - **`[K] Keep All (Auto-Rename)`**
-   - **`[I] Decide Individually`**
-
-2. **Shift Key "Apply to All" Shortcut (Individual Mode)**:
-   If you choose to decide individually, you are prompted for each conflict. To save time, you can hold **Shift** when selecting your option to apply it to all remaining conflicts immediately:
-   - **`o` / `s` / `k`** (lowercase): Overwrite / Skip / Keep **only this file**.
-   - **`O` / `S` / `K`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
-
-3. **macOS Trash Integration (Undo Support)**:
-   Instead of overwriting original files or directories directly on macOS, Convergent automatically moves the existing outputs to the **macOS Trash** before writing the new content.
-   - Leverages the high-performance `trash` CLI utility if available.
-   - Falls back gracefully to system-wide AppleScript (`osascript`) Finder integration.
-   - Notifies you with a dim console print (e.g., `Original moved to Trash: <name>`) when files are safely trashed, enabling immediate recovery.
-
-## Tech Stack & Requirements
-
-| Layer | Technology | Tested On |
-|---|---|---|
-| **OS** | macOS | 14+ (Sonoma) |
-| **Language** | [Python 3](https://www.python.org/) | 3.10+ |
-| **Processing Engine** | [FFmpeg](https://ffmpeg.org/) | 6+ |
-| **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
-| **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
-| **Document Engine** | [Pandoc](https://pandoc.org/) | 3+ |
-| **CLI Framework** | `argparse` + `tty` | - |
-| **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
-
-> [!NOTE]
-> **Compatibility**: This utility is **macOS-first**. Linux is supported and dependencies can be automatically installed via `apt`, `dnf`, or `pacman`. Windows is **not supported** due to `tty` terminal dependency.
-
 ## Getting Started
 
 ### Prerequisites
@@ -117,7 +48,7 @@ make shortcut
 *This generates a `.command` file that you can double-click to open Terminal and run utility instantly.*
 
 ### Clean Workspace
-Remove all compiled Python cache (`__pycache__`) directories across the project:
+Remove all compiled Python cache (`__pycache__`) directories across project:
 ```bash
 make clean
 ```
@@ -148,12 +79,73 @@ make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
 make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 ```
 
+## Features
+
+-   **Interactive & CLI**: Numeric menu for manual runs, or direct command-line arguments for automated pipelines.
+-   **High Performance**: Multi-core parallel batch processing for high-speed conversions.
+-   **Smart Input**: Drag-and-drop multiple files/folders; automatically handles escaped spaces and messy paths.
+-   **Multi-Format Support**:
+    -   **PDF**: Merge, split, or export pages to JPG/PNG.
+    -   **Images**: Convert HEIC, JPG, PNG, WEBP, SVG, and RAW formats (Sony ARW, Adobe DNG).
+    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MP3, WAV, M4A; split MP4 by chapter/segment.
+    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF.
+    -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF (extracts high-res embedded PDFs or page previews).
+    -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
+-   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
+-   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
+-   **Premium UI**: Rich terminal interface with progress bars, status indicators, and real-time benchmarking timers.
+
+## Quick Shortcuts
+
+Save frequent workflows as persistent shortcuts for instant access.
+
+- **Manage Shortcuts**: Manage your workflows directly from main menu:
+  - `[+]` Create
+  - `[=]` Edit
+  - `[-]` Delete
+- **Skip Prompts**: Save a fixed file or folder path in any shortcut to completely skip input path prompt.
+- **Persistence**: Saved automatically to `~/.convergent_shortcuts.json` and loaded into main menu on startup.
+
+## Collision Handling & Overwrite Guard
+
+When output files already exist, Convergent protects your work with an interactive collision guard:
+
+1. **Batch Collision Preview Table**: If multiple output files already exist, Convergent displays a unified **Rich Table** showing details of all conflicts, including:
+   - File Size (formatted cleanly)
+   - Last Modified timestamp
+   Users can apply a quick action globally across all conflicts:
+   - `[O]` Overwrite All
+   - `[S]` Skip All
+   - `[K]` Keep All (Auto-Rename)
+   - `[I]` Decide Individually
+
+2. **Shift Key "Apply to All" Shortcut (Individual Mode)**:
+   If you choose to decide individually, you are prompted for each conflict. To save time, you can hold **Shift** when selecting your option to apply it to all remaining conflicts immediately:
+   - **`o` / `s` / `k`** (lowercase): Overwrite / Skip / Keep **only this file**.
+   - **`O` / `S` / `K`** (Shift-modified uppercase): Overwrite All / Skip All / Keep All for **all remaining files**.
+
 ## Troubleshooting
 
 - **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts**: If converting documents to PDF fails, ensure you have a LaTeX distribution installed (e.g., `brew install --cask mactex` or `basictex`).
-- **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide the necessary delegates for ImageMagick.
+- **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide necessary delegates for ImageMagick.
+
+## Tech Stack & Requirements
+
+| Layer | Technology | Tested On |
+|---|---|---|
+| **OS** | macOS | 14+ (Sonoma) |
+| **Language** | [Python 3](https://www.python.org/) | 3.10+ |
+| **Processing Engine** | [FFmpeg](https://ffmpeg.org/) | 6+ |
+| **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
+| **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
+| **Document Engine** | [Pandoc](https://pandoc.org/) | 3+ |
+| **CLI Framework** | `argparse` + `tty` | - |
+| **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
+
+> [!NOTE]
+> **Compatibility**: This utility is **macOS-first**. Linux is supported and dependencies can be automatically installed via `apt`, `dnf`, or `pacman`. Windows is **not supported** due to `tty` terminal dependency.
 
 ## Project Structure
 
@@ -183,4 +175,4 @@ Convergent/
 **Kaiwen Du** - [GitHub](https://github.com/ItsKaiwenDu)
 
 ## License
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+Licensed under Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
