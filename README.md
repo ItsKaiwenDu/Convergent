@@ -89,7 +89,7 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
     -   **Images**: Convert HEIC, JPG, PNG, WEBP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MP3, WAV, M4A; split MP4 by chapter/segment.
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF.
-    -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF (extracts high-res embedded PDFs or page previews).
+    -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
 -   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
 -   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
