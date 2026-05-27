@@ -34,7 +34,7 @@ setup: ## Install dependencies
 	fi
 	@echo "Setup complete!"
 
-start: ## Run converter
+start: check ## Run converter
 	$(PYTHON) $(SCRIPT) $(ARGS)
 
 check: ## Verify dependencies
