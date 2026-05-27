@@ -14,6 +14,8 @@ def convert_audio(source, target_ext, bitrate=None):
         cmd += ["-acodec", "aac", "-q:a", "2"]
     elif target_ext.upper() == "WAV":
         cmd += ["-acodec", "pcm_s16le"]
+    elif target_ext.upper() == "FLAC":
+        cmd += ["-acodec", "flac"]
     
     cmd.append(str(output))
     return run_command(cmd)

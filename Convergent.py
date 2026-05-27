@@ -71,20 +71,21 @@ class Converter:
     def __init__(self):
         self.formats = {
             "HEIC": ["JPG", "PNG"],
-            "MOV": ["MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A"],
+            "MOV": ["MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"],
             "DOCX": ["PDF"],
             "PPTX": ["PDF"],
             "RTF": ["PDF"],
             "JPG": ["PNG", "WEBP", "PDF"],
             "PNG": ["JPG", "WEBP", "PDF"],
             "WEBP": ["JPG", "PNG", "PDF"],
-            "MP4": ["MOV", "WEBM", "GIF", "MP3", "WAV", "M4A"],
-            "WEBM": ["MOV", "MP4", "GIF", "AVI", "MP3", "WAV", "M4A"],
+            "MP4": ["MOV", "WEBM", "GIF", "MP3", "WAV", "M4A", "FLAC"],
+            "WEBM": ["MOV", "MP4", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"],
             "GIF": ["MOV", "MP4", "WEBM", "AVI"],
-            "AVI": ["MOV", "MP4", "WEBM", "GIF", "MP3", "WAV", "M4A"],
-            "WAV": ["MP3", "M4A"],
-            "M4A": ["MP3", "WAV"],
-            "MP3": ["WAV", "M4A"],
+            "AVI": ["MOV", "MP4", "WEBM", "GIF", "MP3", "WAV", "M4A", "FLAC"],
+            "WAV": ["MP3", "M4A", "FLAC"],
+            "M4A": ["MP3", "WAV", "FLAC"],
+            "MP3": ["WAV", "M4A", "FLAC"],
+            "FLAC": ["MP3", "WAV", "M4A"],
             "PDF": ["JPG", "PNG"],
             "ARW": ["JPG", "PNG", "WEBP", "PDF"],
             "DNG": ["JPG", "PNG", "WEBP", "PDF"],
@@ -96,7 +97,7 @@ class Converter:
         self.categories = {
             "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
-            "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3"]},
+            "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3", "FLAC"]},
             "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF", "NTB", "MD"]},
         }
 

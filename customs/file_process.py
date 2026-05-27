@@ -31,7 +31,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
         success, error = conv.convert_heic(f, target_format)
     elif source_fmt in ["MOV", "MP4", "WEBM", "GIF", "AVI"]:
         success, error = conv.convert_video(f, target_format, fps=fps, bitrate=bitrate)
-    elif source_fmt in ["WAV", "M4A", "MP3"]:
+    elif source_fmt in ["WAV", "M4A", "MP3", "FLAC"]:
         success, error = conv.convert_audio(f, target_format, bitrate=bitrate)
     elif source_fmt in ["DOCX", "PPTX", "RTF"]:
         success, error = conv.convert_office(f, target_format)
