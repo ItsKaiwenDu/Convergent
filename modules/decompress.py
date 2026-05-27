@@ -6,7 +6,7 @@ from customs.run_command import run_command, send_to_trash
 def decompress(path, output_dir=None):
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.exists():
-        return False, f"Path does not exist: {path}"
+        return False, f"Path does not exist: {path}", None
     
     if not output_dir:
         output_dir = path_obj.parent / path_obj.stem
@@ -34,6 +34,7 @@ def decompress(path, output_dir=None):
         # unrar x archive.rar /path/to/dir/
         cmd = ["unrar", "x", str(path_obj), f"{str(output_dir)}/"]
     else:
-        return False, f"Unsupported or unknown archive format: {path_obj.name}"
+        return False, f"Unsupported or unknown archive format: {path_obj.name}", None
 
-    return run_command(cmd, cwd=cwd)
+    success, error = run_command(cmd, cwd=cwd)
+    return success, error, output_dir

@@ -13,7 +13,7 @@ def compress(paths, output_name, format_choice, password=None):
     valid_paths = [p for p in path_objs if p.exists()]
     
     if not valid_paths:
-        return False, "No valid paths provided for compression."
+        return False, "No valid paths provided for compression.", None
     
     if format_choice == "ZIP" and not output_name.lower().endswith(".zip"):
         output_name += ".zip"
@@ -61,6 +61,7 @@ def compress(paths, output_name, format_choice, password=None):
         if password:
             cmd.insert(2, f"-p{password}")
     else:
-        return False, f"Unsupported format: {format_choice}"
+        return False, f"Unsupported format: {format_choice}", None
 
-    return run_command(cmd, cwd=cwd)
+    success, error = run_command(cmd, cwd=cwd)
+    return success, error, output_path

@@ -33,6 +33,7 @@ import argparse
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb
 from customs import shortcut, file_process
+from customs.file_process import prompt_move_files
 from customs.run_command import run_command
 from customs.console import console, get_input, get_char
 
@@ -358,8 +359,8 @@ def main():
                 md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
                 if md_pdf_mode == "back":
                     continue
-                conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
-                get_char("\nPress any key to continue...")
+                converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
+                prompt_move_files(console, get_char, get_input, converted)
             continue
         
         elif choice == '0':
@@ -369,8 +370,11 @@ def main():
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
             if paths:
-                conv.combine_pdfs(paths)
-                get_char("\nPress any key to continue...")
+                out_path = conv.combine_pdfs(paths)
+                if out_path:
+                    prompt_move_files(console, get_char, get_input, [out_path])
+                else:
+                    get_char("\nPress any key to continue...")
             continue
             
         elif choice == '1':
@@ -381,15 +385,24 @@ def main():
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
             if paths:
+                split_dirs = []
                 for path in paths:
                     p = Path(path)
                     if p.suffix.lower() == ".pdf":
-                        conv.split_pdf(path)
+                        out_dir = conv.split_pdf(path)
+                        if out_dir:
+                            split_dirs.append(out_dir)
                     elif p.suffix.lower() == ".mp4":
-                        conv.split_video(path)
+                        out_dir = conv.split_video(path)
+                        if out_dir:
+                            split_dirs.append(out_dir)
                     else:
                         console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF and MP4 are supported for splitting.[/bold red]")
-                get_char("\nPress any key to continue...")
+                
+                if split_dirs:
+                    prompt_move_files(console, get_char, get_input, split_dirs)
+                else:
+                    get_char("\nPress any key to continue...")
             continue
             
         elif choice == '6':
@@ -459,14 +472,14 @@ def main():
             if not output_name:
                 output_name = f"compressed.{target_fmt.lower()}"
                 
-            success, error = conv.compress(paths, output_name, target_fmt, password)
+            success, error, out_path = conv.compress(paths, output_name, target_fmt, password)
             if success:
                 console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
+                prompt_move_files(console, get_char, get_input, [out_path])
             else:
                 console.print(f"\n[bold red]FAILED to compress:[/bold red]")
                 console.print(f"   [dim]{error.strip()}[/dim]")
-            
-            get_char("\nPress any key to continue...")
+                get_char("\nPress any key to continue...")
             continue
             
         elif choice == '7':
@@ -493,15 +506,20 @@ def main():
                     get_char("\nPress any key to continue...")
                     continue
 
+            decompressed_dirs = []
             for path in paths:
-                success, error = conv.decompress(path, out_dir)
+                success, error, actual_out_dir = conv.decompress(path, out_dir)
                 if success:
                     console.print(f"\n[bold green]Successfully decompressed {Path(path).name}.[/bold green]")
+                    decompressed_dirs.append(actual_out_dir)
                 else:
                     console.print(f"\n[bold red]FAILED to decompress {Path(path).name}:[/bold red]")
                     console.print(f"   [dim]{error.strip()}[/dim]")
             
-            get_char("\nPress any key to continue...")
+            if decompressed_dirs:
+                prompt_move_files(console, get_char, get_input, decompressed_dirs)
+            else:
+                get_char("\nPress any key to continue...")
             continue
             
         elif choice in conv.categories:
@@ -604,8 +622,8 @@ def main():
             md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
             if md_pdf_mode == "back":
                 continue
-            conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
-            get_char("\nPress any key to continue...")
+            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
+            prompt_move_files(console, get_char, get_input, converted)
 
         else:
             console.print(" [dim]Invalid choice[/dim]")

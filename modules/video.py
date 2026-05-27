@@ -64,12 +64,12 @@ def split_video(path):
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.is_file() or path_obj.suffix.lower() != ".mp4":
         console.print(f"[bold red]Error: Could not find MP4 at: [white]{path}[/white][/bold red]")
-        return
+        return None
     
     duration = get_video_duration(path_obj)
     if duration == 0:
         console.print("[bold red]Error: Could not determine video duration or file is empty.[/bold red]")
-        return
+        return None
     
     console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({format_seconds(duration)}):[/bold yellow]")
     console.print(" 1. Fixed Segments (e.g., every 60 seconds)")
@@ -80,7 +80,7 @@ def split_video(path):
     mode = get_char("\nPick a #: ")
     console.print()
     if mode.lower() == 'b':
-        return
+        return None
     output_dir = path_obj.parent / f"{path_obj.stem}_split"
     send_to_trash(output_dir)
     output_dir.mkdir(exist_ok=True)
@@ -92,7 +92,7 @@ def split_video(path):
             if interval <= 0: raise ValueError
         except ValueError:
             console.print("[bold red]Invalid interval.[/bold red]")
-            return
+            return None
         
         num_segments = int(duration // interval) + (1 if duration % interval > 0 else 0)
         
@@ -102,19 +102,23 @@ def split_video(path):
             console.print()
             if choice.lower() != 'y':
                 console.print("[yellow]Operation cancelled.[/yellow]")
-                return
+                return None
 
         console.print(f"[bold cyan]Splitting into segments of {interval}s...[/bold cyan]")
         
+        any_success = False
         for i in range(num_segments):
             start = i * interval
             out_file = output_dir / f"part_{i+1:03d}.mp4"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
-            if success: console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
+            if success:
+                console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
+                any_success = True
             else: console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
             
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
+        return output_dir if any_success else None
 
     elif mode == '2':
         console.print(f"\n[bold yellow]Enter time ranges separated by commas (e.g., 0-10, 00:01:00-00:02:00):[/bold yellow]")
@@ -133,16 +137,20 @@ def split_video(path):
                 ranges.append((start, end))
         except ValueError as e:
             console.print(f"[bold red]Invalid input: {e}[/bold red]")
-            return
+            return None
             
+        any_success = False
         for idx, (start, end) in enumerate(ranges, 1):
             out_file = output_dir / f"part_{idx}_{int(start)}-{int(end)}.mp4"
             cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
-            if success: console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
+            if success:
+                console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
+                any_success = True
             else: console.print(f" [bold red]✗[/bold red] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold red]FAILED[/bold red]")
             
         console.print(f"\n[bold green]Custom split finished! Files are in {output_dir.name}/[/bold green]")
+        return output_dir if any_success else None
 
     elif mode == '3':
         num_str = get_input("Number of parts: ")
@@ -151,7 +159,7 @@ def split_video(path):
             if num_parts < 1: raise ValueError
         except ValueError:
             console.print("[bold red]Invalid input.[/bold red]")
-            return
+            return None
             
         interval = duration / num_parts
         if num_parts > 50:
@@ -160,16 +168,20 @@ def split_video(path):
             console.print()
             if choice.lower() != 'y':
                 console.print("[yellow]Operation cancelled.[/yellow]")
-                return
+                return None
 
         console.print(f"[bold cyan]Splitting into {num_parts} equal parts (~{interval:.2f}s each)...[/bold cyan]")
         
+        any_success = False
         for i in range(num_parts):
             start = i * interval
             out_file = output_dir / f"part_{i+1:03d}.mp4"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
-            if success: console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
+            if success:
+                console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
+                any_success = True
             else: console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
             
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
+        return output_dir if any_success else None

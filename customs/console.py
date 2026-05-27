@@ -21,7 +21,12 @@ except ImportError:
 
 def get_input(prompt):
     try:
-        return input(prompt).strip()
+        if isinstance(console, MockConsole):
+            import re
+            clean_prompt = re.sub(r"\[.*?\]", "", prompt)
+            return input(clean_prompt).strip()
+        else:
+            return console.input(prompt).strip()
     except EOFError:
         return ""
 
