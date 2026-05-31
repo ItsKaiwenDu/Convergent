@@ -13,8 +13,8 @@ def convert_image(source, target_ext):
     # SVG conversion with high quality density and transparency flattening settings
     if source.suffix.lower() == ".svg":
         target_upper = target_ext.upper()
-        if target_upper in ("JPG", "JPEG"):
-            # For JPG/JPEG, since they do not support transparency, flatten on a clean white background
+        if target_upper in ("JPG", "JPEG", "BMP"):
+            # For JPG/JPEG/BMP, since they do not support transparency, flatten on a clean white background
             return run_command(["magick", "-density", "300", "-background", "white", str(source), "-alpha", "remove", "-alpha", "off", str(output)])
         else:
             # For formats supporting transparency (PNG, WEBP, PDF), maintain transparent background

@@ -182,8 +182,8 @@ def convert_pdf_to_image(source, target_ext):
     output_dir.mkdir(exist_ok=True)
     
     target_ext = target_ext.lower()
-    # Ghostscript devices: jpeg, png16m (24-bit color), tiff24nc (24-bit color TIFF)
-    device = "jpeg" if target_ext in ["jpg", "jpeg"] else "tiff24nc" if target_ext in ["tiff", "tif"] else "png16m"
+    # Ghostscript devices: jpeg, png16m (24-bit color), tiff24nc (24-bit color TIFF), bmp16m (24-bit color BMP)
+    device = "jpeg" if target_ext in ["jpg", "jpeg"] else "tiff24nc" if target_ext in ["tiff", "tif"] else "bmp16m" if target_ext == "bmp" else "png16m"
     output_pattern = output_dir / f"page_%03d.{target_ext}"
     
     cmd = [
