@@ -71,14 +71,16 @@ def flush_stdin():
 class Converter:
     def __init__(self):
         self.formats = {
-            "HEIC": ["JPG", "PNG"],
+            "HEIC": ["JPG", "PNG", "TIFF"],
             "MOV": ["MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"],
             "DOCX": ["PDF"],
             "PPTX": ["PDF"],
             "RTF": ["PDF"],
-            "JPG": ["PNG", "WEBP", "PDF"],
-            "PNG": ["JPG", "WEBP", "PDF"],
-            "WEBP": ["JPG", "PNG", "PDF"],
+            "JPG": ["PNG", "WEBP", "PDF", "TIFF"],
+            "PNG": ["JPG", "WEBP", "PDF", "TIFF"],
+            "WEBP": ["JPG", "PNG", "PDF", "TIFF"],
+            "TIFF": ["JPG", "PNG", "WEBP", "PDF"],
+            "TIF": ["JPG", "PNG", "WEBP", "PDF"],
             "MP4": ["MOV", "WEBM", "GIF", "MP3", "WAV", "M4A", "FLAC"],
             "WEBM": ["MOV", "MP4", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"],
             "GIF": ["MOV", "MP4", "WEBM", "AVI"],
@@ -87,16 +89,16 @@ class Converter:
             "M4A": ["MP3", "WAV", "FLAC"],
             "MP3": ["WAV", "M4A", "FLAC"],
             "FLAC": ["MP3", "WAV", "M4A"],
-            "PDF": ["JPG", "PNG"],
-            "ARW": ["JPG", "PNG", "WEBP", "PDF"],
-            "DNG": ["JPG", "PNG", "WEBP", "PDF"],
-            "SVG": ["JPG", "PNG", "WEBP", "PDF"],
+            "PDF": ["JPG", "PNG", "TIFF"],
+            "ARW": ["JPG", "PNG", "WEBP", "PDF", "TIFF"],
+            "DNG": ["JPG", "PNG", "WEBP", "PDF", "TIFF"],
+            "SVG": ["JPG", "PNG", "WEBP", "PDF", "TIFF"],
             "NTB": ["PDF"],
             "MD": ["PDF", "HTML", "TXT"],
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
-            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "ARW", "DNG", "SVG"]},
+            "2": {"name": "Image", "extensions": ["HEIC", "JPG", "PNG", "WEBP", "TIFF", "TIF", "ARW", "DNG", "SVG"]},
             "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI"]},
             "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3", "FLAC"]},
             "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF", "NTB", "MD"]},
