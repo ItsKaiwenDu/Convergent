@@ -2,6 +2,7 @@
 import subprocess
 import sys
 import re
+import shutil
 
 GREEN = '\033[92m'
 RED = '\033[91m'
@@ -53,6 +54,24 @@ def check_dependencies():
             "cmd": ["typst", "--version"],
             "version_regex": r"typst ([\d\.]+)",
             "install_hint": "brew install typst"
+        },
+        {
+            "name": "7-Zip (7z)",
+            "cmd": ["7zz"] if shutil.which("7zz") else ["7z"],
+            "version_regex": r"7-Zip.*?([\d\.]+)",
+            "install_hint": "brew install sevenzip"
+        },
+        {
+            "name": "unrar",
+            "cmd": ["unrar"],
+            "version_regex": r"UNRAR.*?([\d\.]+)",
+            "install_hint": "brew install sevenzip (as fallback) or install unrar"
+        },
+        {
+            "name": "rar",
+            "cmd": ["rar"],
+            "version_regex": r"RAR.*?([\d\.]+)",
+            "install_hint": "install manually (e.g., from rarlab.com)"
         }
     ]
 

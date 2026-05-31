@@ -436,12 +436,12 @@ def main():
                     continue
                 
             console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
-            console.print(" 1. ZIP")
-            console.print(" 2. TAR.GZ")
-            console.print(" 3. TAR.BZ2")
-            console.print(" 4. TAR.XZ")
+            console.print(" 1. zip")
+            console.print(" 2. tar.gz")
+            console.print(" 3. tar.bz2")
+            console.print(" 4. tar.xz")
             console.print(" 5. 7z")
-            console.print(" 6. RAR")
+            console.print(" 6. rar")
             console.print(" [bold white]B[/bold white]. Back")
             fmt_choice = get_char("\nPick a #: ")
             

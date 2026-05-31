@@ -41,6 +41,29 @@ def compress(paths, output_name, format_choice, password=None):
             # If not in the same directory tree, use absolute path (less ideal but necessary)
             rel_paths.append(str(p))
     
+    import shutil
+    sevenzip_exec = "7z"
+    if not shutil.which("7z") and shutil.which("7zz"):
+        sevenzip_exec = "7zz"
+
+    required_exec = {
+        "ZIP": "zip",
+        "TAR.GZ": "tar",
+        "TAR.BZ2": "tar",
+        "TAR.XZ": "tar",
+        "7Z": sevenzip_exec,
+        "RAR": "rar",
+    }.get(format_choice)
+
+    if required_exec:
+        if not shutil.which(required_exec):
+            if format_choice == "7Z":
+                return False, "7-Zip is not installed on your system.\nTo install it, run:\n   brew install sevenzip", None
+            elif required_exec == "rar":
+                return False, "RAR archiver is not installed on your system.\nTo install it, run:\n   brew install --cask rar\nOr download it from: https://www.rarlab.com/download.htm", None
+            else:
+                return False, f"Required utility '{required_exec}' is not installed on your system.", None
+
     if format_choice == "ZIP":
         if password:
             cmd = ["zip", "-P", password, "-r", str(output_path)] + rel_paths
@@ -53,7 +76,7 @@ def compress(paths, output_name, format_choice, password=None):
     elif format_choice == "TAR.XZ":
         cmd = ["tar", "-cJf", str(output_path)] + rel_paths
     elif format_choice == "7Z":
-        cmd = ["7z", "a", str(output_path)] + rel_paths
+        cmd = [sevenzip_exec, "a", str(output_path)] + rel_paths
         if password:
             cmd.insert(2, f"-p{password}")
     elif format_choice == "RAR":
