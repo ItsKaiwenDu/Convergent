@@ -30,7 +30,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     
     if source_fmt == "HEIC":
         success, error = conv.convert_heic(f, target_format)
-    elif source_fmt in ["MOV", "MP4", "WEBM", "GIF", "AVI"]:
+    elif source_fmt in ["MOV", "MP4", "WEBM", "GIF", "AVI", "MKV"]:
         success, error = conv.convert_video(f, target_format, fps=fps, bitrate=bitrate)
     elif source_fmt in ["WAV", "M4A", "MP3", "FLAC"]:
         success, error = conv.convert_audio(f, target_format, bitrate=bitrate)

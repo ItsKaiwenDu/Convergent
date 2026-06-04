@@ -42,6 +42,8 @@ def convert_video(source, target_ext, fps=None, bitrate=None):
         cmd += ["-c:v", "libx264", "-c:a", "aac", "-strict", "experimental"]
     elif target_ext.upper() == "WEBM":
         cmd += ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-c:a", "libopus"]
+    elif target_ext.upper() == "MKV":
+        cmd += ["-c:v", "libx264", "-c:a", "aac"]
     elif target_ext.upper() == "GIF":
         vf = "scale=480:-1:flags=lanczos"
         if fps:
