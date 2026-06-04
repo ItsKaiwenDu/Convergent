@@ -51,3 +51,59 @@ def get_char(prompt):
         
     console.print(ch, end="")
     return ch
+
+
+def prompt_fps():
+    import time
+    console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
+    console.print(" 1. Original FPS")
+    console.print(" 2. 30 FPS")
+    console.print(" 3. 60 FPS")
+    console.print(" [bold white]B[/bold white]. Back")
+    fps_choice = get_char("\nPick a #: ")
+    if fps_choice.lower() == 'b':
+        console.print()
+        return "back", None
+    elif fps_choice == '1':
+        console.print()
+        return "success", None
+    elif fps_choice == '2':
+        console.print()
+        return "success", 30
+    elif fps_choice == '3':
+        console.print()
+        return "success", 60
+    else:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return "invalid", None
+
+
+def prompt_bitrate():
+    import time
+    console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
+    console.print(" 1. Default")
+    console.print(" 2. 128k")
+    console.print(" 3. 192k")
+    console.print(" 4. 320k")
+    console.print(" [bold white]B[/bold white]. Back")
+    bitrate_choice = get_char("\nPick a #: ")
+    if bitrate_choice.lower() == 'b':
+        console.print()
+        return "back", None
+    elif bitrate_choice == '1':
+        console.print()
+        return "success", None
+    elif bitrate_choice == '2':
+        console.print()
+        return "success", "128k"
+    elif bitrate_choice == '3':
+        console.print()
+        return "success", "192k"
+    elif bitrate_choice == '4':
+        console.print()
+        return "success", "320k"
+    else:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return "invalid", None

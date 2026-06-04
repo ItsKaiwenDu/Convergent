@@ -35,7 +35,7 @@ from modules import pdf_manip, image, video, audio, doc, compress, decompress, n
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files
 from customs.run_command import run_command
-from customs.console import console, get_input, get_char
+from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -290,59 +290,19 @@ def main():
             
             fps = None
             if target_fmt == "GIF":
-                console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
-                console.print(" 1. Original FPS")
-                console.print(" 2. 30 FPS")
-                console.print(" 3. 60 FPS")
-                console.print(" [bold white]B[/bold white]. Back")
-                fps_choice = get_char("\nPick a #: ")
-                if fps_choice.lower() == 'b':
-                    console.print()
+                status, val = prompt_fps()
+                if status in ("back", "invalid"):
                     continue
-                elif fps_choice == '1':
-                    console.print()
-                    fps = None
-                elif fps_choice == '2':
-                    console.print()
-                    fps = 30
-                elif fps_choice == '3':
-                    console.print()
-                    fps = 60
-                else:
-                    console.print(" [dim]Invalid choice[/dim]")
-                    time.sleep(0.5)
-                    continue
+                fps = val
             
             bitrate = None
             if target_fmt == "MP3":
                 preselected_bitrate = sc.get("bitrate", "ask")
                 if preselected_bitrate == "ask":
-                    console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
-                    console.print(" 1. Default")
-                    console.print(" 2. 128k")
-                    console.print(" 3. 192k")
-                    console.print(" 4. 320k")
-                    console.print(" [bold white]B[/bold white]. Back")
-                    bitrate_choice = get_char("\nPick a #: ")
-                    if bitrate_choice.lower() == 'b':
-                        console.print()
+                    status, val = prompt_bitrate()
+                    if status in ("back", "invalid"):
                         continue
-                    elif bitrate_choice == '1':
-                        console.print()
-                        bitrate = None
-                    elif bitrate_choice == '2':
-                        console.print()
-                        bitrate = "128k"
-                    elif bitrate_choice == '3':
-                        console.print()
-                        bitrate = "192k"
-                    elif bitrate_choice == '4':
-                        console.print()
-                        bitrate = "320k"
-                    else:
-                        console.print(" [dim]Invalid choice[/dim]")
-                        time.sleep(0.5)
-                        continue
+                    bitrate = val
                 elif preselected_bitrate == "default":
                     bitrate = None
                 else:
@@ -561,57 +521,17 @@ def main():
                 
             fps = None
             if target_fmt == "GIF":
-                console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
-                console.print(" 1. Original FPS")
-                console.print(" 2. 30 FPS")
-                console.print(" 3. 60 FPS")
-                console.print(" [bold white]B[/bold white]. Back")
-                fps_choice = get_char("\nPick a #: ")
-                if fps_choice.lower() == 'b':
-                    console.print()
+                status, val = prompt_fps()
+                if status in ("back", "invalid"):
                     continue
-                elif fps_choice == '1':
-                    console.print()
-                    fps = None
-                elif fps_choice == '2':
-                    console.print()
-                    fps = 30
-                elif fps_choice == '3':
-                    console.print()
-                    fps = 60
-                else:
-                    console.print(" [dim]Invalid choice[/dim]")
-                    time.sleep(0.5)
-                    continue
+                fps = val
                 
             bitrate = None
             if target_fmt == "MP3":
-                console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
-                console.print(" 1. Default")
-                console.print(" 2. 128k")
-                console.print(" 3. 192k")
-                console.print(" 4. 320k")
-                console.print(" [bold white]B[/bold white]. Back")
-                bitrate_choice = get_char("\nPick a #: ")
-                if bitrate_choice.lower() == 'b':
-                    console.print()
+                status, val = prompt_bitrate()
+                if status in ("back", "invalid"):
                     continue
-                elif bitrate_choice == '1':
-                    console.print()
-                    bitrate = None
-                elif bitrate_choice == '2':
-                    console.print()
-                    bitrate = "128k"
-                elif bitrate_choice == '3':
-                    console.print()
-                    bitrate = "192k"
-                elif bitrate_choice == '4':
-                    console.print()
-                    bitrate = "320k"
-                else:
-                    console.print(" [dim]Invalid choice[/dim]")
-                    time.sleep(0.5)
-                    continue
+                bitrate = val
                 
             console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
             console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
