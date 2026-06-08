@@ -6,6 +6,8 @@ import shutil
 import concurrent.futures
 import multiprocessing
 from pathlib import Path
+from dataclasses import dataclass
+from typing import List
 from customs.run_command import send_to_trash
 
 try:
@@ -14,6 +16,51 @@ try:
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
+
+@dataclass
+class FormatDef:
+    name: str
+    category_id: str
+    targets: List[str]
+    handler_method: str
+
+FORMAT_REGISTRY = [
+    # Image Category ("2")
+    FormatDef("ARW", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("AVIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF"], "convert_image"),
+    FormatDef("BMP", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("DNG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("HEIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"], "convert_image"),
+    FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("SVG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("TIF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("TIFF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+
+    # Video Category ("3")
+    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+    FormatDef("GIF", "3", ["MOV", "MP4", "WEBM", "AVI", "MKV"], "convert_video"),
+    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+
+    # Audio Category ("4")
+    FormatDef("FLAC", "4", ["MP3", "WAV", "M4A"], "convert_audio"),
+    FormatDef("M4A", "4", ["MP3", "WAV", "FLAC"], "convert_audio"),
+    FormatDef("MP3", "4", ["WAV", "M4A", "FLAC"], "convert_audio"),
+    FormatDef("WAV", "4", ["MP3", "M4A", "FLAC"], "convert_audio"),
+
+    # Document Category ("5")
+    FormatDef("DOCX", "5", ["PDF"], "convert_office"),
+    FormatDef("MD", "5", ["PDF", "HTML", "TXT"], "convert_markdown"),
+    FormatDef("NTB", "5", ["PDF"], "convert_ntb"),
+    FormatDef("PDF", "5", ["JPG", "PNG", "TIFF", "BMP"], "convert_pdf"),
+    FormatDef("PPTX", "5", ["PDF"], "convert_office"),
+    FormatDef("RTF", "5", ["PDF"], "convert_office"),
+]
 
 def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None):
     """
@@ -36,21 +83,21 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     success = False
     error = ""
 
-    
-    if source_fmt in ["MOV", "MP4", "WEBM", "GIF", "AVI", "MKV"]:
-        success, error = conv.convert_video(f, target_format, fps=fps, bitrate=bitrate)
-    elif source_fmt in ["WAV", "M4A", "MP3", "FLAC"]:
-        success, error = conv.convert_audio(f, target_format, bitrate=bitrate)
-    elif source_fmt in ["DOCX", "PPTX", "RTF"]:
-        success, error = conv.convert_office(f, target_format)
-    elif source_fmt == "PDF":
-        success, error = conv.convert_pdf(f, target_format)
-    elif source_fmt == "NTB":
-        success, error = conv.convert_ntb(f, target_format)
-    elif source_fmt == "MD":
-        success, error = conv.convert_markdown(f, target_format, md_pdf_mode=md_pdf_mode)
-    elif source_fmt in ["HEIC", "HEIF", "AVIF", "JPG", "PNG", "WEBP", "TIFF", "TIF", "BMP", "ARW", "DNG", "SVG"]:
-        success, error = conv.convert_image(f, target_format)
+    fmt_def = next((fd for fd in FORMAT_REGISTRY if fd.name == source_fmt), None)
+    if fmt_def:
+        handler = getattr(conv, fmt_def.handler_method, None)
+        if handler:
+            success, error = handler(
+                f,
+                target_format,
+                fps=fps,
+                bitrate=bitrate,
+                md_pdf_mode=md_pdf_mode
+            )
+        else:
+            error = f"Handler method {fmt_def.handler_method} not found on Converter"
+    else:
+        error = f"Source format {source_fmt} not supported"
     
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration

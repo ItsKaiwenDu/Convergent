@@ -34,7 +34,7 @@ import shlex
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb
 from customs import shortcut, file_process
-from customs.file_process import prompt_move_files
+from customs.file_process import prompt_move_files, FORMAT_REGISTRY
 from customs.run_command import run_command
 from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate
 
@@ -75,66 +75,44 @@ def flush_stdin():
 
 class Converter:
     def __init__(self):
-        self.formats = {
-            "HEIC": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF"],
-            "HEIF": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"],
-            "AVIF": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF"],
-            "MOV": ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC"],
-            "DOCX": ["PDF"],
-            "PPTX": ["PDF"],
-            "RTF": ["PDF"],
-            "JPG": ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "PNG": ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "WEBP": ["JPG", "PNG", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "TIFF": ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "TIF": ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "BMP": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "HEIC", "HEIF", "AVIF"],
-            "MP4": ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"],
-            "WEBM": ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC"],
-            "GIF": ["MOV", "MP4", "WEBM", "AVI", "MKV"],
-            "AVI": ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"],
-            "MKV": ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"],
-            "WAV": ["MP3", "M4A", "FLAC"],
-            "M4A": ["MP3", "WAV", "FLAC"],
-            "MP3": ["WAV", "M4A", "FLAC"],
-            "FLAC": ["MP3", "WAV", "M4A"],
-            "PDF": ["JPG", "PNG", "TIFF", "BMP"],
-            "ARW": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "DNG": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "SVG": ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"],
-            "NTB": ["PDF"],
-            "MD": ["PDF", "HTML", "TXT"],
-        }
+        self.formats = {f.name: f.targets for f in FORMAT_REGISTRY}
         self.source_formats = sorted(list(self.formats.keys()))
+        category_names = {
+            "2": "Image",
+            "3": "Video",
+            "4": "Audio",
+            "5": "Document"
+        }
         self.categories = {
-            "2": {"name": "Image", "extensions": ["ARW", "AVIF", "BMP", "DNG", "HEIC", "HEIF", "JPG", "PNG", "SVG", "TIF", "TIFF", "WEBP"]},
-            "3": {"name": "Video", "extensions": ["AVI", "GIF", "MKV", "MOV", "MP4", "WEBM"]},
-            "4": {"name": "Audio", "extensions": ["FLAC", "M4A", "MP3", "WAV"]},
-            "5": {"name": "Document", "extensions": ["DOCX", "MD", "NTB", "PDF", "PPTX", "RTF"]},
+            cat_id: {
+                "name": cat_name,
+                "extensions": sorted([f.name for f in FORMAT_REGISTRY if f.category_id == cat_id])
+            }
+            for cat_id, cat_name in category_names.items()
         }
 
-    def convert_heic(self, source, target_ext):
+    def convert_heic(self, source, target_ext, **kwargs):
         return image.convert_heic(source, target_ext)
 
-    def convert_video(self, source, target_ext, fps=None, bitrate=None):
+    def convert_video(self, source, target_ext, fps=None, bitrate=None, **kwargs):
         return video.convert_video(source, target_ext, fps, bitrate)
 
-    def convert_audio(self, source, target_ext, bitrate=None):
+    def convert_audio(self, source, target_ext, bitrate=None, **kwargs):
         return audio.convert_audio(source, target_ext, bitrate)
 
-    def convert_office(self, source, target_ext):
+    def convert_office(self, source, target_ext, **kwargs):
         return doc.convert_office(source, target_ext)
 
-    def convert_image(self, source, target_ext):
+    def convert_image(self, source, target_ext, **kwargs):
         return image.convert_image(source, target_ext)
 
-    def convert_pdf(self, source, target_ext):
+    def convert_pdf(self, source, target_ext, **kwargs):
         return pdf_manip.convert_pdf_to_image(source, target_ext)
 
-    def convert_ntb(self, source, target_ext):
+    def convert_ntb(self, source, target_ext, **kwargs):
         return ntb.convert_ntb(source, target_ext)
 
-    def convert_markdown(self, source, target_ext, md_pdf_mode=None):
+    def convert_markdown(self, source, target_ext, md_pdf_mode=None, **kwargs):
         return doc.convert_markdown(source, target_ext, md_pdf_mode)
 
     def combine_pdfs(self, paths):
