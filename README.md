@@ -20,11 +20,11 @@
     make setup
     ```
     *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `ghostscript`, `pandoc`) via your package manager (`brew`, `apt`, `dnf`, `pacman`).*
-3.  **Check Dependencies**:
+3.  **Check Dependencies & Auto-Update**:
     ```bash
     make check
     ```
-    *Probes system for all required external tools and ensures they are ready to use.*
+    *Verifies dependencies and automatically pulls remote updates from GitHub origin if behind.*
 
 ## Usage
 
@@ -64,26 +64,32 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) | `--jobs 4` |
 | `--fps` | Target frames per second (for GIF output) | `--fps 30` |
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
+| `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
+| `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |
 
 **Example Commands:**
 ```bash
-# Convert HEIC images to JPG using 4 parallel jobs
-make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4"
+# Convert HEIC images to JPG using 4 parallel jobs and strip EXIF metadata
+make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4 --strip-metadata"
 
 # Convert Video to GIF with 30 FPS
 make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
 
 # Force overwrite of existing files or skip them silently
 make start ARGS="--from JPG --to PNG --path ./images --overwrite"
+
+# Convert Markdown to raw PDF instead of human-friendly typeset PDF
+make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
 ```
 
 ## Features
 
 -   **Interactive & CLI**: Numeric menu for manual runs, or direct command-line arguments for automated pipelines.
 -   **High Performance**: Multi-core parallel batch processing for high-speed conversions.
--   **Smart Input**: Drag-and-drop multiple files/folders; automatically handles escaped spaces and messy paths.
+-   **Smart Input**: Handles escaped spaces, messy paths, and EXIF auto-rotation for drag-and-dropped files.
+-   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag, interactive prompts, or saved shortcuts.
 -   **Multi-Format Support**:
     -   **PDF**: Merge, split, or export pages to JPG/PNG/TIFF.
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
@@ -132,6 +138,7 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 | **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
 | **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
 | **Document Engine** | [Pandoc](https://pandoc.org/) + [Typst](https://typst.app/) | 3+ / 0.14+ |
+| **Archive Engine** | [7-Zip](https://www.7-zip.org/) + `unrar`/`rar` | 23+ |
 | **CLI Framework** | `argparse` + `tty` | - |
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
 
