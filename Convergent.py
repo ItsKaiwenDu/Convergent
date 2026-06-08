@@ -102,10 +102,10 @@ class Converter:
         }
         self.source_formats = sorted(list(self.formats.keys()))
         self.categories = {
-            "2": {"name": "Image", "extensions": ["HEIC", "HEIF", "AVIF", "JPG", "PNG", "WEBP", "TIFF", "TIF", "BMP", "ARW", "DNG", "SVG"]},
-            "3": {"name": "Video", "extensions": ["MOV", "MP4", "WEBM", "GIF", "AVI", "MKV"]},
-            "4": {"name": "Audio", "extensions": ["WAV", "M4A", "MP3", "FLAC"]},
-            "5": {"name": "Document", "extensions": ["DOCX", "PPTX", "RTF", "PDF", "NTB", "MD"]},
+            "2": {"name": "Image", "extensions": ["ARW", "AVIF", "BMP", "DNG", "HEIC", "HEIF", "JPG", "PNG", "SVG", "TIF", "TIFF", "WEBP"]},
+            "3": {"name": "Video", "extensions": ["AVI", "GIF", "MKV", "MOV", "MP4", "WEBM"]},
+            "4": {"name": "Audio", "extensions": ["FLAC", "M4A", "MP3", "WAV"]},
+            "5": {"name": "Document", "extensions": ["DOCX", "MD", "NTB", "PDF", "PPTX", "RTF"]},
         }
 
     def convert_heic(self, source, target_ext):
@@ -252,13 +252,13 @@ def main():
         console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
         label_w = 14
         console.print(f" [bold cyan]0.[/bold cyan] {'Combine:'.ljust(label_w)} pdf")
-        console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} pdf, mp4")
+        console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} mp4, pdf")
         for key in sorted(conv.categories.keys()):
             cat = conv.categories[key]
             exts_str = ", ".join(cat["extensions"]).lower()
             console.print(f" [bold cyan]{key}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
-        console.print(f" [bold cyan]6.[/bold cyan] {'Compress:'.ljust(label_w)} zip, rar, 7z, tar.(gz/bz2/xz)")
-        console.print(f" [bold cyan]7.[/bold cyan] {'Decompress:'.ljust(label_w)} zip, rar, 7z, tar.(gz/bz2/xz)")
+        console.print(f" [bold cyan]6.[/bold cyan] {'Compress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
+        console.print(f" [bold cyan]7.[/bold cyan] {'Decompress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
             
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
@@ -399,12 +399,12 @@ def main():
                     continue
                 
             console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
-            console.print(" 1. zip")
-            console.print(" 2. tar.gz")
+            console.print(" 1. 7z")
+            console.print(" 2. rar")
             console.print(" 3. tar.bz2")
-            console.print(" 4. tar.xz")
-            console.print(" 5. 7z")
-            console.print(" 6. rar")
+            console.print(" 4. tar.gz")
+            console.print(" 5. tar.xz")
+            console.print(" 6. zip")
             console.print(" [bold white]B[/bold white]. Back")
             fmt_choice = get_char("\nPick a #: ")
             
@@ -412,12 +412,12 @@ def main():
                 continue
                 
             target_fmt = (
-                "ZIP" if fmt_choice == '1' else
-                "TAR.GZ" if fmt_choice == '2' else
+                "7Z" if fmt_choice == '1' else
+                "RAR" if fmt_choice == '2' else
                 "TAR.BZ2" if fmt_choice == '3' else
-                "TAR.XZ" if fmt_choice == '4' else
-                "7Z" if fmt_choice == '5' else
-                "RAR" if fmt_choice == '6' else
+                "TAR.GZ" if fmt_choice == '4' else
+                "TAR.XZ" if fmt_choice == '5' else
+                "ZIP" if fmt_choice == '6' else
                 None
             )
             if not target_fmt:
