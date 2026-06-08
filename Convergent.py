@@ -51,11 +51,19 @@ def clean_paths(path_str):
         return []
     path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
     
+    # If the entire path_str exists as a single file or directory, treat it as one path.
+    # This prevents splitting a single path that has spaces but no quotes/escapes.
     try:
-        # Handle shell-escaped paths and quoted paths
+        if os.path.exists(os.path.expanduser(path_str)):
+            return [path_str]
+    except:
+        pass
+        
+    try:
+        # Handle shell-escaped paths, quoted paths, and multiple paths separated by spaces
         # shlex.split correctly handles cases like 'History\ \&\ Practice.pdf'
-        # or multiple paths like '/path/1' '/path/2'
-        if "\\" in path_str or "'" in path_str or '"' in path_str:
+        # or multiple paths like '/path/1' '/path/2' or '/path/1 /path/2'
+        if " " in path_str or "\\" in path_str or "'" in path_str or '"' in path_str:
             parts = shlex.split(path_str)
             if parts:
                 return [p.strip() for p in parts if p.strip()]

@@ -5,7 +5,7 @@ from customs.run_command import run_command
 
 def convert_heic(source, target_ext):
     output = source.with_suffix(f".{target_ext.lower()}")
-    return run_command(["magick", str(source), str(output)])
+    return run_command(["magick", str(source), "-auto-orient", str(output)])
 
 def convert_image(source, target_ext):
     output = source.with_suffix(f".{target_ext.lower()}")
@@ -44,10 +44,10 @@ def convert_image(source, target_ext):
                 if not success:
                     return False, f"Failed to convert raw to temp PNG: {err}"
                 
-                success, err = run_command(["magick", str(temp_png), str(output)])
+                success, err = run_command(["magick", str(temp_png), "-auto-orient", str(output)])
                 return success, err
             finally:
                 if temp_png.exists():
                     temp_png.unlink()
             
-    return run_command(["magick", str(source), str(output)])
+    return run_command(["magick", str(source), "-auto-orient", str(output)])
