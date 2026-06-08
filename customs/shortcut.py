@@ -103,6 +103,26 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
             time.sleep(0.5)
         console.print()
 
+    # 3c. Strip metadata selection (only if target category is Image ("2"))
+    strip_metadata = "ask"
+    if selected_cat_key == "2":
+        console.print("\n[bold yellow]Select Metadata Stripping for Images:[/bold yellow]")
+        console.print(" 1. Ask every time")
+        console.print(" 2. Always strip")
+        console.print(" 3. Never strip")
+        strip_choice = get_char("\nPick a #: ")
+        if strip_choice == '1':
+            strip_metadata = "ask"
+        elif strip_choice == '2':
+            strip_metadata = True
+        elif strip_choice == '3':
+            strip_metadata = False
+        else:
+            console.print("\n [dim]Invalid choice. Defaulting to 'Ask every time'[/dim]")
+            strip_metadata = "ask"
+            time.sleep(0.5)
+        console.print()
+
     console.print(f"\n[bold yellow]Do you want to fix a file/folder path for this shortcut? (y/n)[/bold yellow]")
     fix_path = get_char("Choice: ")
     fixed_path = ""
@@ -132,6 +152,8 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         }
         if target_fmt == "MP3":
             sc_data["bitrate"] = bitrate
+        if selected_cat_key == "2":
+            sc_data["strip_metadata"] = strip_metadata
         shortcuts[sym] = sc_data
         save_shortcuts(shortcuts)
         console.print(f"\n[bold green]Shortcut '{sym}' added successfully![/bold green]")
@@ -264,6 +286,27 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
         elif bitrate_choice == '5':
             new_bitrate = "320k"
 
+    # 3c. Update Strip Metadata (only if category is Image ("2"))
+    new_strip_metadata = old_sc.get("strip_metadata", "ask")
+    if new_cat_key == "2":
+        current_strip_str = {
+            "ask": "Ask every time",
+            True: "Always strip",
+            False: "Never strip"
+        }.get(new_strip_metadata, "Ask every time")
+        console.print(f"\n[bold yellow]3c. Metadata Stripping[/bold yellow] (Current: {current_strip_str})")
+        console.print(" 1. Ask every time")
+        console.print(" 2. Always strip")
+        console.print(" 3. Never strip")
+        console.print(" [bold white]Enter[/bold white]. Keep Current")
+        strip_choice = get_input("Pick choice # (or Enter): ")
+        if strip_choice == '1':
+            new_strip_metadata = "ask"
+        elif strip_choice == '2':
+            new_strip_metadata = True
+        elif strip_choice == '3':
+            new_strip_metadata = False
+
     # 4. Update Symbol
     console.print(f"\n[bold yellow]4. Shortcut Key[/bold yellow] (Current: {sym_to_edit})")
     console.print(" [bold white]Enter[/bold white]. Keep Current")
@@ -296,6 +339,8 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
     }
     if new_target_fmt == "MP3":
         sc_data["bitrate"] = new_bitrate
+    if new_cat_key == "2":
+        sc_data["strip_metadata"] = new_strip_metadata
         
     shortcuts[new_sym] = sc_data
     save_shortcuts(shortcuts)

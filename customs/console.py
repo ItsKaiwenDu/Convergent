@@ -115,3 +115,26 @@ def prompt_bitrate():
         console.print(" [dim]Invalid choice[/dim]")
         time.sleep(0.5)
         return "invalid", None
+
+
+def prompt_strip_metadata():
+    import time
+    console.print("\n[bold yellow]Strip metadata (EXIF/IPTC) for privacy?[/bold yellow]")
+    console.print(" 1. Yes")
+    console.print(" 2. No")
+    console.print(" [bold white]B[/bold white]. Back")
+    choice = get_char("\nPick a #: ")
+    if choice.lower() == 'b':
+        console.print()
+        return "back", False
+    elif choice == '1':
+        console.print()
+        return "success", True
+    elif choice == '2':
+        console.print()
+        return "success", False
+    else:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return "invalid", False
+

@@ -36,7 +36,7 @@ from modules import pdf_manip, image, video, audio, doc, compress, decompress, n
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files, FORMAT_REGISTRY
 from customs.run_command import run_command
-from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate
+from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate, prompt_strip_metadata
 
 try:
     import termios
@@ -99,8 +99,8 @@ class Converter:
             for cat_id, cat_name in category_names.items()
         }
 
-    def convert_heic(self, source, target_ext, **kwargs):
-        return image.convert_heic(source, target_ext)
+    def convert_heic(self, source, target_ext, strip_metadata=False, **kwargs):
+        return image.convert_heic(source, target_ext, strip_metadata=strip_metadata)
 
     def convert_video(self, source, target_ext, fps=None, bitrate=None, **kwargs):
         return video.convert_video(source, target_ext, fps, bitrate)
@@ -111,8 +111,8 @@ class Converter:
     def convert_office(self, source, target_ext, **kwargs):
         return doc.convert_office(source, target_ext)
 
-    def convert_image(self, source, target_ext, **kwargs):
-        return image.convert_image(source, target_ext)
+    def convert_image(self, source, target_ext, strip_metadata=False, **kwargs):
+        return image.convert_image(source, target_ext, strip_metadata=strip_metadata)
 
     def convert_pdf(self, source, target_ext, **kwargs):
         return pdf_manip.convert_pdf_to_image(source, target_ext)
@@ -144,8 +144,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None):
         return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -203,6 +203,7 @@ def main():
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
+    parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
     args = parser.parse_args()
 
     if args.from_fmt or args.to_fmt or args.path:
@@ -226,7 +227,7 @@ def main():
             
         # For CLI, we treat the path as a single path or split it if it looks like multiple
         paths = clean_paths(args.path)
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode)
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata)
         return
 
     while True:
@@ -295,12 +296,23 @@ def main():
                 if preselected_bitrate == "ask":
                     status, val = prompt_bitrate()
                     if status in ("back", "invalid"):
-                        continue
+                         continue
                     bitrate = val
                 elif preselected_bitrate == "default":
                     bitrate = None
                 else:
                     bitrate = preselected_bitrate
+
+            strip_metadata = False
+            if sc.get("category") == "2":
+                preselected_strip = sc.get("strip_metadata", "ask")
+                if preselected_strip == "ask":
+                    status, val = prompt_strip_metadata()
+                    if status in ("back", "invalid"):
+                        continue
+                    strip_metadata = val
+                else:
+                    strip_metadata = preselected_strip
             
             if not path:
                 console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
@@ -316,7 +328,7 @@ def main():
                 md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
                 if md_pdf_mode == "back":
                     continue
-                converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
+                converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata)
                 prompt_move_files(console, get_char, get_input, converted)
             continue
         
@@ -526,6 +538,13 @@ def main():
                 if status in ("back", "invalid"):
                     continue
                 bitrate = val
+
+            strip_metadata = False
+            if choice == '2':
+                status, val = prompt_strip_metadata()
+                if status in ("back", "invalid"):
+                    continue
+                strip_metadata = val
                 
             console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
             console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
@@ -539,7 +558,7 @@ def main():
             md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
             if md_pdf_mode == "back":
                 continue
-            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode)
+            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata)
             prompt_move_files(console, get_char, get_input, converted)
 
         else:

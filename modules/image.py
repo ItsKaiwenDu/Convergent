@@ -3,11 +3,15 @@ import sys
 from pathlib import Path
 from customs.run_command import run_command
 
-def convert_heic(source, target_ext):
+def convert_heic(source, target_ext, strip_metadata=False):
     output = source.with_suffix(f".{target_ext.lower()}")
-    return run_command(["magick", str(source), "-auto-orient", str(output)])
+    cmd = ["magick", str(source), "-auto-orient"]
+    if strip_metadata:
+        cmd.append("-strip")
+    cmd.append(str(output))
+    return run_command(cmd)
 
-def convert_image(source, target_ext):
+def convert_image(source, target_ext, strip_metadata=False):
     output = source.with_suffix(f".{target_ext.lower()}")
     
     # SVG conversion with high quality density and transparency flattening settings
@@ -15,10 +19,18 @@ def convert_image(source, target_ext):
         target_upper = target_ext.upper()
         if target_upper in ("JPG", "JPEG", "BMP"):
             # For JPG/JPEG/BMP, since they do not support transparency, flatten on a clean white background
-            return run_command(["magick", "-density", "300", "-background", "white", str(source), "-alpha", "remove", "-alpha", "off", str(output)])
+            cmd = ["magick", "-density", "300", "-background", "white", str(source), "-alpha", "remove", "-alpha", "off"]
+            if strip_metadata:
+                cmd.append("-strip")
+            cmd.append(str(output))
+            return run_command(cmd)
         else:
             # For formats supporting transparency (PNG, WEBP, PDF), maintain transparent background
-            return run_command(["magick", "-density", "300", "-background", "none", str(source), str(output)])
+            cmd = ["magick", "-density", "300", "-background", "none", str(source)]
+            if strip_metadata:
+                cmd.append("-strip")
+            cmd.append(str(output))
+            return run_command(cmd)
 
     # Use sips on macOS for better RAW support if magick fails or specifically for ARW/DNG
     if sys.platform == "darwin" and source.suffix.lower() in (".arw", ".dng"):
@@ -35,7 +47,11 @@ def convert_image(source, target_ext):
         }
         target_upper = target_ext.upper()
         if target_upper in sips_targets:
-            return run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
+            res, err = run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
+            if res and strip_metadata:
+                # Strip output file post-hoc using magick
+                run_command(["magick", str(output), "-strip", str(output)])
+            return res, err
         elif target_upper == "WEBP":
             # Convert to temp PNG first using sips, then use magick to convert PNG to WEBP
             temp_png = source.with_suffix(".temp.png")
@@ -44,10 +60,18 @@ def convert_image(source, target_ext):
                 if not success:
                     return False, f"Failed to convert raw to temp PNG: {err}"
                 
-                success, err = run_command(["magick", str(temp_png), "-auto-orient", str(output)])
+                cmd = ["magick", str(temp_png), "-auto-orient"]
+                if strip_metadata:
+                    cmd.append("-strip")
+                cmd.append(str(output))
+                success, err = run_command(cmd)
                 return success, err
             finally:
                 if temp_png.exists():
                     temp_png.unlink()
             
-    return run_command(["magick", str(source), "-auto-orient", str(output)])
+    cmd = ["magick", str(source), "-auto-orient"]
+    if strip_metadata:
+        cmd.append("-strip")
+    cmd.append(str(output))
+    return run_command(cmd)
