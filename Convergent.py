@@ -30,6 +30,7 @@ import time
 import subprocess
 import sys
 import argparse
+import shlex
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb
 from customs import shortcut, file_process
@@ -37,13 +38,17 @@ from customs.file_process import prompt_move_files
 from customs.run_command import run_command
 from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate
 
+try:
+    import termios
+except ImportError:
+    termios = None
+
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def clean_paths(path_str):
     if not path_str:
         return []
-    import shlex
     path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
     
     try:
@@ -61,11 +66,11 @@ def clean_paths(path_str):
     return [path_str.strip("'").strip('"').strip()]
 
 def flush_stdin():
-    try:
-        import termios
-        termios.tcflush(sys.stdin, termios.TCIFLUSH)
-    except:
-        pass
+    if termios is not None:
+        try:
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+        except:
+            pass
 
 
 class Converter:

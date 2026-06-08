@@ -1,5 +1,14 @@
 import sys
 
+try:
+    import tty
+    import termios
+    HAS_TERMIOS = True
+except ImportError:
+    tty = None
+    termios = None
+    HAS_TERMIOS = False
+
 class MockConsole:
     def print(self, *args, **kwargs):
         import re
@@ -33,12 +42,11 @@ def get_input(prompt):
 def get_char(prompt):
     console.print(prompt, end="")
     fd = sys.stdin.fileno()
-    if not sys.stdin.isatty():
+    if not sys.stdin.isatty() or not HAS_TERMIOS:
         ch = sys.stdin.read(1)
         console.print(ch, end="")
         return ch
         
-    import tty, termios
     old_settings = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)

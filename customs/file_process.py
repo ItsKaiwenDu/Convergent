@@ -1,10 +1,19 @@
 import os
 import time
+import datetime
+import shlex
+import shutil
 import concurrent.futures
 import multiprocessing
-import shutil
 from pathlib import Path
 from customs.run_command import send_to_trash
+
+try:
+    from rich.table import Table
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
 
 def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None):
     """
@@ -103,14 +112,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     try:
         # Determine global action if multiple conflicts exist
         if len(conflicts) > 1 and not overwrite and not skip:
-            try:
-                from rich.table import Table
-                has_table = True
-            except ImportError:
-                has_table = False
-
             is_mock = (console.__class__.__name__ == 'MockConsole')
-            if has_table and not is_mock:
+            if HAS_RICH and not is_mock:
                 table = Table(title="\n[bold yellow]⚠ Collision Preview: The following files already exist[/bold yellow]", show_header=True, header_style="bold magenta")
                 table.add_column("Source File", style="cyan")
                 table.add_column("Existing Output File", style="green")
@@ -120,7 +123,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 for src, out in conflicts:
                     try:
                         stat = out.stat()
-                        import datetime
                         mtime = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
                         size = stat.st_size
                         # human readable size
@@ -144,7 +146,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 for src, out in conflicts:
                     try:
                         stat = out.stat()
-                        import datetime
                         mtime = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
                         size = stat.st_size
                         for unit in ['B', 'KB', 'MB', 'GB']:
@@ -294,9 +295,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         batch_start_time = time.perf_counter()
         converted_files = []
         
-        try:
-            from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
-            
+        if HAS_RICH:
             actual_source_formats = sorted(list(set(f.suffix.lower()[1:].upper() for f in files if f.suffix)))
             if not actual_source_formats:
                 actual_source_formats = [fmt.upper() for fmt in source_formats]
@@ -334,7 +333,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             fail_count += 1
                             progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()} ({duration:.1f}s)[/dim]")
                         progress.update(task, advance=1)
-        except ImportError:
+        else:
             # Fallback for systems without rich
             for f in files:
                 name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode)
@@ -396,7 +395,6 @@ def prompt_move_files(console, get_char, get_input, file_paths):
                 get_char("\nPress any key to continue...")
                 break
                 
-            import shlex
             dest_dir_clean = dest_dir_str.strip()
             try:
                 parts = shlex.split(dest_dir_clean)

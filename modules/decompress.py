@@ -1,5 +1,6 @@
 import os
 import subprocess
+import shutil
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 
@@ -17,7 +18,6 @@ def decompress(path, output_dir=None):
     output_dir.mkdir(parents=True, exist_ok=True)
     cwd = path_obj.parent
     
-    import shutil
     sevenzip_exec = "7z"
     if not shutil.which("7z") and shutil.which("7zz"):
         sevenzip_exec = "7zz"

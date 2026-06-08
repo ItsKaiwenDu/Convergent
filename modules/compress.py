@@ -1,5 +1,6 @@
 import os
 import subprocess
+import shutil
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 
@@ -41,7 +42,6 @@ def compress(paths, output_name, format_choice, password=None):
             # If not in the same directory tree, use absolute path (less ideal but necessary)
             rel_paths.append(str(p))
     
-    import shutil
     sevenzip_exec = "7z"
     if not shutil.which("7z") and shutil.which("7zz"):
         sevenzip_exec = "7zz"
