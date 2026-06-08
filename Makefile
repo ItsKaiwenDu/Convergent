@@ -26,11 +26,11 @@ setup: ## Install dependencies
 		brew install --cask rar || true; \
 		xattr -d com.apple.quarantine $$(which rar unrar) 2>/dev/null || true; \
 	elif command -v apt >/dev/null; then \
-		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript typst p7zip-full unrar rar || true; \
+		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript typst p7zip-full unrar rar trash-cli || true; \
 	elif command -v dnf >/dev/null; then \
-		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript typst p7zip p7zip-plugins unrar rar || true; \
+		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript typst p7zip p7zip-plugins unrar rar trash-cli || true; \
 	elif command -v pacman >/dev/null; then \
-		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript typst p7zip unrar rar || true; \
+		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript typst p7zip unrar rar trash-cli || true; \
 	else \
 		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, Ghostscript, Typst, 7-Zip, unrar, and rar manually."; \
 	fi
