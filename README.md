@@ -93,7 +93,7 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
 -   **Multi-Format Support**:
     -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIFF.
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
-    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4 by chapter/segment.
+    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4 by chapter/segment, or merge MP4 (with interactive preview and reordering).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT.
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
@@ -160,7 +160,7 @@ Convergent/
 │   ├── image.py         # Image conversion (HEIC, JPG, PNG, RAW, etc.)
 │   ├── ntb.py           # Notability .ntb to vector PDF conversion
 │   ├── pdf_manip.py     # PDF tools (merge, split, page export)
-│   └── video.py         # Video conversion and segment splitting
+│   └── video.py         # Video conversion, segment splitting, and merging
 └── customs/             # Shared helpers and utility frameworks
     ├── check_deps.py    # CLI dependency validator
     ├── console.py       # Terminal UI and rich-text helper

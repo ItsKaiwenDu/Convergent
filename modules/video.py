@@ -187,3 +187,145 @@ def split_video(path):
             
         console.print(f"\n[bold green]Split finished! Files are in {output_dir.name}/[/bold green]")
         return output_dir if any_success else None
+
+def combine_videos(paths):
+    import re
+    if isinstance(paths, str):
+        paths = [paths]
+    
+    video_files = []
+    
+    if len(paths) == 1:
+        path_obj = Path(os.path.expanduser(paths[0]))
+        if path_obj.is_dir():
+            video_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
+            if not video_files:
+                console.print("[bold red]No MP4 files found in the directory.[/bold red]")
+                return None
+            base_dir = path_obj
+        else:
+            video_files = [path_obj]
+            base_dir = path_obj.parent
+    else:
+        for p in paths:
+            path_obj = Path(os.path.expanduser(p))
+            if path_obj.is_file() and path_obj.suffix.lower() == ".mp4":
+                video_files.append(path_obj)
+            elif path_obj.is_dir():
+                video_files.extend(sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"]))
+        
+        if not video_files:
+            console.print("[bold red]No MP4 files found in the provided paths.[/bold red]")
+            return None
+        base_dir = video_files[0].parent
+
+    num_files = len(video_files)
+    if num_files > 50:
+        console.print(f"\n[bold yellow]Found {num_files} MP4 files. Proceed? (y/n)[/bold yellow]")
+        choice = get_char("   Choice: ")
+        console.print()
+        if choice.lower() != 'y':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return None
+
+    # Fetch durations first
+    console.print("[dim]Reading video metadata...[/dim]")
+    video_details = []
+    for f in video_files:
+        duration = get_video_duration(str(f))
+        video_details.append({"path": f, "duration": duration})
+
+    while True:
+        console.print("\n[bold yellow]Combine: MP4 Order Preview[/bold yellow]")
+        for idx, item in enumerate(video_details, 1):
+            duration_str = f"({format_seconds(item['duration'])})" if item['duration'] > 0 else "(unknown duration)"
+            console.print(f" [bold cyan]{idx}.[/bold cyan] {item['path'].name} [dim]{duration_str}[/dim]")
+        
+        console.print("\n[bold yellow]Commands:[/bold yellow]")
+        console.print(" [bold white]C[/bold white].                Confirm & Merge")
+        console.print(" [bold white]M[/bold white] [bold cyan]<num> <pos>[/bold cyan].    Move file")
+        console.print(" [bold white]Q[/bold white].                Cancel")
+        console.print(" [bold white]R[/bold white].                Reverse order")
+        console.print(" [bold white]S[/bold white] [bold cyan]<num1> <num2>[/bold cyan].  Swap files")
+        
+        cmd_input = get_input("\nCommand: ").strip()
+        if not cmd_input:
+            # Empty enter: default to confirm
+            break
+        
+        cmd_lower = cmd_input.lower()
+        if cmd_lower == 'c':
+            break
+        elif cmd_lower == 'q':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return None
+        elif cmd_lower == 'r':
+            video_details.reverse()
+            console.print("[bold green]✓ Reversed file order.[/bold green]")
+        elif cmd_lower.startswith('s'):
+            indices = [int(n) for n in re.findall(r'\d+', cmd_input)]
+            if len(indices) == 2:
+                idx1, idx2 = indices[0] - 1, indices[1] - 1
+                if 0 <= idx1 < len(video_details) and 0 <= idx2 < len(video_details):
+                    video_details[idx1], video_details[idx2] = video_details[idx2], video_details[idx1]
+                    console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
+                else:
+                    console.print("[bold red]Error: Number out of range.[/bold red]")
+            else:
+                console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
+        elif cmd_lower.startswith('m'):
+            indices = [int(n) for n in re.findall(r'\d+', cmd_input)]
+            if len(indices) == 2:
+                idx, target = indices[0] - 1, indices[1] - 1
+                if 0 <= idx < len(video_details) and 0 <= target < len(video_details):
+                    item = video_details.pop(idx)
+                    video_details.insert(target, item)
+                    console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
+                else:
+                    console.print("[bold red]Error: Number out of range.[/bold red]")
+            else:
+                console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
+        else:
+            console.print("[bold red]Error: Unknown command.[/bold red]")
+
+    # Proceed to merge using the updated list of files
+    video_files = [item["path"] for item in video_details]
+
+    output_name = get_input("\nEnter name for combined MP4 (default: combined.mp4): ")
+    if not output_name:
+        output_name = "combined.mp4"
+    if not output_name.endswith(".mp4"):
+        output_name += ".mp4"
+    output_path = base_dir / output_name
+    send_to_trash(output_path)
+
+    temp_txt_path = base_dir / "temp_ffmpeg_concat.txt"
+    try:
+        with open(temp_txt_path, "w", encoding="utf-8") as f:
+            for vf in video_files:
+                abs_path = str(vf.resolve())
+                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "\\'")
+                f.write(f"file '{escaped_path}'\n")
+    except Exception as e:
+        console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
+        return None
+
+    try:
+        cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(output_path)]
+        success, error = run_command(cmd)
+    finally:
+        if temp_txt_path.exists():
+            try:
+                temp_txt_path.unlink()
+            except:
+                pass
+
+    if success:
+        console.print(f"[bold green]Successfully combined into {output_name}[/bold green]")
+        return output_path
+    else:
+        console.print(f"[bold red]FAILED to combine videos[/bold red]")
+        if error:
+            console.print(f"   [dim]{error.strip()}[/dim]")
+        return None
+
