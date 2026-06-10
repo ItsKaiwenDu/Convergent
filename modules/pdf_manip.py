@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -58,7 +59,69 @@ def combine_pdfs(paths):
             console.print("[yellow]Operation cancelled.[/yellow]")
             return
 
-    console.print(f"[bold cyan]Found {num_files} PDF files to combine...[/bold cyan]")
+    # Fetch page counts first
+    console.print("[dim]Reading PDF metadata...[/dim]")
+    pdf_details = []
+    for f in pdf_files:
+        pages = get_pdf_page_count(str(f))
+        pdf_details.append({"path": f, "pages": pages})
+
+    while True:
+        console.print("\n[bold yellow]Combine: PDF Order Preview[/bold yellow]")
+        for idx, item in enumerate(pdf_details, 1):
+            pages_str = f"({item['pages']} pages)" if item['pages'] > 0 else "(unknown pages)"
+            console.print(f" [bold cyan]{idx}.[/bold cyan] {item['path'].name} [dim]{pages_str}[/dim]")
+        
+        console.print("\n[bold yellow]Commands:[/bold yellow]")
+        console.print(" [bold white]C[/bold white].                Confirm & Merge")
+        console.print(" [bold white]M[/bold white] [bold cyan]<num> <pos>[/bold cyan].    Move file")
+        console.print(" [bold white]Q[/bold white].                Cancel")
+        console.print(" [bold white]R[/bold white].                Reverse order")
+        console.print(" [bold white]S[/bold white] [bold cyan]<num1> <num2>[/bold cyan].  Swap files")
+        
+        cmd_input = get_input("\nCommand: ").strip()
+        if not cmd_input:
+            # Empty enter: default to confirm
+            break
+        
+        cmd_lower = cmd_input.lower()
+        if cmd_lower == 'c':
+            break
+        elif cmd_lower == 'q':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return None
+        elif cmd_lower == 'r':
+            pdf_details.reverse()
+            console.print("[bold green]✓ Reversed file order.[/bold green]")
+        elif cmd_lower.startswith('s'):
+            indices = [int(n) for n in re.findall(r'\d+', cmd_input)]
+            if len(indices) == 2:
+                idx1, idx2 = indices[0] - 1, indices[1] - 1
+                if 0 <= idx1 < len(pdf_details) and 0 <= idx2 < len(pdf_details):
+                    pdf_details[idx1], pdf_details[idx2] = pdf_details[idx2], pdf_details[idx1]
+                    console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
+                else:
+                    console.print("[bold red]Error: Number out of range.[/bold red]")
+            else:
+                console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
+        elif cmd_lower.startswith('m'):
+            indices = [int(n) for n in re.findall(r'\d+', cmd_input)]
+            if len(indices) == 2:
+                idx, target = indices[0] - 1, indices[1] - 1
+                if 0 <= idx < len(pdf_details) and 0 <= target < len(pdf_details):
+                    item = pdf_details.pop(idx)
+                    pdf_details.insert(target, item)
+                    console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
+                else:
+                    console.print("[bold red]Error: Number out of range.[/bold red]")
+            else:
+                console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
+        else:
+            console.print("[bold red]Error: Unknown command.[/bold red]")
+
+    # Proceed to merge using the updated list of files
+    pdf_files = [item["path"] for item in pdf_details]
+
     output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ")
     if not output_name:
         output_name = "combined.pdf"

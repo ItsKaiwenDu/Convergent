@@ -91,7 +91,7 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
 -   **Smart Input**: Handles escaped spaces, messy paths, and EXIF auto-rotation for drag-and-dropped files.
 -   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag, interactive prompts, or saved shortcuts.
 -   **Multi-Format Support**:
-    -   **PDF**: Merge, split, or export pages to JPG/PNG/TIFF.
+    -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIFF.
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4 by chapter/segment.
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT.
