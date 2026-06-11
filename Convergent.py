@@ -248,12 +248,19 @@ def main():
         label_w = 14
         console.print(f" [bold cyan]0.[/bold cyan] {'Combine:'.ljust(label_w)} mp4, pdf")
         console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} mp4, pdf")
-        for key in sorted(conv.categories.keys()):
-            cat = conv.categories[key]
+        console.print(f" [bold cyan]2.[/bold cyan] {'Resize:'.ljust(label_w)} mp4, jpg, png, heic")
+        menu_categories = [
+            ("3", "2"),
+            ("4", "3"),
+            ("5", "4"),
+            ("6", "5")
+        ]
+        for key, cat_id in menu_categories:
+            cat = conv.categories[cat_id]
             exts_str = ", ".join(cat["extensions"]).lower()
             console.print(f" [bold cyan]{key}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
-        console.print(f" [bold cyan]6.[/bold cyan] {'Compress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
-        console.print(f" [bold cyan]7.[/bold cyan] {'Decompress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
+        console.print(f" [bold cyan]7.[/bold cyan] {'Compress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
+        console.print(f" [bold cyan]8.[/bold cyan] {'Decompress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
             
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
@@ -320,7 +327,7 @@ def main():
             if not path:
                 console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
                 console.print(f"[bold yellow]Enter file or folder path(s):[/bold yellow]")
-                console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
+                console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
                 flush_stdin()
                 paths = clean_paths(get_input("Path: "))
                 flush_stdin()
@@ -338,7 +345,7 @@ def main():
         elif choice == '0':
             console.print()
             console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4 files:[/bold yellow]")
-            console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
+            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
@@ -418,7 +425,19 @@ def main():
                     get_char("\nPress any key to continue...")
             continue
             
-        elif choice == '6':
+        elif choice == '2':
+            console.print()
+            console.print(f"\n[bold yellow]Enter file or folder path(s) to resize:[/bold yellow]")
+            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+            flush_stdin()
+            paths = clean_paths(get_input("Path: "))
+            flush_stdin()
+            if paths:
+                from modules import resize
+                resize.resize_media(paths, conv, console, get_char, get_input)
+            continue
+            
+        elif choice == '7':
             console.print()
             console.print(f"\n[bold yellow]Enter file or folder path(s) to compress:[/bold yellow]")
             flush_stdin()
@@ -495,7 +514,7 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
             
-        elif choice == '7':
+        elif choice == '8':
             console.print()
             console.print(f"\n[bold yellow]Enter archive file path(s) to decompress:[/bold yellow]")
             flush_stdin()
@@ -535,10 +554,11 @@ def main():
                 get_char("\nPress any key to continue...")
             continue
             
-        elif choice in conv.categories:
+        elif choice in ["3", "4", "5", "6"]:
             console.print()
             
-            category = conv.categories[choice]
+            cat_id = {"3": "2", "4": "3", "5": "4", "6": "5"}[choice]
+            category = conv.categories[cat_id]
             source_fmts = category["extensions"]
             
             available_targets = set()
@@ -584,14 +604,14 @@ def main():
                 bitrate = val
 
             strip_metadata = False
-            if choice == '2':
+            if cat_id == '2':
                 status, val = prompt_strip_metadata()
                 if status in ("back", "invalid"):
                     continue
                 strip_metadata = val
                 
             console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
-            console.print("[dim](Tip: You can drag and drop multiple files or folders into this window)[/dim]")
+            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
