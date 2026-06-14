@@ -34,7 +34,7 @@ import shlex
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb
 from customs import shortcut, file_process
-from customs.file_process import prompt_move_files, FORMAT_REGISTRY
+from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run
 from customs.run_command import run_command
 from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate, prompt_strip_metadata
 
@@ -147,8 +147,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None):
         return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -207,7 +207,32 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
+    parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
     args = parser.parse_args()
+
+    if args.resume:
+        failed_run = load_failed_run()
+        if not failed_run:
+            console.print("[bold yellow]No failed run to resume.[/bold yellow]")
+            sys.exit(0)
+            
+        paths = failed_run["paths"]
+        existing_failed = [p for p in paths if os.path.exists(p)]
+        if not existing_failed:
+            console.print("[bold yellow]None of the failed files from the last run exist anymore.[/bold yellow]")
+            clear_failed_run()
+            sys.exit(0)
+            
+        source_fmts = failed_run["source_formats"]
+        target_fmt = failed_run["target_format"]
+        fps = failed_run.get("fps")
+        bitrate = failed_run.get("bitrate")
+        md_pdf_mode = failed_run.get("md_pdf_mode")
+        strip_metadata = failed_run.get("strip_metadata", False)
+        
+        console.print(f"[bold cyan]Resuming last failed batch run: {len(existing_failed)} file(s)...[/bold cyan]")
+        conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=False)
+        return
 
     if args.from_fmt or args.to_fmt or args.path:
         if not all([args.from_fmt, args.to_fmt, args.path]):
@@ -228,9 +253,8 @@ def main():
             console.print("[bold red]Error: Invalid bitrate. Choose from 128k, 192k, 320k.[/bold red]")
             sys.exit(1)
             
-        # For CLI, we treat the path as a single path or split it if it looks like multiple
         paths = clean_paths(args.path)
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata)
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False)
         return
 
     while True:
@@ -266,12 +290,39 @@ def main():
         if shortcuts:
             console.print(" [bold white]-.[/bold white] Remove Shortcut")
             console.print(" [bold white]=.[/bold white] Edit Shortcut")
+            
+        failed_run = load_failed_run()
+        existing_failed = []
+        if failed_run:
+            existing_failed = [p for p in failed_run["paths"] if os.path.exists(p)]
+            if existing_failed:
+                console.print(f"\n[bold red]Last Run Failed: {len(existing_failed)} file(s) pending[/bold red]")
+                console.print(f" [bold cyan]R.[/bold cyan] Retry last failed run ({failed_run['target_format'].lower()})")
+            else:
+                clear_failed_run()
+                failed_run = None
+                
         console.print(" [bold white]Q.[/bold white] Quit")
         
         choice = get_char("\nPick a #: ")
         if choice.lower() == 'q':
             console.print()
             break
+            
+        elif choice.lower() == 'r' and failed_run and existing_failed:
+            console.print()
+            paths = failed_run["paths"]
+            source_fmts = failed_run["source_formats"]
+            target_fmt = failed_run["target_format"]
+            fps = failed_run.get("fps")
+            bitrate = failed_run.get("bitrate")
+            md_pdf_mode = failed_run.get("md_pdf_mode")
+            strip_metadata = failed_run.get("strip_metadata", False)
+            
+            console.print(f"\n[bold cyan]Retrying {len(existing_failed)} failed file(s) from last run...[/bold cyan]")
+            converted = conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata)
+            prompt_move_files(console, get_char, get_input, converted)
+            continue
             
         elif choice == '+':
             shortcut.add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths)

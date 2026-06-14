@@ -1,4 +1,6 @@
 import os
+import sys
+import json
 import time
 import datetime
 import shlex
@@ -9,6 +11,47 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List
 from customs.run_command import send_to_trash
+
+FAILED_RUN_FILE = Path.home() / ".convergent_failed.json"
+
+def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False):
+    if not failed_files:
+        clear_failed_run()
+        return
+    
+    data = {
+        "paths": [str(f.resolve()) for f in failed_files],
+        "source_formats": source_formats,
+        "target_format": target_format,
+        "fps": fps,
+        "bitrate": bitrate,
+        "md_pdf_mode": md_pdf_mode,
+        "strip_metadata": strip_metadata
+    }
+    try:
+        with open(FAILED_RUN_FILE, 'w') as f:
+            json.dump(data, f, indent=4)
+    except Exception:
+        pass
+
+def load_failed_run():
+    if FAILED_RUN_FILE.exists():
+        try:
+            with open(FAILED_RUN_FILE, 'r') as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "paths" in data:
+                    return data
+        except Exception:
+            pass
+    return None
+
+def clear_failed_run():
+    if FAILED_RUN_FILE.exists():
+        try:
+            FAILED_RUN_FILE.unlink()
+        except Exception:
+            pass
+
 
 try:
     from rich.table import Table
@@ -103,7 +146,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True):
     """
     Processes a batch of files for conversion.
     """
@@ -342,6 +385,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         fail_count = 0
         batch_start_time = time.perf_counter()
         converted_files = []
+        failed_files = []
+        completed_files = set()
         
         if HAS_RICH:
             actual_source_formats = sorted(list(set(f.suffix.lower()[1:].upper() for f in files if f.suffix)))
@@ -363,27 +408,41 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
                     futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata): f for f in files}
                     
-                    for future in concurrent.futures.as_completed(futures):
-                        name, success, error, duration = future.result()
-                        if success:
-                            success_count += 1
+                    try:
+                        for future in concurrent.futures.as_completed(futures):
                             orig_file = futures[future]
-                            # PDF source maps to an images output directory, other formats map to target format suffix
-                            if orig_file.suffix.lower() == ".pdf":
-                                out_path = orig_file.parent / f"{orig_file.stem}_images"
+                            completed_files.add(orig_file)
+                            name, success, error, duration = future.result()
+                            if success:
+                                success_count += 1
+                                # PDF source maps to an images output directory, other formats map to target format suffix
+                                if orig_file.suffix.lower() == ".pdf":
+                                    out_path = orig_file.parent / f"{orig_file.stem}_images"
+                                else:
+                                    out_path = orig_file.with_suffix(f".{target_format.lower()}")
+                                converted_files.append(out_path)
+                                
+                                if error != "Skipped (Same format)":
+                                    progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
                             else:
-                                out_path = orig_file.with_suffix(f".{target_format.lower()}")
-                            converted_files.append(out_path)
-                            
-                            if error != "Skipped (Same format)":
-                                progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
-                        else:
-                            fail_count += 1
-                            progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()} ({duration:.1f}s)[/dim]")
-                        progress.update(task, advance=1)
+                                fail_count += 1
+                                failed_files.append(orig_file)
+                                error_lines = error.strip().splitlines()
+                                if len(error_lines) > 1:
+                                    formatted_error = error_lines[0] + "\n" + "\n".join("   " + line for line in error_lines[1:])
+                                else:
+                                    formatted_error = error.strip()
+                                progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{formatted_error} ({duration:.1f}s)[/dim]")
+                            progress.update(task, advance=1)
+                    except KeyboardInterrupt:
+                        # Cancel remaining futures
+                        for fut in futures:
+                            fut.cancel()
+                        raise
         else:
             # Fallback for systems without rich
             for f in files:
+                completed_files.add(f)
                 name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata)
                 if success:
                     success_count += 1
@@ -397,27 +456,54 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
                 else:
                     fail_count += 1
+                    failed_files.append(f)
                     console.print(f" > {name}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
                     if error:
-                        console.print(f"   [dim]{error.strip()}[/dim]")
-        
-        total_time = time.perf_counter() - batch_start_time
-        summary_parts = [
-            f"[bold green]✓ {success_count} converted[/bold green]",
-            f"[bold red]✗ {fail_count} failed[/bold red]"
-        ]
-        if skipped_count > 0:
-            summary_parts.append(f"[bold yellow]↷ {skipped_count} skipped[/bold yellow]")
-        summary_parts.append(f"[bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
-        
-        console.print(f"\n{', '.join(summary_parts)}")
+                        error_lines = error.strip().splitlines()
+                        formatted_error = "\n".join("   " + line for line in error_lines)
+                        console.print(f"[dim]{formatted_error}[/dim]")
+    except KeyboardInterrupt:
+        # For fallback mode or general handling, gather remaining uncompleted files
+        for f in files:
+            if f not in completed_files:
+                failed_files.append(f)
+        raise
     finally:
+        if failed_files:
+            save_failed_run(failed_files, source_formats, target_format, fps, bitrate, md_pdf_mode, strip_metadata)
+        else:
+            clear_failed_run()
+        
         for sym in temp_symlinks:
             try:
                 sym.unlink()
             except:
                 pass
-                
+            
+    total_time = time.perf_counter() - batch_start_time
+    summary_parts = [
+        f"[bold green]✓ {success_count} converted[/bold green]",
+        f"[bold red]✗ {fail_count} failed[/bold red]"
+    ]
+    if skipped_count > 0:
+        summary_parts.append(f"[bold yellow]↷ {skipped_count} skipped[/bold yellow]")
+    summary_parts.append(f"[bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
+    
+    console.print(f"\n{', '.join(summary_parts)}")
+    
+    if failed_files and interactive and sys.stdin.isatty():
+        console.print(f"\n[bold yellow]Would you like to retry the {len(failed_files)} failed file(s) now? (y/n): [/bold yellow]", end="")
+        choice = get_char("")
+        if choice.lower() == 'y':
+            console.print("\n[bold cyan]Retrying failed files...[/bold cyan]")
+            retry_paths = [str(f) for f in failed_files]
+            retry_converted = process(
+                conv, console, get_char, source_formats, target_format, retry_paths,
+                fps=fps, bitrate=bitrate, jobs=jobs, overwrite=overwrite, skip=skip,
+                md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive
+            )
+            converted_files.extend(retry_converted)
+            
     return converted_files
 
 
