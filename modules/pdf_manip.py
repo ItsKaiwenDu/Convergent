@@ -94,9 +94,9 @@ def combine_pdfs(paths):
             pdf_details.reverse()
             console.print("[bold green]✓ Reversed file order.[/bold green]")
         elif cmd_lower.startswith('s'):
-            indices = [int(n) for n in re.findall(r'\d+', cmd_input)]
-            if len(indices) == 2:
-                idx1, idx2 = indices[0] - 1, indices[1] - 1
+            match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
+            if match:
+                idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
                 if 0 <= idx1 < len(pdf_details) and 0 <= idx2 < len(pdf_details):
                     pdf_details[idx1], pdf_details[idx2] = pdf_details[idx2], pdf_details[idx1]
                     console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
@@ -105,9 +105,9 @@ def combine_pdfs(paths):
             else:
                 console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
         elif cmd_lower.startswith('m'):
-            indices = [int(n) for n in re.findall(r'\d+', cmd_input)]
-            if len(indices) == 2:
-                idx, target = indices[0] - 1, indices[1] - 1
+            match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
+            if match:
+                idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
                 if 0 <= idx < len(pdf_details) and 0 <= target < len(pdf_details):
                     item = pdf_details.pop(idx)
                     pdf_details.insert(target, item)
