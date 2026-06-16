@@ -517,7 +517,7 @@ def prompt_move_files(console, get_char, get_input, file_paths):
         get_char("\nPress any key to continue...")
         return
 
-    console.print("\n[bold yellow]Press 'm' to move files, or any key to continue...[/bold yellow]", end="")
+    console.print("\n[bold yellow]Press 'm' to move files, 'u' to undo, or any key to continue...[/bold yellow]", end="")
     choice = get_char("")
     
     if choice.lower() == 'm':
@@ -568,5 +568,27 @@ def prompt_move_files(console, get_char, get_input, file_paths):
             
             get_char("\nPress any key to continue...")
             break
+    elif choice.lower() == 'u':
+        console.print()  # Move to new line after char input
+        undone_count = 0
+        for path in file_paths:
+            path_obj = Path(path)
+            if path_obj.exists() or path_obj.is_symlink():
+                if send_to_trash(path_obj):
+                    undone_count += 1
+                else:
+                    try:
+                        if path_obj.is_dir():
+                            shutil.rmtree(path_obj)
+                        else:
+                            path_obj.unlink()
+                        undone_count += 1
+                    except Exception as e:
+                        console.print(f"[bold red]Error deleting {path_obj.name}: {e}[/bold red]")
+        if undone_count > 0:
+            console.print(f"[bold green]Successfully undone conversion. Trashed {undone_count} file(s).[/bold green]")
+        else:
+            console.print("[yellow]No files were undone.[/yellow]")
+        get_char("\nPress any key to continue...")
     else:
         console.print()

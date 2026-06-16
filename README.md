@@ -121,6 +121,13 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 - `[k]`: Keep both (auto-rename) once | `[Shift] + [k]`: Keep all
 - `[c]`: Cancel entire operation
 
+## Post-Conversion Actions
+
+After conversion, you can choose:
+- `[m]`: Move converted files/folders to a new directory.
+- `[u]`: Undo conversion (move output files to Trash).
+- `[Any other key]`: Return to main menu.
+
 ## Troubleshooting
 
 - **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.

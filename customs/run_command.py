@@ -52,7 +52,7 @@ def send_to_trash(path):
             if result.returncode == 0:
                 try:
                     from customs.console import console
-                    console.print(f"[dim]Original moved to Trash: {path.name}[/dim]")
+                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
                 except Exception:
                     pass
                 return True
@@ -69,7 +69,7 @@ def send_to_trash(path):
             if result.returncode == 0:
                 try:
                     from customs.console import console
-                    console.print(f"[dim]Original moved to Trash: {path.name}[/dim]")
+                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
                 except Exception:
                     pass
                 return True
@@ -85,7 +85,7 @@ def send_to_trash(path):
             if result.returncode == 0:
                 try:
                     from customs.console import console
-                    console.print(f"[dim]Original moved to Trash: {path.name}[/dim]")
+                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
                 except Exception:
                     pass
                 return True
@@ -100,7 +100,7 @@ def send_to_trash(path):
             if result.returncode == 0:
                 try:
                     from customs.console import console
-                    console.print(f"[dim]Original moved to Trash: {path.name}[/dim]")
+                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
                 except Exception:
                     pass
                 return True
