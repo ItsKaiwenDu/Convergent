@@ -24,6 +24,24 @@ def get_imagemagick_version():
         return match.group(1) if match else "Found"
     return None
 
+def get_libreoffice_version():
+    import os
+    soffice_path = None
+    if sys.platform == "darwin":
+        app_path = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        if os.path.exists(app_path):
+            soffice_path = app_path
+            
+    if not soffice_path:
+        soffice_path = shutil.which("soffice") or shutil.which("libreoffice")
+        
+    if soffice_path:
+        output = get_command_output([soffice_path, "--version"])
+        if output:
+            match = re.search(r"LibreOffice ([\d\.]+)", output)
+            return match.group(1) if match else "Found"
+    return None
+
 def check_dependencies():
     deps = [
         {
@@ -72,6 +90,12 @@ def check_dependencies():
             "cmd": ["rar"],
             "version_regex": r"RAR.*?([\d\.]+)",
             "install_hint": "install manually (e.g., from rarlab.com)"
+        },
+        {
+            "name": "LibreOffice",
+            "custom_func": get_libreoffice_version,
+            "install_hint": "brew install --cask libreoffice (Recommended for 1-to-1 Office document PDF conversion)",
+            "optional": True
         }
     ]
 
@@ -91,8 +115,12 @@ def check_dependencies():
         if version:
             print(f"{dep['name']:<13} {GREEN}✓{RESET}  {version}")
         else:
-            all_found = False
-            print(f"{dep['name']:<13} {RED}✗{RESET}  NOT FOUND - {dep['install_hint']}")
+            if dep.get("optional"):
+                YELLOW = '\033[93m'
+                print(f"{dep['name']:<13} {YELLOW}⚠{RESET}  OPTIONAL NOT FOUND - {dep['install_hint']}")
+            else:
+                all_found = False
+                print(f"{dep['name']:<13} {RED}✗{RESET}  NOT FOUND - {dep['install_hint']}")
     print("")
     
     if not all_found:

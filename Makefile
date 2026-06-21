@@ -24,15 +24,16 @@ setup: ## Install dependencies
 	@if command -v brew >/dev/null; then \
 		brew install ffmpeg imagemagick pandoc ghostscript typst sevenzip; \
 		brew install --cask rar || true; \
+		brew install --cask libreoffice || true; \
 		xattr -d com.apple.quarantine $$(which rar unrar) 2>/dev/null || true; \
 	elif command -v apt >/dev/null; then \
-		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript typst p7zip-full unrar rar trash-cli || true; \
+		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript typst p7zip-full unrar rar trash-cli libreoffice || true; \
 	elif command -v dnf >/dev/null; then \
-		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript typst p7zip p7zip-plugins unrar rar trash-cli || true; \
+		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript typst p7zip p7zip-plugins unrar rar trash-cli libreoffice || true; \
 	elif command -v pacman >/dev/null; then \
-		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript typst p7zip unrar rar trash-cli || true; \
+		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript typst p7zip unrar rar trash-cli libreoffice-fresh || true; \
 	else \
-		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, Ghostscript, Typst, 7-Zip, unrar, and rar manually."; \
+		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, Ghostscript, Typst, 7-Zip, unrar, rar, and LibreOffice manually."; \
 	fi
 	@echo "Setup complete!"
 

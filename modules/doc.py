@@ -39,11 +39,45 @@ def convert_with_temp_files(source, output, run_conv_fn):
         except:
             pass
 
+_libreoffice_warned = False
+
 def convert_office(source, target_ext):
     if target_ext.upper() == "PDF":
         output = source.with_suffix(".pdf")
         
         def run_conv(temp_src, temp_out):
+            # Try LibreOffice first for high-fidelity conversion
+            soffice_path = None
+            if sys.platform == "darwin":
+                app_path = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+                if Path(app_path).exists():
+                    soffice_path = app_path
+            
+            if not soffice_path:
+                soffice_path = shutil.which("soffice") or shutil.which("libreoffice")
+                
+            if soffice_path:
+                outdir = str(temp_out.parent)
+                success, err = run_command([soffice_path, "--headless", "--convert-to", "pdf", "--outdir", outdir, str(temp_src)])
+                if success:
+                    return True, ""
+                # If LibreOffice failed, fall back to pandoc
+                
+            global _libreoffice_warned
+            if not soffice_path and not _libreoffice_warned:
+                _libreoffice_warned = True
+                try:
+                    from customs.console import console
+                    console.print(
+                        "[yellow]⚠ Warning: LibreOffice not found. Office document conversions (DOCX/PPTX/RTF) "
+                        "will fall back to Pandoc, which may result in layout and styling differences.[/yellow]"
+                    )
+                    console.print(
+                        "[dim]Tip: Install LibreOffice for high-fidelity, 1-to-1 conversions: brew install --cask libreoffice[/dim]"
+                    )
+                except Exception:
+                    pass
+
             # Try converting using typst as the PDF engine first, as typst is fast and clean
             success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst"])
             if success:
@@ -60,8 +94,8 @@ def convert_office(source, target_ext):
             
         return False, (
             f"Failed to convert {source.suffix[1:].upper()} to PDF.\n"
-            "This usually requires 'pandoc' and a PDF engine like 'typst' or 'pdflatex' (LaTeX).\n"
-            "Install via: brew install pandoc typst\n"
+            "This usually requires 'libreoffice' or 'pandoc' and a PDF engine like 'typst' or 'pdflatex' (LaTeX).\n"
+            "Install LibreOffice via: brew install --cask libreoffice\n"
             f"Error details: {err}"
         )
     return False, f"Unsupported target format: {target_ext}"

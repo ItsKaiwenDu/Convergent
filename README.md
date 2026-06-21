@@ -133,6 +133,7 @@ After conversion, you can choose:
 - **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts / Markdown to PDF**: If converting documents to PDF fails, ensure you have a LaTeX distribution or Typst installed (e.g., `brew install pandoc typst`).
+- **Office styling off**: Install LibreOffice (`brew install --cask libreoffice`) for high-fidelity DOCX/PPTX/RTF to PDF layout conversion.
 - **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide necessary delegates for ImageMagick.
 
 ## Tech Stack & Requirements
@@ -144,7 +145,7 @@ After conversion, you can choose:
 | **Processing Engine** | [FFmpeg](https://ffmpeg.org/) | 6+ |
 | **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
 | **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
-| **Document Engine** | [Pandoc](https://pandoc.org/) + [Typst](https://typst.app/) | 3+ / 0.14+ |
+| **Document Engine** | [Pandoc](https://pandoc.org/) + [Typst](https://typst.app/) + [LibreOffice](https://www.libreoffice.org/) | 3+ / 0.14+ / 24+ |
 | **Archive Engine** | [7-Zip](https://www.7-zip.org/) + `unrar`/`rar` | 23+ |
 | **CLI Framework** | `argparse` + `tty` | - |
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
