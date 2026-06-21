@@ -19,7 +19,8 @@ def run_command(cmd, cwd=None):
         if result.returncode == 0:
             return True, ""
         else:
-            return False, result.stderr
+            err_msg = result.stderr.strip() or result.stdout.strip()
+            return False, err_msg
     except FileNotFoundError:
         return False, f"Command not found: {cmd[0]}"
     except Exception as e:

@@ -492,7 +492,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     console.print(f"\n{', '.join(summary_parts)}")
     
     if failed_files and interactive and sys.stdin.isatty():
-        console.print(f"\n[bold yellow]Would you like to retry the {len(failed_files)} failed file(s) now? (y/n): [/bold yellow]", end="")
+        console.print(f"\n[bold yellow]Retry {len(failed_files)} failed file(s)? (y/n): [/bold yellow]", end="")
         choice = get_char("")
         if choice.lower() == 'y':
             console.print("\n[bold cyan]Retrying failed files...[/bold cyan]")
