@@ -49,6 +49,12 @@ def clear_screen():
 def clean_paths(path_str):
     if not path_str:
         return []
+    if isinstance(path_str, list):
+        resolved = []
+        for item in path_str:
+            resolved.extend(clean_paths(item))
+        return resolved
+    
     path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
     
     # If the entire path_str exists as a single file or directory, treat it as one path.
@@ -202,12 +208,13 @@ def main():
     parser.add_argument("--fps", help="Frames per second for GIF conversion (e.g., 30, 60)")
     parser.add_argument("--bitrate", help="Audio bitrate for MP3 conversion (e.g., 128k, 192k, 320k)")
     parser.add_argument("--md-pdf-mode", choices=["formatted", "raw"], default="formatted", help="Rendering mode for Markdown to PDF (default: formatted)")
-    parser.add_argument("--path", help="Path to file or directory")
+    parser.add_argument("--path", nargs="+", help="Path to file or directory")
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
     parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
+    parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
     args = parser.parse_args()
 
     if args.resume:
@@ -233,6 +240,27 @@ def main():
         console.print(f"[bold cyan]Resuming last failed batch run: {len(existing_failed)} file(s)...[/bold cyan]")
         conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=False)
         return
+
+    if args.shortcut_key:
+        paths = clean_paths(args.path) if args.path else None
+        ok = shortcut.run_shortcut(
+            conv, console, get_char, get_input, flush_stdin, clean_paths,
+            check_and_prompt_md_pdf if sys.stdin.isatty() else None,
+            prompt_move_files if sys.stdin.isatty() else None,
+            args.shortcut_key,
+            paths=paths,
+            interactive=sys.stdin.isatty(),
+            md_pdf_mode=args.md_pdf_mode,
+            jobs=args.jobs,
+            overwrite=args.overwrite,
+            skip=args.skip,
+            cli_bitrate=args.bitrate,
+            cli_strip_metadata=args.strip_metadata,
+            prompt_fps=prompt_fps,
+            prompt_bitrate=prompt_bitrate,
+            prompt_strip_metadata=prompt_strip_metadata,
+        )
+        sys.exit(0 if ok else 1)
 
     if args.from_fmt or args.to_fmt or args.path:
         if not all([args.from_fmt, args.to_fmt, args.path]):
@@ -338,59 +366,15 @@ def main():
             
         elif choice.upper() in shortcuts:
             console.print()
-            sc = shortcuts[choice.upper()]
-            category = conv.categories[sc["category"]]
-            source_fmts = category["extensions"]
-            target_fmt = sc["target_fmt"]
-            path = sc.get("fixed_path", "")
-            
-            fps = None
-            if target_fmt == "GIF":
-                status, val = prompt_fps()
-                if status in ("back", "invalid"):
-                    continue
-                fps = val
-            
-            bitrate = None
-            if target_fmt == "MP3":
-                preselected_bitrate = sc.get("bitrate", "ask")
-                if preselected_bitrate == "ask":
-                    status, val = prompt_bitrate()
-                    if status in ("back", "invalid"):
-                         continue
-                    bitrate = val
-                elif preselected_bitrate == "default":
-                    bitrate = None
-                else:
-                    bitrate = preselected_bitrate
-
-            strip_metadata = False
-            if sc.get("category") == "2":
-                preselected_strip = sc.get("strip_metadata", "ask")
-                if preselected_strip == "ask":
-                    status, val = prompt_strip_metadata()
-                    if status in ("back", "invalid"):
-                        continue
-                    strip_metadata = val
-                else:
-                    strip_metadata = preselected_strip
-            
-            if not path:
-                console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
-                console.print(f"[bold yellow]Enter file or folder path(s):[/bold yellow]")
-                console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
-                flush_stdin()
-                paths = clean_paths(get_input("Path: "))
-                flush_stdin()
-            else:
-                paths = clean_paths(path)
-                
-            if paths:
-                md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
-                if md_pdf_mode == "back":
-                    continue
-                converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata)
-                prompt_move_files(console, get_char, get_input, converted)
+            shortcut.run_shortcut(
+                conv, console, get_char, get_input, flush_stdin, clean_paths,
+                check_and_prompt_md_pdf, prompt_move_files,
+                choice.upper(),
+                interactive=True,
+                prompt_fps=prompt_fps,
+                prompt_bitrate=prompt_bitrate,
+                prompt_strip_metadata=prompt_strip_metadata,
+            )
             continue
         
         elif choice == '0':

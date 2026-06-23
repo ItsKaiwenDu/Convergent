@@ -47,6 +47,16 @@ make shortcut
 ```
 *This generates a `.command` file that you can double-click to open Terminal and run utility instantly.*
 
+### Finder Quick Action (macOS)
+Bind a saved Convergent shortcut to Finder's right-click menu so selected files or folders are sent straight into that workflow:
+```bash
+make quick-action
+```
+*First create a shortcut in Convergent (`make start` → `+`). The installer lists your saved shortcuts, writes an Automator Quick Action to `~/Library/Services/`, and opens Terminal to run the conversion. Use `--shortcut KEY --path` for direct CLI runs:*
+```bash
+make start ARGS="--shortcut S --path ~/Desktop/photo.heic"
+```
+
 ### Clean Workspace
 Remove all compiled Python cache (`__pycache__`) directories across project:
 ```bash
@@ -66,6 +76,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
 | `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
+| `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |
 
@@ -174,7 +185,8 @@ Convergent/
     ├── console.py       # Terminal UI and rich-text helper
     ├── file_process.py  # Queue manager and collision handler
     ├── run_command.py   # Subprocess shell command runner
-    └── shortcut.py      # Custom workflow CRUD manager
+    ├── shortcut.py      # Custom workflow CRUD manager
+    └── quick_action.py  # macOS Finder Quick Action installer
 ```
 
 ## Owner

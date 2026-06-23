@@ -346,3 +346,130 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
     save_shortcuts(shortcuts)
     console.print(f"\n[bold green]Shortcut '{new_sym}' updated successfully![/bold green]")
     get_char("\nPress any key to continue...")
+
+def resolve_shortcut_options(sc, interactive, prompt_fps, prompt_bitrate, prompt_strip_metadata, cli_bitrate=None, cli_strip_metadata=False):
+    """Resolve per-run options from a saved shortcut config."""
+    target_fmt = sc["target_fmt"]
+
+    fps = None
+    if target_fmt == "GIF":
+        if interactive:
+            status, val = prompt_fps()
+            if status in ("back", "invalid"):
+                return None
+            fps = val
+
+    bitrate = None
+    if target_fmt == "MP3":
+        preselected = sc.get("bitrate", "ask")
+        if interactive and preselected == "ask":
+            status, val = prompt_bitrate()
+            if status in ("back", "invalid"):
+                return None
+            bitrate = val
+        elif preselected not in ("ask", "default"):
+            bitrate = preselected
+        elif cli_bitrate:
+            bitrate = cli_bitrate
+
+    strip_metadata = cli_strip_metadata
+    if sc.get("category") == "2":
+        preselected = sc.get("strip_metadata", "ask")
+        if interactive and preselected == "ask":
+            status, val = prompt_strip_metadata()
+            if status in ("back", "invalid"):
+                return None
+            strip_metadata = val
+        elif preselected != "ask":
+            strip_metadata = preselected
+
+    return {"fps": fps, "bitrate": bitrate, "strip_metadata": strip_metadata}
+
+def run_shortcut(
+    conv,
+    console,
+    get_char,
+    get_input,
+    flush_stdin,
+    clean_paths,
+    check_and_prompt_md_pdf,
+    prompt_move_files,
+    key,
+    paths=None,
+    interactive=True,
+    md_pdf_mode=None,
+    jobs=None,
+    overwrite=False,
+    skip=False,
+    cli_bitrate=None,
+    cli_strip_metadata=False,
+    prompt_fps=None,
+    prompt_bitrate=None,
+    prompt_strip_metadata=None,
+):
+    """Run a saved shortcut by key. Returns True on success, False if cancelled or missing."""
+    shortcuts = load_shortcuts()
+    key = key.strip().upper()
+    if key not in shortcuts:
+        console.print(f"[bold red]Shortcut '{key}' not found. Create one in Convergent or check ~/.convergent_shortcuts.json.[/bold red]")
+        return False
+
+    sc = shortcuts[key]
+    category = conv.categories[sc["category"]]
+    source_fmts = category["extensions"]
+    target_fmt = sc["target_fmt"]
+
+    options = resolve_shortcut_options(
+        sc,
+        interactive,
+        prompt_fps,
+        prompt_bitrate,
+        prompt_strip_metadata,
+        cli_bitrate=cli_bitrate,
+        cli_strip_metadata=cli_strip_metadata,
+    )
+    if options is None:
+        return False
+
+    if paths is None:
+        path = sc.get("fixed_path", "")
+        if not path:
+            if not interactive:
+                console.print("[bold red]Error: Shortcut has no fixed path. Provide --path or select files in Finder.[/bold red]")
+                return False
+            console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
+            console.print("[bold yellow]Enter file or folder path(s):[/bold yellow]")
+            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+            flush_stdin()
+            paths = clean_paths(get_input("Path: "))
+            flush_stdin()
+        else:
+            paths = clean_paths(path)
+    else:
+        paths = clean_paths(paths)
+
+    if not paths:
+        return False
+
+    if md_pdf_mode is None and check_and_prompt_md_pdf:
+        md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
+        if md_pdf_mode == "back":
+            return False
+
+    console.print(f"\n[bold yellow]Executing Shortcut: {sc['title']}[/bold yellow]")
+    converted = conv.process(
+        source_fmts,
+        target_fmt,
+        paths,
+        fps=options["fps"],
+        bitrate=options["bitrate"],
+        jobs=jobs,
+        overwrite=overwrite,
+        skip=skip,
+        md_pdf_mode=md_pdf_mode,
+        strip_metadata=options["strip_metadata"],
+        interactive=interactive,
+    )
+    if interactive and prompt_move_files:
+        prompt_move_files(console, get_char, get_input, converted)
+    return True
