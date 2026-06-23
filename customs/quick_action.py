@@ -6,6 +6,10 @@ import sys
 import uuid
 from pathlib import Path
 
+# Add parent directory to sys.path to allow importing from customs layer
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from customs.console import console, get_input
+
 SHORTCUTS_FILE = Path.home() / ".convergent_shortcuts.json"
 SERVICES_DIR = Path.home() / "Library" / "Services"
 
@@ -123,28 +127,27 @@ def pick_shortcut(shortcuts, key=None):
     if key:
         key = key.strip().upper()
         if key not in shortcuts:
-            print(f"Error: Shortcut '{key}' not found in {SHORTCUTS_FILE}", file=sys.stderr)
+            console.print(f"[bold red]Error: Shortcut '{key}' not found in {SHORTCUTS_FILE}[/bold red]")
             sys.exit(1)
         return key, shortcuts[key]
 
     if not shortcuts:
-        print(
-            "No saved shortcuts found.\n"
-            "Run `make start`, press + to create a shortcut, then run `make quick-action` again.",
-            file=sys.stderr,
+        console.print(
+            "[bold red]Error: No saved shortcuts found.[/bold red]\n"
+            "Run `make start`, press [bold white]+[/bold white] to create a shortcut, then run `make quick-action` again."
         )
         sys.exit(1)
 
-    print("Saved shortcuts:")
+    console.print("[bold yellow]Saved shortcuts:[/bold yellow]")
     keys = sorted(shortcuts.keys())
     for sym in keys:
-        print(f"  [{sym}] {shortcuts[sym]['title']}")
+        console.print(f"  [[bold cyan]{sym}[/bold cyan]] {shortcuts[sym]['title']}")
 
     while True:
-        choice = input("\nShortcut key to bind: ").strip().upper()
+        choice = get_input("\n[bold yellow]Shortcut key to bind:[/bold yellow] ").upper()
         if choice in shortcuts:
             return choice, shortcuts[choice]
-        print("Invalid key. Choose one of:", ", ".join(keys))
+        console.print(f"[bold red]Invalid key.[/bold red] Choose one of: {', '.join(keys)}")
 
 def main():
     parser = argparse.ArgumentParser(description="Install a Finder Quick Action for a Convergent shortcut.")
@@ -154,12 +157,12 @@ def main():
     args = parser.parse_args()
 
     if sys.platform != "darwin":
-        print("Error: Finder Quick Actions are macOS only.", file=sys.stderr)
+        console.print("[bold red]Error: Finder Quick Actions are macOS only.[/bold red]")
         sys.exit(1)
 
     repo = Path(args.repo).resolve()
     if not (repo / "Convergent.py").exists():
-        print(f"Error: Convergent.py not found in {repo}", file=sys.stderr)
+        console.print(f"[bold red]Error: Convergent.py not found in {repo}[/bold red]")
         sys.exit(1)
 
     shortcuts = load_shortcuts()
@@ -168,20 +171,22 @@ def main():
 
     service_path = SERVICES_DIR / f"{service_name}.workflow"
     if service_path.exists():
-        answer = input(f"\n'{service_name}' already exists. Replace it? (y/n): ").strip().lower()
+        answer = get_input(f"\n[bold yellow]'{service_name}' already exists. Replace it? (y/n):[/bold yellow] ").lower()
         if answer != "y":
-            print("Cancelled.")
+            console.print("[yellow]Cancelled.[/yellow]")
             sys.exit(0)
 
     write_workflow(service_path, service_name, str(repo), shortcut_key)
     register_service()
 
-    print(f"\nInstalled Quick Action: {service_path}")
-    print(f"Shortcut key: [{shortcut_key}] {shortcut['title']}")
-    print("\nIn Finder, right-click file(s) or folder(s) → Quick Actions →", service_name)
-    print("\nTo remove:")
-    print(f"  rm -rf '{service_path}'")
-    print("  /System/Library/CoreServices/pbs -update && killall Finder")
+    console.print(f"\n[bold green]Successfully installed Quick Action![/bold green]")
+    console.print(f"Location: [dim]{service_path}[/dim]")
+    console.print(f"Shortcut key: [[bold cyan]{shortcut_key}[/bold cyan]] {shortcut['title']}")
+    console.print(f"\n[bold yellow]How to use:[/bold yellow]")
+    console.print(f"  In Finder, right-click file(s) or folder(s) → [bold white]{service_name}[/bold white] (or under 'Quick Actions')")
+    console.print(f"\n[bold yellow]To remove:[/bold yellow]")
+    console.print(f"  rm -rf '{service_path}'")
+    console.print("  /System/Library/CoreServices/pbs -update && killall Finder")
 
 if __name__ == "__main__":
     main()

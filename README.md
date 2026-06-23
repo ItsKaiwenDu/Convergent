@@ -19,7 +19,7 @@
     ```bash
     make setup
     ```
-    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `ghostscript`, `pandoc`) via your package manager (`brew`, `apt`, `dnf`, `pacman`).*
+    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `ghostscript`, `pandoc`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
 3.  **Check Dependencies & Auto-Update**:
     ```bash
     make check
@@ -52,7 +52,7 @@ Bind a saved Convergent shortcut to Finder's right-click menu so selected files 
 ```bash
 make quick-action
 ```
-*First create a shortcut in Convergent (`make start` → `+`). The installer lists your saved shortcuts, writes an Automator Quick Action to `~/Library/Services/`, and opens Terminal to run the conversion. Use `--shortcut KEY --path` for direct CLI runs:*
+*First create a shortcut in Convergent (`make start` → `+`). Installer lists saved shortcuts, writes an Automator Quick Action to `~/Library/Services/`, and registers it. In Finder, right-click file(s) or folder(s) to run action—it will appear directly in main context menu or under "Quick Actions" submenu depending on number of services enabled on system. Use `--shortcut KEY --path` for direct CLI runs:*
 ```bash
 make start ARGS="--shortcut S --path ~/Desktop/photo.heic"
 ```
@@ -116,7 +116,7 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
 
 Save frequent workflows as persistent shortcuts for instant access.
 
-- **Manage Shortcuts**: Manage your workflows directly from main menu:
+- **Manage Shortcuts**: Manage workflows directly from main menu:
   - `[+]` Create
   - `[=]` Edit
   - `[-]` Delete
@@ -141,7 +141,7 @@ After conversion, you can choose:
 
 ## Troubleshooting
 
-- **Ghostscript not found**: Ensure `gs` is in your system PATH. Run `brew install ghostscript` to install or fix link.
+- **Ghostscript not found**: Ensure `gs` is in system PATH. Run `brew install ghostscript` to install or fix link.
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts / Markdown to PDF**: If converting documents to PDF fails, ensure you have a LaTeX distribution or Typst installed (e.g., `brew install pandoc typst`).
 - **Office styling off**: Install LibreOffice (`brew install --cask libreoffice`) for high-fidelity DOCX/PPTX/RTF to PDF layout conversion.
