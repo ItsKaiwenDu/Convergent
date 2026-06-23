@@ -296,23 +296,7 @@ def main():
             for sym, sc in shortcuts.items():
                 console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
 
-        console.print("\n[bold yellow]Select source format ('From'):[/bold yellow]")
-        label_w = 14
-        console.print(f" [bold cyan]0.[/bold cyan] {'Combine:'.ljust(label_w)} mp4, pdf")
-        console.print(f" [bold cyan]1.[/bold cyan] {'Split:'.ljust(label_w)} mp4, pdf")
-        console.print(f" [bold cyan]2.[/bold cyan] {'Resize:'.ljust(label_w)} mp4, jpg, png, heic")
-        menu_categories = [
-            ("3", "2"),
-            ("4", "3"),
-            ("5", "4"),
-            ("6", "5")
-        ]
-        for key, cat_id in menu_categories:
-            cat = conv.categories[cat_id]
-            exts_str = ", ".join(cat["extensions"]).lower()
-            console.print(f" [bold cyan]{key}.[/bold cyan] {(cat['name'] + ':').ljust(label_w)} {exts_str}")
-        console.print(f" [bold cyan]7.[/bold cyan] {'Compress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
-        console.print(f" [bold cyan]8.[/bold cyan] {'Decompress:'.ljust(label_w)} 7z, rar, tar.(gz/bz2/xz), zip")
+        shortcut.print_source_menu(console, conv, "\n[bold yellow]Select source format ('From'):[/bold yellow]")
             
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
