@@ -135,6 +135,9 @@ class Converter:
     def combine_videos(self, paths):
         return video.combine_videos(paths)
 
+    def combine_audios(self, paths):
+        return audio.combine_audios(paths)
+
     def get_pdf_page_count(self, path):
         return pdf_manip.get_pdf_page_count(path)
 
@@ -143,6 +146,9 @@ class Converter:
 
     def split_video(self, path):
         return video.split_video(path)
+
+    def split_audio(self, path):
+        return audio.split_audio(path)
 
     def compress(self, paths, output_name, format_choice, password=None):
         return compress.compress(paths, output_name, format_choice, password)
@@ -363,7 +369,7 @@ def main():
         
         elif choice == '0':
             console.print()
-            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4 files:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4/MP3 files:[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -371,6 +377,7 @@ def main():
             if paths:
                 pdf_files = []
                 mp4_files = []
+                mp3_files = []
                 for p in paths:
                     path_obj = Path(os.path.expanduser(p))
                     if path_obj.is_file():
@@ -379,36 +386,46 @@ def main():
                             pdf_files.append(path_obj)
                         elif suffix == ".mp4":
                             mp4_files.append(path_obj)
+                        elif suffix == ".mp3":
+                            mp3_files.append(path_obj)
                     elif path_obj.is_dir():
                         pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
                         mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
+                        mp3_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp3"])
                 
                 combine_type = None
-                if pdf_files and mp4_files:
-                    console.print("\n[bold yellow]Found both PDF and MP4 files. What do you want to combine?[/bold yellow]")
-                    console.print(" 1. PDF files")
-                    console.print(" 2. MP4 files")
+                available_types = []
+                if pdf_files: available_types.append(('pdf', 'PDF files'))
+                if mp4_files: available_types.append(('mp4', 'MP4 files'))
+                if mp3_files: available_types.append(('mp3', 'MP3 files'))
+                
+                if len(available_types) > 1:
+                    console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
+                    for i, (t_code, t_name) in enumerate(available_types, 1):
+                        console.print(f" {i}. {t_name}")
                     console.print(" [bold white]B[/bold white]. Back")
                     c_choice = get_char("\nPick a #: ")
-                    if c_choice == '1':
-                        combine_type = 'pdf'
-                    elif c_choice == '2':
-                        combine_type = 'mp4'
-                    else:
+                    try:
+                        c_idx = int(c_choice) - 1
+                        if 0 <= c_idx < len(available_types):
+                            combine_type = available_types[c_idx][0]
+                    except ValueError:
+                        pass
+                    if not combine_type:
                         continue
-                elif pdf_files:
-                    combine_type = 'pdf'
-                elif mp4_files:
-                    combine_type = 'mp4'
+                elif len(available_types) == 1:
+                    combine_type = available_types[0][0]
                 else:
-                    console.print("[bold red]No PDF or MP4 files found to combine.[/bold red]")
+                    console.print("[bold red]No PDF, MP4, or MP3 files found to combine.[/bold red]")
                     get_char("\nPress any key to continue...")
                     continue
                 
                 if combine_type == 'pdf':
                     out_path = conv.combine_pdfs(paths)
-                else:
+                elif combine_type == 'mp4':
                     out_path = conv.combine_videos(paths)
+                else:
+                    out_path = conv.combine_audios(paths)
                 
                 if out_path:
                     prompt_move_files(console, get_char, get_input, [out_path])
@@ -418,7 +435,7 @@ def main():
             
         elif choice == '1':
             console.print()
-            console.print(f"\n[bold yellow]Enter file path(s) to split (PDF or MP4):[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter file path(s) to split (PDF, MP4, or MP3):[/bold yellow]")
             console.print("[dim](Tip: You can drag and drop multiple files into this window)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -435,8 +452,12 @@ def main():
                         out_dir = conv.split_video(path)
                         if out_dir:
                             split_dirs.append(out_dir)
+                    elif p.suffix.lower() == ".mp3":
+                        out_dir = conv.split_audio(path)
+                        if out_dir:
+                            split_dirs.append(out_dir)
                     else:
-                        console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF and MP4 are supported for splitting.[/bold red]")
+                        console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, and MP3 are supported for splitting.[/bold red]")
                 
                 if split_dirs:
                     prompt_move_files(console, get_char, get_input, split_dirs)

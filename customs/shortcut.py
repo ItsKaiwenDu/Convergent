@@ -30,8 +30,8 @@ def save_shortcuts(shortcuts):
 
 def get_menu_entries(conv):
     entries = [
-        {"key": "0", "label": "Combine:", "exts": "mp4, pdf", "operation": "combine"},
-        {"key": "1", "label": "Split:", "exts": "mp4, pdf", "operation": "split"},
+        {"key": "0", "label": "Combine:", "exts": "mp3, mp4, pdf", "operation": "combine"},
+        {"key": "1", "label": "Split:", "exts": "mp3, mp4, pdf", "operation": "split"},
         {"key": "2", "label": "Resize:", "exts": "mp4, jpg, png, heic", "operation": "resize"},
     ]
     for key, cat_id in CONVERT_MENU_KEYS:
@@ -233,15 +233,18 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         bitrate, strip_metadata = _collect_convert_options(console, get_char, entry["category_id"], target_fmt)
 
     elif entry["operation"] == "combine":
-        console.print("\n[bold yellow]When both PDF and MP4 files are present:[/bold yellow]")
-        console.print(" 1. Auto-detect (PDF if only PDFs, MP4 if only MP4s, ask if mixed)")
+        console.print("\n[bold yellow]When multiple file types are present:[/bold yellow]")
+        console.print(" 1. Auto-detect (ask if mixed)")
         console.print(" 2. Always combine PDFs")
         console.print(" 3. Always combine MP4s")
+        console.print(" 4. Always combine MP3s")
         combine_choice = get_char("\nPick a #: ")
         if combine_choice == '2':
             combine_type = "pdf"
         elif combine_choice == '3':
             combine_type = "mp4"
+        elif combine_choice == '4':
+            combine_type = "mp3"
 
     elif entry["operation"] == "compress":
         target_fmt = prompt_compress_format(console, get_char)
@@ -386,12 +389,15 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             console.print(" 1. Auto-detect")
             console.print(" 2. Always PDF")
             console.print(" 3. Always MP4")
+            console.print(" 4. Always MP3")
             console.print(" [bold white]Enter[/bold white]. Keep Current")
             combine_choice = get_input("Pick a # (or Enter): ")
             if combine_choice == '2':
                 new_combine_type = "pdf"
             elif combine_choice == '3':
                 new_combine_type = "mp4"
+            elif combine_choice == '4':
+                new_combine_type = "mp3"
             elif combine_choice == '1':
                 new_combine_type = "auto"
         elif operation == "compress":
@@ -600,6 +606,7 @@ def _resolve_shortcut_paths(sc, paths, interactive, console, get_input, flush_st
 def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_move_files, interactive=True):
     pdf_files = []
     mp4_files = []
+    mp3_files = []
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
         if path_obj.is_file():
@@ -608,37 +615,51 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
                 pdf_files.append(path_obj)
             elif suffix == ".mp4":
                 mp4_files.append(path_obj)
+            elif suffix == ".mp3":
+                mp3_files.append(path_obj)
         elif path_obj.is_dir():
             pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
             mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
+            mp3_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp3"])
 
     combine_type = sc.get("combine_type", "auto")
     if combine_type == "auto":
-        if pdf_files and mp4_files:
+        available_types = []
+        if pdf_files: available_types.append(('pdf', 'PDF files'))
+        if mp4_files: available_types.append(('mp4', 'MP4 files'))
+        if mp3_files: available_types.append(('mp3', 'MP3 files'))
+        
+        if len(available_types) > 1:
             if not interactive:
-                console.print("[bold red]Error: Mixed PDF and MP4 files found in non-interactive mode. Cannot determine combination type.[/bold red]")
+                console.print("[bold red]Error: Mixed file types found in non-interactive mode. Cannot determine combination type.[/bold red]")
                 return False
-            console.print("\n[bold yellow]Found both PDF and MP4 files. What do you want to combine?[/bold yellow]")
-            console.print(" 1. PDF files")
-            console.print(" 2. MP4 files")
+            console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
+            for i, (t_code, t_name) in enumerate(available_types, 1):
+                console.print(f" {i}. {t_name}")
             c_choice = get_char("\nPick a #: ")
-            if c_choice == '1':
-                combine_type = 'pdf'
-            elif c_choice == '2':
-                combine_type = 'mp4'
-            else:
+            try:
+                c_idx = int(c_choice) - 1
+                if 0 <= c_idx < len(available_types):
+                    combine_type = available_types[c_idx][0]
+            except ValueError:
+                pass
+            if not combine_type:
                 return False
-        elif pdf_files:
-            combine_type = 'pdf'
-        elif mp4_files:
-            combine_type = 'mp4'
+        elif len(available_types) == 1:
+            combine_type = available_types[0][0]
         else:
-            console.print("[bold red]No PDF or MP4 files found to combine.[/bold red]")
+            console.print("[bold red]No PDF, MP4, or MP3 files found to combine.[/bold red]")
             if interactive:
                 get_char("\nPress any key to continue...")
             return False
 
-    out_path = conv.combine_pdfs(paths) if combine_type == 'pdf' else conv.combine_videos(paths)
+    if combine_type == 'pdf':
+        out_path = conv.combine_pdfs(paths)
+    elif combine_type == 'mp4':
+        out_path = conv.combine_videos(paths)
+    else:
+        out_path = conv.combine_audios(paths)
+
     if out_path:
         if interactive and prompt_move_files:
             prompt_move_files(console, get_char, get_input, [out_path])
@@ -659,8 +680,12 @@ def _run_split_shortcut(conv, paths, console, get_char, get_input, prompt_move_f
             out_dir = conv.split_video(path)
             if out_dir:
                 split_dirs.append(out_dir)
+        elif p.suffix.lower() == ".mp3":
+            out_dir = conv.split_audio(path)
+            if out_dir:
+                split_dirs.append(out_dir)
         else:
-            console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF and MP4 are supported for splitting.[/bold red]")
+            console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, and MP3 are supported for splitting.[/bold red]")
 
     if split_dirs:
         if interactive and prompt_move_files:
