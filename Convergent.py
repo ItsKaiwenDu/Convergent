@@ -141,6 +141,12 @@ class Converter:
     def combine_gifs(self, paths):
         return combine.combine_gifs(paths)
 
+    def combine_docx(self, paths):
+        return combine.combine_docx(paths)
+
+    def combine_pptx(self, paths):
+        return combine.combine_pptx(paths)
+
     def get_pdf_page_count(self, path):
         return combine.get_pdf_page_count(path)
 
@@ -155,6 +161,12 @@ class Converter:
 
     def split_gif(self, path):
         return split.split_gif(path)
+
+    def split_docx(self, path):
+        return split.split_docx(path)
+
+    def split_pptx(self, path):
+        return split.split_pptx(path)
 
     def compress(self, paths, output_name, format_choice, password=None):
         return compress.compress(paths, output_name, format_choice, password)
@@ -375,7 +387,7 @@ def main():
         
         elif choice == '0':
             console.print()
-            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4/MP3/GIF files:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4/MP3/GIF/DOCX/PPTX files:[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -385,6 +397,8 @@ def main():
                 mp4_files = []
                 mp3_files = []
                 gif_files = []
+                docx_files = []
+                pptx_files = []
                 for p in paths:
                     path_obj = Path(os.path.expanduser(p))
                     if path_obj.is_file():
@@ -397,11 +411,17 @@ def main():
                             mp3_files.append(path_obj)
                         elif suffix == ".gif":
                             gif_files.append(path_obj)
+                        elif suffix == ".docx":
+                            docx_files.append(path_obj)
+                        elif suffix == ".pptx":
+                            pptx_files.append(path_obj)
                     elif path_obj.is_dir():
                         pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
                         mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
                         mp3_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp3"])
                         gif_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"])
+                        docx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".docx"])
+                        pptx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pptx"])
                 
                 combine_type = None
                 available_types = []
@@ -409,6 +429,8 @@ def main():
                 if mp4_files: available_types.append(('mp4', 'MP4 files'))
                 if mp3_files: available_types.append(('mp3', 'MP3 files'))
                 if gif_files: available_types.append(('gif', 'GIF files'))
+                if docx_files: available_types.append(('docx', 'DOCX files'))
+                if pptx_files: available_types.append(('pptx', 'PPTX files'))
                 
                 if len(available_types) > 1:
                     console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
@@ -427,7 +449,7 @@ def main():
                 elif len(available_types) == 1:
                     combine_type = available_types[0][0]
                 else:
-                    console.print("[bold red]No PDF, MP4, MP3, or GIF files found to combine.[/bold red]")
+                    console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, or PPTX files found to combine.[/bold red]")
                     get_char("\nPress any key to continue...")
                     continue
                 
@@ -437,8 +459,12 @@ def main():
                     out_path = conv.combine_videos(paths)
                 elif combine_type == 'mp3':
                     out_path = conv.combine_audios(paths)
-                else:
+                elif combine_type == 'gif':
                     out_path = conv.combine_gifs(paths)
+                elif combine_type == 'docx':
+                    out_path = conv.combine_docx(paths)
+                elif combine_type == 'pptx':
+                    out_path = conv.combine_pptx(paths)
                 
                 if out_path:
                     prompt_move_files(console, get_char, get_input, [out_path])
@@ -448,7 +474,7 @@ def main():
             
         elif choice == '1':
             console.print()
-            console.print(f"\n[bold yellow]Enter file path(s) to split (PDF, MP4, MP3, or GIF):[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter file path(s) to split (PDF, MP4, MP3, GIF, DOCX, or PPTX):[/bold yellow]")
             console.print("[dim](Tip: You can drag and drop multiple files into this window)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -473,8 +499,16 @@ def main():
                         out_dir = conv.split_gif(path)
                         if out_dir:
                             split_dirs.append(out_dir)
+                    elif p.suffix.lower() == ".docx":
+                        out_dir = conv.split_docx(path)
+                        if out_dir:
+                            split_dirs.append(out_dir)
+                    elif p.suffix.lower() == ".pptx":
+                        out_dir = conv.split_pptx(path)
+                        if out_dir:
+                            split_dirs.append(out_dir)
                     else:
-                        console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, MP3, and GIF are supported for splitting.[/bold red]")
+                        console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, MP3, GIF, DOCX, and PPTX are supported for splitting.[/bold red]")
                 
                 if split_dirs:
                     prompt_move_files(console, get_char, get_input, split_dirs)

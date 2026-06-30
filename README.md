@@ -105,7 +105,7 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
     -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIFF.
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
-    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT.
+    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout).
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
 -   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.

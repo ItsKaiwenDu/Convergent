@@ -46,7 +46,7 @@ def parse_timestamp(ts):
     except:
         return None
 
-def split_pdf(path):
+def split_pdf(path, override_output_dir=None, display_name=None):
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
         console.print(f"[bold red]Error: Could not find PDF at: [white]{path}[/white][/bold red]")
@@ -55,7 +55,8 @@ def split_pdf(path):
     if total_pages == 0:
         console.print("[bold red]Error: Could not determine PDF page count or file is empty.[/bold red]")
         return None
-    console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({total_pages} pages):[/bold yellow]")
+    name_to_show = display_name or path_obj.name
+    console.print(f"\n[bold yellow]Split Options for '{name_to_show}' ({total_pages} pages):[/bold yellow]")
     console.print(" 1. Individual Pages (every page becomes its own PDF)")
     console.print(" 2. Custom Split (e.g., 1-5, 6-10...)")
     console.print(" 3. Split into N parts")
@@ -64,7 +65,7 @@ def split_pdf(path):
     console.print()
     if mode.lower() == 'b':
         return None
-    output_dir = path_obj.parent / f"{path_obj.stem}_split"
+    output_dir = override_output_dir or (path_obj.parent / f"{path_obj.stem}_split")
     send_to_trash(output_dir)
     output_dir.mkdir(exist_ok=True)
     if mode == '1':
@@ -548,3 +549,65 @@ def split_gif(path):
             return output_dir if any_success else None
             
     return None
+
+def split_office(path, file_type):
+    import shutil
+    import uuid
+    
+    path_obj = Path(os.path.expanduser(path)).resolve()
+    if not path_obj.is_file() or path_obj.suffix.lower() != f".{file_type}":
+        console.print(f"[bold red]Error: Could not find {file_type.upper()} at: [white]{path}[/white][/bold red]")
+        return None
+        
+    from modules.doc import convert_office
+    
+    # Create workspace temp dir
+    workspace_dir = Path(__file__).parent.parent.resolve()
+    tmp_dir = workspace_dir / ".convergent_tmp"
+    tmp_dir.mkdir(exist_ok=True)
+    
+    unique_id = uuid.uuid4().hex
+    temp_office = tmp_dir / f"split_{unique_id}.{file_type}"
+    shutil.copy2(path_obj, temp_office)
+    
+    temp_pdf = tmp_dir / f"split_{unique_id}.pdf"
+    
+    try:
+        console.print(f"[dim]Converting {path_obj.name} to temporary PDF for splitting...[/dim]")
+        success, err = convert_office(temp_office, "PDF")
+        if not success:
+            console.print(f"[bold red]Failed to convert to PDF: {err}[/bold red]")
+            return None
+            
+        expected_pdf = temp_office.with_suffix(".pdf")
+        if expected_pdf.exists():
+            if expected_pdf != temp_pdf:
+                shutil.move(str(expected_pdf), str(temp_pdf))
+                
+        if not temp_pdf.exists():
+            console.print(f"[bold red]Failed to produce PDF for splitting.[/bold red]")
+            return None
+            
+        original_output_dir = path_obj.parent / f"{path_obj.stem}_split"
+        
+        # Call split_pdf on the temporary PDF
+        return split_pdf(str(temp_pdf), override_output_dir=original_output_dir, display_name=path_obj.name)
+        
+    finally:
+        # Clean up temporary files
+        try:
+            if temp_office.exists():
+                temp_office.unlink()
+        except:
+            pass
+        try:
+            if temp_pdf.exists():
+                temp_pdf.unlink()
+        except:
+            pass
+
+def split_docx(path):
+    return split_office(path, "docx")
+
+def split_pptx(path):
+    return split_office(path, "pptx")

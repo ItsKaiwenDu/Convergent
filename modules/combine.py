@@ -565,3 +565,183 @@ def combine_gifs(paths):
         if error:
             console.print(f"   [dim]{error.strip()}[/dim]")
         return None
+
+def combine_office(paths, file_type):
+    import shutil
+    import uuid
+    
+    if isinstance(paths, str):
+        paths = [paths]
+    
+    office_files = []
+    
+    if len(paths) == 1:
+        path_obj = Path(os.path.expanduser(paths[0]))
+        if path_obj.is_dir():
+            office_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == f".{file_type}"])
+            if not office_files:
+                console.print(f"[bold red]No {file_type.upper()} files found in the directory.[/bold red]")
+                return None
+            base_dir = path_obj
+        else:
+            office_files = [path_obj]
+            base_dir = path_obj.parent
+    else:
+        for p in paths:
+            path_obj = Path(os.path.expanduser(p))
+            if path_obj.is_file() and path_obj.suffix.lower() == f".{file_type}":
+                office_files.append(path_obj)
+            elif path_obj.is_dir():
+                office_files.extend(sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == f".{file_type}"]))
+        
+        if not office_files:
+            console.print(f"[bold red]No {file_type.upper()} files found in the provided paths.[/bold red]")
+            return None
+        base_dir = office_files[0].parent
+
+    num_files = len(office_files)
+    if num_files > 50:
+        console.print(f"\n[bold yellow]Found {num_files} {file_type.upper()} files. Proceed? (y/n)[/bold yellow]")
+        choice = get_char("   Choice: ")
+        console.print()
+        if choice.lower() != 'y':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return None
+
+    # Import convert_office
+    from modules.doc import convert_office
+
+    # Create workspace temp dir
+    workspace_dir = Path(__file__).parent.parent.resolve()
+    tmp_dir = workspace_dir / ".convergent_tmp"
+    tmp_dir.mkdir(exist_ok=True)
+
+    temp_files_to_clean = []
+    pdf_details = []
+
+    try:
+        console.print(f"[dim]Converting {file_type.upper()} files to temporary PDFs...[/dim]")
+        
+        for idx, f in enumerate(office_files, 1):
+            unique_id = uuid.uuid4().hex
+            # To avoid LibreOffice issues with paths, copy file to temp name in workspace temp dir
+            temp_office = tmp_dir / f"combine_{unique_id}_{idx}.{file_type}"
+            shutil.copy2(f, temp_office)
+            temp_files_to_clean.append(temp_office)
+            
+            temp_pdf = tmp_dir / f"combine_{unique_id}_{idx}.pdf"
+            success, err = convert_office(temp_office, "PDF")
+            if not success:
+                console.print(f"[bold red]Failed to convert {f.name} to PDF: {err}[/bold red]")
+                return None
+            
+            # Since convert_office writes to temp_office.with_suffix(".pdf"), let's move it to temp_pdf if it's there
+            expected_pdf = temp_office.with_suffix(".pdf")
+            if expected_pdf.exists():
+                if expected_pdf != temp_pdf:
+                    shutil.move(str(expected_pdf), str(temp_pdf))
+            
+            if not temp_pdf.exists():
+                console.print(f"[bold red]Failed to produce PDF for {f.name}[/bold red]")
+                return None
+                
+            temp_files_to_clean.append(temp_pdf)
+            
+            # Get page count
+            pages = get_pdf_page_count(str(temp_pdf))
+            pdf_details.append({
+                "temp_pdf": temp_pdf,
+                "original_name": f.name,
+                "pages": pages
+            })
+            
+        # Preview & edit order loop
+        while True:
+            console.print(f"\n[bold yellow]Combine: {file_type.upper()} Order Preview (Output will be PDF)[/bold yellow]")
+            for idx, item in enumerate(pdf_details, 1):
+                pages_str = f"({item['pages']} pages)" if item['pages'] > 0 else "(unknown pages)"
+                console.print(f" [bold cyan]{idx}.[/bold cyan] {item['original_name']} [dim]{pages_str}[/dim]")
+            
+            console.print("\n[bold yellow]Commands:[/bold yellow]")
+            console.print(" [bold white]C[/bold white].                Confirm & Merge")
+            console.print(" [bold white]M[/bold white] [bold cyan]<num> <pos>[/bold cyan].    Move file")
+            console.print(" [bold white]Q[/bold white].                Cancel")
+            console.print(" [bold white]R[/bold white].                Reverse order")
+            console.print(" [bold white]S[/bold white] [bold cyan]<num1> <num2>[/bold cyan].  Swap files")
+            
+            cmd_input = get_input("\nCommand: ").strip()
+            if not cmd_input:
+                break
+            
+            cmd_lower = cmd_input.lower()
+            if cmd_lower == 'c':
+                break
+            elif cmd_lower == 'q':
+                console.print("[yellow]Operation cancelled.[/yellow]")
+                return None
+            elif cmd_lower == 'r':
+                pdf_details.reverse()
+                console.print("[bold green]✓ Reversed file order.[/bold green]")
+            elif cmd_lower.startswith('s'):
+                match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
+                if match:
+                    idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
+                    if 0 <= idx1 < len(pdf_details) and 0 <= idx2 < len(pdf_details):
+                        pdf_details[idx1], pdf_details[idx2] = pdf_details[idx2], pdf_details[idx1]
+                        console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
+                    else:
+                        console.print("[bold red]Error: Number out of range.[/bold red]")
+                else:
+                    console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
+            elif cmd_lower.startswith('m'):
+                match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
+                if match:
+                    idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
+                    if 0 <= idx < len(pdf_details) and 0 <= target < len(pdf_details):
+                        item = pdf_details.pop(idx)
+                        pdf_details.insert(target, item)
+                        console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
+                    else:
+                        console.print("[bold red]Error: Number out of range.[/bold red]")
+                else:
+                    console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
+            else:
+                console.print("[bold red]Error: Unknown command.[/bold red]")
+
+        output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ")
+        if not output_name:
+            output_name = "combined.pdf"
+        if not output_name.endswith(".pdf"):
+            output_name += ".pdf"
+        output_path = base_dir / output_name
+        send_to_trash(output_path)
+        
+        pdf_files = [item["temp_pdf"] for item in pdf_details]
+        cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={output_path}", "-dBATCH"] + [str(f) for f in pdf_files]
+        success, error = run_command(cmd)
+        if success:
+            console.print(f"[bold green]Successfully combined into {output_name}[/bold green]")
+            return output_path
+        else:
+            console.print(f"[bold red]FAILED to combine PDFs[/bold red]")
+            if "command not found" in error:
+                console.print("   [bold yellow]Error: 'ghostscript' is required for PDF operations.[/bold yellow]")
+                console.print("   [dim]Install via: brew install ghostscript[/dim]")
+            elif error:
+                console.print(f"   [dim]{error.strip()}[/dim]")
+            return None
+
+    finally:
+        # Clean up temporary files
+        for temp_f in temp_files_to_clean:
+            try:
+                if temp_f.exists():
+                    temp_f.unlink()
+            except Exception:
+                pass
+
+def combine_docx(paths):
+    return combine_office(paths, "docx")
+
+def combine_pptx(paths):
+    return combine_office(paths, "pptx")
