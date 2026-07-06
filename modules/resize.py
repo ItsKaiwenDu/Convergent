@@ -228,7 +228,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     console.print(" 4. No Change (Keep original resolution)")
     console.print(" [bold white]B[/bold white]. Back")
     
-    method = get_char("\nPick a #: ")
+    method = get_char("\nSelect Option: ")
     if method.lower() == 'b':
         return
     if method not in ('1', '2', '3', '4'):
@@ -283,7 +283,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     console.print(" 5. 9:16 (Vertical)")
     console.print(" [bold white]B[/bold white]. Back")
     
-    target_aspect = get_char("\nPick a #: ")
+    target_aspect = get_char("\nSelect Option: ")
     if target_aspect.lower() == 'b':
         return
     if target_aspect not in ('1', '2', '3', '4', '5'):
@@ -318,6 +318,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     fail_count = 0
     batch_start_time = time.perf_counter()
     converted_files = []
+    original_resized_files = []
     
     jobs = min(multiprocessing.cpu_count(), len(files))
 
@@ -344,6 +345,7 @@ def resize_media(paths, conv, console, get_char, get_input):
                         orig_file = futures[future]
                         out_path = orig_file.parent / f"{orig_file.stem}_resized{orig_file.suffix}"
                         converted_files.append(out_path)
+                        original_resized_files.append(orig_file)
                     else:
                         fail_count += 1
                         progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{error.strip()} ({duration:.1f}s)[/dim]")
@@ -356,6 +358,7 @@ def resize_media(paths, conv, console, get_char, get_input):
                 console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
                 out_path = f.parent / f"{f.stem}_resized{f.suffix}"
                 converted_files.append(out_path)
+                original_resized_files.append(f)
             else:
                 fail_count += 1
                 console.print(f" > {name}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
@@ -371,6 +374,6 @@ def resize_media(paths, conv, console, get_char, get_input):
     console.print(f"\n{', '.join(summary_parts)}")
 
     if converted_files:
-        prompt_move_files(console, get_char, get_input, converted_files)
+        prompt_move_files(console, get_char, get_input, converted_files, original_files=original_resized_files)
     else:
         get_char("\nPress any key to continue...")

@@ -61,7 +61,7 @@ def split_pdf(path, override_output_dir=None, display_name=None):
     console.print(" 2. Custom Split (e.g., 1-5, 6-10...)")
     console.print(" 3. Split into N parts")
     console.print(" [bold white]B[/bold white]. Back")
-    mode = get_char("\nPick a #: ")
+    mode = get_char("\nSelect Option: ")
     console.print()
     if mode.lower() == 'b':
         return None
@@ -156,7 +156,7 @@ def split_video(path):
     console.print(" 3. Split into N parts")
     console.print(" [bold white]B[/bold white]. Back")
     
-    mode = get_char("\nPick a #: ")
+    mode = get_char("\nSelect Option: ")
     console.print()
     if mode.lower() == 'b':
         return None
@@ -282,7 +282,7 @@ def split_audio(path):
     console.print(" 3. Split into N parts")
     console.print(" [bold white]B[/bold white]. Back")
     
-    mode = get_char("\nPick a #: ")
+    mode = get_char("\nSelect Option: ")
     console.print()
     if mode.lower() == 'b':
         return None
@@ -408,7 +408,7 @@ def split_gif(path):
     console.print(" 2. Split into GIF Segments (fixed intervals, custom ranges, or N parts)")
     console.print(" [bold white]B[/bold white]. Back")
     
-    choice = get_char("\nPick a #: ")
+    choice = get_char("\nSelect Option: ")
     console.print()
     if choice.lower() == 'b':
         return None
@@ -449,7 +449,7 @@ def split_gif(path):
         console.print(" 3. Split into N parts")
         console.print(" [bold white]B[/bold white]. Back")
         
-        mode = get_char("\nPick a #: ")
+        mode = get_char("\nSelect Option: ")
         console.print()
         if mode.lower() == 'b':
             return None

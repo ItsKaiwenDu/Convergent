@@ -147,7 +147,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None):
     """
     Processes a batch of files for conversion.
     """
@@ -422,6 +422,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                 else:
                                     out_path = orig_file.with_suffix(f".{target_format.lower()}")
                                 converted_files.append(out_path)
+                                if isinstance(success_map, dict):
+                                    success_map[out_path] = orig_file
                                 
                                 if error != "Skipped (Same format)":
                                     progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
@@ -452,6 +454,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     else:
                         out_path = f.with_suffix(f".{target_format.lower()}")
                     converted_files.append(out_path)
+                    if isinstance(success_map, dict):
+                        success_map[out_path] = f
                     
                     if error != "Skipped (Same format)":
                         console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
@@ -501,25 +505,32 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             retry_converted = process(
                 conv, console, get_char, source_formats, target_format, retry_paths,
                 fps=fps, bitrate=bitrate, jobs=jobs, overwrite=overwrite, skip=skip,
-                md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive, ocr=ocr
+                md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive, ocr=ocr,
+                success_map=success_map
             )
             converted_files.extend(retry_converted)
             
     return converted_files
 
 
-def prompt_move_files(console, get_char, get_input, file_paths):
+def prompt_move_files(console, get_char, get_input, file_paths, original_files=None):
     """
-    Prompts the user to optionally move the converted files/folders to another directory.
-    If the user presses the reserved key ('m'/'M'), they can enter a folder path.
+    Prompts the user to optionally move the converted files/folders to another directory,
+    or delete the original files.
+    If the user presses 'm'/'M', they can enter a folder path to move converted files.
+    If the user presses 'd'/'D' and original files are provided, the original files are sent to Trash.
     Otherwise, they can press any other key to continue.
     """
     if not file_paths:
         get_char("\nPress any key to continue...")
         return
 
-    console.print("\n[bold yellow]Press 'm' to move files, 'u' to undo, or any key to continue...[/bold yellow]", end="")
-    choice = get_char("")
+    console.print("\n[bold yellow]Post-Convert Options (or any other key to continue):[/bold yellow]")
+    if original_files:
+        console.print(" [bold cyan]D.[/bold cyan] Delete original files")
+    console.print(" [bold cyan]M.[/bold cyan] Move converted files")
+    console.print(" [bold cyan]U.[/bold cyan] Undo")
+    choice = get_char("\nSelect Option: ")
     
     if choice.lower() == 'm':
         console.print()  # Move to new line after char input
@@ -569,6 +580,28 @@ def prompt_move_files(console, get_char, get_input, file_paths):
             
             get_char("\nPress any key to continue...")
             break
+    elif choice.lower() == 'd' and original_files:
+        console.print()  # Move to new line after char input
+        deleted_count = 0
+        for path in original_files:
+            path_obj = Path(os.path.expanduser(path))
+            if path_obj.exists() or path_obj.is_symlink():
+                if send_to_trash(path_obj):
+                    deleted_count += 1
+                else:
+                    try:
+                        if path_obj.is_dir():
+                            shutil.rmtree(path_obj)
+                        else:
+                            path_obj.unlink()
+                        deleted_count += 1
+                    except Exception as e:
+                        console.print(f"[bold red]Error deleting {path_obj.name}: {e}[/bold red]")
+        if deleted_count > 0:
+            console.print(f"[bold green]Successfully deleted {deleted_count} original file(s) (moved to Trash).[/bold green]")
+        else:
+            console.print("[yellow]No original files were deleted.[/yellow]")
+        get_char("\nPress any key to continue...")
     elif choice.lower() == 'u':
         console.print()  # Move to new line after char input
         undone_count = 0

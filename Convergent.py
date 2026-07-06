@@ -183,8 +183,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None, ocr=False):
         return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode, ocr=ocr)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, success_map=success_map)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -215,7 +215,7 @@ def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
         console.print(" 1. Human-friendly PDF (renders bold, tables, lists, etc. correctly)")
         console.print(" 2. Raw PDF (displays raw Markdown text and symbols)")
         console.print(" [bold white]B[/bold white]. Back")
-        md_choice = get_char("\nPick a #: ")
+        md_choice = get_char("\nSelect Option: ")
         if md_choice.lower() == 'b':
             console.print()
             return "back"
@@ -346,7 +346,7 @@ def main():
                 
         console.print(" [bold white]Q.[/bold white] Quit")
         
-        choice = get_char("\nPick a #: ")
+        choice = get_char("\nSelect Option: ")
         if choice.lower() == 'q':
             console.print()
             break
@@ -361,9 +361,9 @@ def main():
             md_pdf_mode = failed_run.get("md_pdf_mode")
             strip_metadata = failed_run.get("strip_metadata", False)
             
-            console.print(f"\n[bold cyan]Retrying {len(existing_failed)} failed file(s) from last run...[/bold cyan]")
-            converted = conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata)
-            prompt_move_files(console, get_char, get_input, converted)
+            success_map = {}
+            converted = conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map)
+            prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
             
         elif choice == '+':
@@ -443,7 +443,7 @@ def main():
                     for i, (t_code, t_name) in enumerate(available_types, 1):
                         console.print(f" {i}. {t_name}")
                     console.print(" [bold white]B[/bold white]. Back")
-                    c_choice = get_char("\nPick a #: ")
+                    c_choice = get_char("\nSelect Option: ")
                     try:
                         c_idx = int(c_choice) - 1
                         if 0 <= c_idx < len(available_types):
@@ -473,7 +473,7 @@ def main():
                     out_path = conv.combine_pptx(paths)
                 
                 if out_path:
-                    prompt_move_files(console, get_char, get_input, [out_path])
+                    prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
                 else:
                     get_char("\nPress any key to continue...")
             continue
@@ -517,7 +517,7 @@ def main():
                         console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, MP3, GIF, DOCX, and PPTX are supported for splitting.[/bold red]")
                 
                 if split_dirs:
-                    prompt_move_files(console, get_char, get_input, split_dirs)
+                    prompt_move_files(console, get_char, get_input, split_dirs, original_files=paths)
                 else:
                     get_char("\nPress any key to continue...")
             continue
@@ -569,7 +569,7 @@ def main():
             console.print(" 5. tar.xz")
             console.print(" 6. zip")
             console.print(" [bold white]B[/bold white]. Back")
-            fmt_choice = get_char("\nPick a #: ")
+            fmt_choice = get_char("\nSelect Option: ")
             
             if fmt_choice.lower() == 'b':
                 continue
@@ -604,7 +604,7 @@ def main():
             success, error, out_path = conv.compress(paths, output_name, target_fmt, password)
             if success:
                 console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
-                prompt_move_files(console, get_char, get_input, [out_path])
+                prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
             else:
                 console.print(f"\n[bold red]FAILED to compress:[/bold red]")
                 console.print(f"   [dim]{error.strip()}[/dim]")
@@ -646,7 +646,7 @@ def main():
                     console.print(f"   [dim]{error.strip()}[/dim]")
             
             if decompressed_dirs:
-                prompt_move_files(console, get_char, get_input, decompressed_dirs)
+                prompt_move_files(console, get_char, get_input, decompressed_dirs, original_files=paths)
             else:
                 get_char("\nPress any key to continue...")
             continue
@@ -659,7 +659,7 @@ def main():
             console.print(" 3. docx")
             console.print(" 4. pdf")
             console.print(" [bold white]B[/bold white]. Back")
-            fmt_choice = get_char("\nPick a #: ")
+            fmt_choice = get_char("\nSelect Option: ")
             
             if fmt_choice.lower() == 'b':
                 continue
@@ -684,8 +684,9 @@ def main():
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
             if paths:
-                converted = conv.process(["JPG", "PNG"], target_fmt, paths, ocr=True)
-                prompt_move_files(console, get_char, get_input, converted)
+                success_map = {}
+                converted = conv.process(["JPG", "PNG"], target_fmt, paths, ocr=True, success_map=success_map)
+                prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
             
         elif choice in ["3", "4", "5", "6"]:
@@ -706,7 +707,7 @@ def main():
                 console.print(f" {i}. {fmt.lower()}")
             console.print(" [bold white]B[/bold white]. Back")
             
-            target_choice = get_char("\nPick a #: ")
+            target_choice = get_char("\nSelect Option: ")
             if target_choice.lower() == 'b':
                 console.print()
                 continue
@@ -756,8 +757,9 @@ def main():
             md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
             if md_pdf_mode == "back":
                 continue
-            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata)
-            prompt_move_files(console, get_char, get_input, converted)
+            success_map = {}
+            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map)
+            prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
 
         else:
             console.print(" [dim]Invalid choice[/dim]")

@@ -135,10 +135,11 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 
 ## Post-Conversion Actions
 
-After conversion, you can choose:
+After conversion, you can choose from the Post-Convert Options menu:
+- `[d]`: Delete original (source) files (move to Trash).
 - `[m]`: Move converted files/folders to a new directory.
 - `[u]`: Undo conversion (move output files to Trash).
-- `[Any other key]`: Return to main menu.
+- `[Any other key]`: Continue / Return to main menu.
 
 ## Troubleshooting
 

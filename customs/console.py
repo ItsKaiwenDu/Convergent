@@ -68,7 +68,7 @@ def prompt_fps():
     console.print(" 2. 30 FPS")
     console.print(" 3. 60 FPS")
     console.print(" [bold white]B[/bold white]. Back")
-    fps_choice = get_char("\nPick a #: ")
+    fps_choice = get_char("\nSelect Option: ")
     if fps_choice.lower() == 'b':
         console.print()
         return "back", None
@@ -95,7 +95,7 @@ def prompt_bitrate():
     console.print(" 3. 192k")
     console.print(" 4. 320k")
     console.print(" [bold white]B[/bold white]. Back")
-    bitrate_choice = get_char("\nPick a #: ")
+    bitrate_choice = get_char("\nSelect Option: ")
     if bitrate_choice.lower() == 'b':
         console.print()
         return "back", None
@@ -123,7 +123,7 @@ def prompt_strip_metadata():
     console.print(" 1. Yes")
     console.print(" 2. No")
     console.print(" [bold white]B[/bold white]. Back")
-    choice = get_char("\nPick a #: ")
+    choice = get_char("\nSelect Option: ")
     if choice.lower() == 'b':
         console.print()
         return "back", False

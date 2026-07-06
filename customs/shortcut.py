@@ -75,7 +75,7 @@ def prompt_compress_format(console, get_char):
     for key, fmt in COMPRESS_FORMATS:
         console.print(f" {key}. {fmt.lower()}")
     console.print(" [bold white]B[/bold white]. Back")
-    fmt_choice = get_char("\nPick a #: ")
+    fmt_choice = get_char("\nSelect Option: ")
     if fmt_choice.lower() == 'b':
         return None
     for key, fmt in COMPRESS_FORMATS:
@@ -115,7 +115,7 @@ def _collect_convert_options(console, get_char, category_id, target_fmt):
         console.print(" 3. 128k")
         console.print(" 4. 192k")
         console.print(" 5. 320k")
-        bitrate_choice = get_char("\nPick a #: ")
+        bitrate_choice = get_char("\nSelect Option: ")
         if bitrate_choice == '1':
             bitrate = "ask"
         elif bitrate_choice == '2':
@@ -138,7 +138,7 @@ def _collect_convert_options(console, get_char, category_id, target_fmt):
         console.print(" 1. Ask every time")
         console.print(" 2. Always strip")
         console.print(" 3. Never strip")
-        strip_choice = get_char("\nPick a #: ")
+        strip_choice = get_char("\nSelect Option: ")
         if strip_choice == '1':
             strip_metadata = "ask"
         elif strip_choice == '2':
@@ -182,7 +182,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
     console.print("\n\n[bold yellow]--- Add New Shortcut ---[/bold yellow]")
     print_source_menu(console, conv, "Select source category:")
     console.print(" [bold white]C[/bold white]. Cancel")
-    cat_choice = get_char("\nPick a #: ")
+    cat_choice = get_char("\nSelect Option: ")
 
     if cat_choice.lower() == 'c':
         return
@@ -242,7 +242,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         console.print(" 5. Always combine GIFs")
         console.print(" 6. Always combine DOCX files")
         console.print(" 7. Always combine PPTX files")
-        combine_choice = get_char("\nPick a #: ")
+        combine_choice = get_char("\nSelect Option: ")
         if combine_choice == '2':
             combine_type = "pdf"
         elif combine_choice == '3':
@@ -670,7 +670,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
             console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
             for i, (t_code, t_name) in enumerate(available_types, 1):
                 console.print(f" {i}. {t_name}")
-            c_choice = get_char("\nPick a #: ")
+            c_choice = get_char("\nSelect Option: ")
             try:
                 c_idx = int(c_choice) - 1
                 if 0 <= c_idx < len(available_types):
@@ -704,7 +704,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
 
     if out_path:
         if interactive and prompt_move_files:
-            prompt_move_files(console, get_char, get_input, [out_path])
+            prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
     else:
         if interactive:
             get_char("\nPress any key to continue...")
@@ -743,7 +743,7 @@ def _run_split_shortcut(conv, paths, console, get_char, get_input, prompt_move_f
 
     if split_dirs:
         if interactive and prompt_move_files:
-            prompt_move_files(console, get_char, get_input, split_dirs)
+            prompt_move_files(console, get_char, get_input, split_dirs, original_files=paths)
     else:
         if interactive:
             get_char("\nPress any key to continue...")
@@ -765,7 +765,7 @@ def _run_compress_shortcut(conv, sc, paths, console, get_char, get_input, prompt
     if success:
         console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
         if interactive and prompt_move_files:
-            prompt_move_files(console, get_char, get_input, [out_path])
+            prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
     else:
         console.print(f"\n[bold red]FAILED to compress:[/bold red]")
         console.print(f"   [dim]{error.strip()}[/dim]")
@@ -797,7 +797,7 @@ def _run_decompress_shortcut(conv, sc, paths, console, get_char, get_input, prom
 
     if decompressed_dirs:
         if interactive and prompt_move_files:
-            prompt_move_files(console, get_char, get_input, decompressed_dirs)
+            prompt_move_files(console, get_char, get_input, decompressed_dirs, original_files=paths)
     else:
         if interactive:
             get_char("\nPress any key to continue...")
@@ -873,6 +873,7 @@ def run_shortcut(
         if md_pdf_mode == "back":
             return False
 
+    success_map = {}
     converted = conv.process(
         source_fmts,
         target_fmt,
@@ -885,7 +886,8 @@ def run_shortcut(
         md_pdf_mode=md_pdf_mode,
         strip_metadata=options["strip_metadata"],
         interactive=interactive,
+        success_map=success_map,
     )
     if interactive and prompt_move_files:
-        prompt_move_files(console, get_char, get_input, converted)
+        prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
     return True
