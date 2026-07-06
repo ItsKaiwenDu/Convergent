@@ -92,6 +92,13 @@ def check_dependencies():
             "install_hint": "install manually (e.g., from rarlab.com)"
         },
         {
+            "name": "Tesseract (OCR)",
+            "cmd": ["tesseract", "--version"],
+            "version_regex": r"tesseract ([\d\.]+)",
+            "install_hint": "brew install tesseract (Optional for image to text OCR conversion)",
+            "optional": True
+        },
+        {
             "name": "LibreOffice",
             "custom_func": get_libreoffice_version,
             "install_hint": "brew install --cask libreoffice (Recommended for 1-to-1 Office document PDF conversion)",

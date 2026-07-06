@@ -32,7 +32,7 @@ import sys
 import argparse
 import shlex
 from pathlib import Path
-from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb, combine, split
+from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb, combine, split, ocr
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run
 from customs.run_command import run_command
@@ -118,7 +118,13 @@ class Converter:
         return doc.convert_office(source, target_ext)
 
     def convert_image(self, source, target_ext, strip_metadata=False, **kwargs):
+        is_ocr = kwargs.get("ocr", False) or target_ext.upper() in ("TXT", "MD", "DOCX")
+        if is_ocr:
+            return self.convert_ocr(source, target_ext, **kwargs)
         return image.convert_image(source, target_ext, strip_metadata=strip_metadata)
+
+    def convert_ocr(self, source, target_ext, **kwargs):
+        return ocr.convert_image_to_text(source, target_ext, **kwargs)
 
     def convert_pdf(self, source, target_ext, **kwargs):
         return pdf_manip.convert_pdf_to_image(source, target_ext)
@@ -174,11 +180,11 @@ class Converter:
     def decompress(self, path, output_dir=None):
         return decompress.decompress(path, output_dir)
 
-    def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None):
-        return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode)
+    def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None, ocr=False):
+        return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode, ocr=ocr)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -643,6 +649,43 @@ def main():
                 prompt_move_files(console, get_char, get_input, decompressed_dirs)
             else:
                 get_char("\nPress any key to continue...")
+            continue
+            
+        elif choice == '9':
+            console.print()
+            console.print(f"\n[bold yellow]Select target format for OCR text:[/bold yellow]")
+            console.print(" 1. txt")
+            console.print(" 2. md")
+            console.print(" 3. docx")
+            console.print(" 4. pdf")
+            console.print(" [bold white]B[/bold white]. Back")
+            fmt_choice = get_char("\nPick a #: ")
+            
+            if fmt_choice.lower() == 'b':
+                continue
+            
+            target_fmt = (
+                "TXT" if fmt_choice == '1' else
+                "MD" if fmt_choice == '2' else
+                "DOCX" if fmt_choice == '3' else
+                "PDF" if fmt_choice == '4' else
+                None
+            )
+            
+            if not target_fmt:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
+                
+            console.print()
+            console.print(f"\n[bold yellow]Enter image file or folder path(s) for OCR (JPG/PNG):[/bold yellow]")
+            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+            flush_stdin()
+            paths = clean_paths(get_input("Path: "))
+            flush_stdin()
+            if paths:
+                converted = conv.process(["JPG", "PNG"], target_fmt, paths, ocr=True)
+                prompt_move_files(console, get_char, get_input, converted)
             continue
             
         elif choice in ["3", "4", "5", "6"]:

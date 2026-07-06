@@ -75,8 +75,8 @@ FORMAT_REGISTRY = [
     FormatDef("DNG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
     FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF"], "convert_image"),
     FormatDef("HEIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"], "convert_image"),
-    FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
+    FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
     FormatDef("SVG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
     FormatDef("TIF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
     FormatDef("TIFF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
@@ -105,7 +105,7 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False):
     """
     Processes a single file conversion using the provided Converter instance.
     """
@@ -136,7 +136,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                 fps=fps,
                 bitrate=bitrate,
                 md_pdf_mode=md_pdf_mode,
-                strip_metadata=strip_metadata
+                strip_metadata=strip_metadata,
+                ocr=ocr
             )
         else:
             error = f"Handler method {fmt_def.handler_method} not found on Converter"
@@ -146,7 +147,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False):
     """
     Processes a batch of files for conversion.
     """
@@ -406,7 +407,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata): f for f in files}
+                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr): f for f in files}
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
@@ -443,7 +444,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             # Fallback for systems without rich
             for f in files:
                 completed_files.add(f)
-                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata)
+                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr)
                 if success:
                     success_count += 1
                     if f.suffix.lower() == ".pdf":
@@ -500,7 +501,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             retry_converted = process(
                 conv, console, get_char, source_formats, target_format, retry_paths,
                 fps=fps, bitrate=bitrate, jobs=jobs, overwrite=overwrite, skip=skip,
-                md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive
+                md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive, ocr=ocr
             )
             converted_files.extend(retry_converted)
             
