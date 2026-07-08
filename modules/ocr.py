@@ -1,6 +1,7 @@
 import sys
 import subprocess
 import shutil
+import tempfile
 from pathlib import Path
 
 # Module-level platform-specific imports
@@ -14,28 +15,77 @@ if sys.platform == "darwin":
     except ImportError:
         pass
 
+def _convert_heic_to_temp_png(source: Path) -> Path:
+    """
+    Converts a HEIC file to a temporary PNG for OCR processing.
+    Uses sips (macOS-native) with ImageMagick as fallback.
+    Returns the Path of the temporary PNG file (caller must delete it).
+    """
+    tmp_png = Path(tempfile.mktemp(suffix="_ocr_tmp.png"))
+    
+    # Try sips first (macOS native, zero dependencies)
+    if shutil.which("sips"):
+        result = subprocess.run(
+            ["sips", "-s", "format", "png", str(source), "--out", str(tmp_png)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and tmp_png.exists():
+            return tmp_png
+    
+    # Fallback: ImageMagick
+    if shutil.which("magick"):
+        result = subprocess.run(
+            ["magick", str(source), str(tmp_png)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and tmp_png.exists():
+            return tmp_png
+    elif shutil.which("convert"):
+        result = subprocess.run(
+            ["convert", str(source), str(tmp_png)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and tmp_png.exists():
+            return tmp_png
+
+    raise RuntimeError(
+        f"Could not convert HEIC to PNG for OCR. "
+        "Ensure 'sips' (macOS) or ImageMagick is installed."
+    )
+
+
 def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
     """
-    Extracts text from PNG/JPG/etc. and saves it to a .txt, .md, .docx, or .pdf file.
+    Extracts text from PNG/JPG/HEIC/etc. and saves it to a .txt, .md, .docx, or .pdf file.
     Returns: (bool, str) - Success status and error message or empty string.
     """
     source = Path(source_path)
     target_ext = target_ext.upper()
     output = source.with_suffix(f".{target_ext.lower()}")
-    
+
+    # HEIC cannot be read directly by Vision or Tesseract — convert to temp PNG first
+    temp_png = None
+    ocr_source = source
+    if source.suffix.lower() in (".heic", ".heif"):
+        try:
+            temp_png = _convert_heic_to_temp_png(source)
+            ocr_source = temp_png
+        except RuntimeError as e:
+            return False, str(e)
+
     try:
         text = ""
         # 1. Try macOS Vision first (zero installation, hardware-accelerated)
         if HAS_MACOS_VISION:
             try:
-                text = _ocr_macos_native(source)
+                text = _ocr_macos_native(ocr_source)
             except Exception:
                 # If there's an error, fallback to Tesseract
                 pass
                 
         # 2. Fallback/Standard option: Tesseract CLI
         if not text:
-            text = _ocr_tesseract(source)
+            text = _ocr_tesseract(ocr_source)
             
         # 3. Write/Compile extracted text to the target format
         if target_ext in ("TXT", "MD"):
@@ -106,6 +156,10 @@ def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
         return False, f"Unsupported target format: {target_ext}"
     except Exception as e:
         return False, str(e)
+    finally:
+        # Clean up the temporary PNG created from HEIC/HEIF input
+        if temp_png is not None and temp_png.exists():
+            temp_png.unlink()
 
 def _ocr_macos_native(image_path: Path) -> str:
     if not HAS_MACOS_VISION:

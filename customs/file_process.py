@@ -73,7 +73,7 @@ FORMAT_REGISTRY = [
     FormatDef("AVIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF"], "convert_image"),
     FormatDef("BMP", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "HEIC", "HEIF", "AVIF"], "convert_image"),
     FormatDef("DNG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
     FormatDef("HEIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"], "convert_image"),
     FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
     FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),

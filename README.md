@@ -105,7 +105,7 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
     -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIFF.
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
-    -   **OCR**: Extract text from images (`JPG`/`PNG`) and save results locally to plain text (`.txt`), Markdown (`.md`), Word Document (`.docx`), or PDF format (uses macOS native Vision API or Tesseract fallback).
+    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) and save results locally to plain text (`.txt`), Markdown (`.md`), Word Document (`.docx`), or PDF format (uses macOS native Vision API or Tesseract fallback; HEIC is auto-converted to PNG internally via `sips`).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout).
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
@@ -139,6 +139,7 @@ After conversion, you can choose from the Post-Convert Options menu:
 - `[d]`: Delete original (source) files (move to Trash).
 - `[m]`: Move converted files/folders to a new directory.
 - `[u]`: Undo conversion (move output files to Trash).
+- `[q]`: Quit the program.
 - `[Any other key]`: Continue / Return to main menu.
 
 ## Troubleshooting
