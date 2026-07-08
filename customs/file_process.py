@@ -69,18 +69,19 @@ class FormatDef:
 
 FORMAT_REGISTRY = [
     # Image Category ("2")
-    FormatDef("ARW", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("AVIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF"], "convert_image"),
-    FormatDef("BMP", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("DNG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
-    FormatDef("HEIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"], "convert_image"),
+    FormatDef("ARW", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("AVIF", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF"], "convert_image"),
+    FormatDef("BMP", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("DNG", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("HEIC", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
+    FormatDef("HEIF", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"], "convert_image"),
+    FormatDef("JPEG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
     FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
-    FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
-    FormatDef("SVG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("TIF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("TIFF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("PNG", "2", ["JPG", "JPEG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
+    FormatDef("SVG", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("TIF", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("TIFF", "2", ["JPG", "JPEG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("WEBP", "2", ["JPG", "JPEG", "PNG", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
 
     # Video Category ("3")
     FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
@@ -100,7 +101,7 @@ FORMAT_REGISTRY = [
     FormatDef("DOCX", "5", ["PDF"], "convert_office"),
     FormatDef("MD", "5", ["PDF", "HTML", "TXT"], "convert_markdown"),
     FormatDef("NTB", "5", ["PDF"], "convert_ntb"),
-    FormatDef("PDF", "5", ["JPG", "PNG", "TIFF", "BMP"], "convert_pdf"),
+    FormatDef("PDF", "5", ["JPG", "JPEG", "PNG", "TIFF", "BMP"], "convert_pdf"),
     FormatDef("PPTX", "5", ["PDF"], "convert_office"),
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]

@@ -678,14 +678,14 @@ def main():
                 continue
                 
             console.print()
-            console.print(f"\n[bold yellow]Enter image file or folder path(s) for OCR (JPG/PNG/HEIC):[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter image file or folder path(s) for OCR (JPG/JPEG/PNG/HEIC):[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
             if paths:
                 success_map = {}
-                converted = conv.process(["JPG", "PNG", "HEIC"], target_fmt, paths, ocr=True, success_map=success_map)
+                converted = conv.process(["JPG", "JPEG", "PNG", "HEIC"], target_fmt, paths, ocr=True, success_map=success_map)
                 prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
             
