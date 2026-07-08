@@ -525,12 +525,13 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
         get_char("\nPress any key to continue...")
         return
 
-    console.print("\n[bold yellow]Post-Convert Options (or any other key to continue):[/bold yellow]")
+    console.print("\n[bold yellow]Post-Convert Options:[/bold yellow]")
     if original_files:
         console.print(" [bold cyan]D.[/bold cyan] Delete original files")
     console.print(" [bold cyan]M.[/bold cyan] Move converted files")
     console.print(" [bold cyan]U.[/bold cyan] Undo")
-    choice = get_char("\nSelect Option: ")
+    console.print(" [bold cyan]Q.[/bold cyan] Quit")
+    choice = get_char("\nSelect Option (or any other key to continue): ")
     
     if choice.lower() == 'm':
         console.print()  # Move to new line after char input
@@ -624,5 +625,9 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
         else:
             console.print("[yellow]No files were undone.[/yellow]")
         get_char("\nPress any key to continue...")
+    elif choice.lower() == 'q':
+        console.print()
+        import sys
+        sys.exit(0)
     else:
         console.print()
