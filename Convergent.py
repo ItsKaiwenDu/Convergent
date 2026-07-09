@@ -153,6 +153,9 @@ class Converter:
     def combine_pptx(self, paths):
         return combine.combine_pptx(paths)
 
+    def combine_txt(self, paths):
+        return combine.combine_txt(paths)
+
     def get_pdf_page_count(self, path):
         return combine.get_pdf_page_count(path)
 
@@ -393,7 +396,7 @@ def main():
         
         elif choice == '0':
             console.print()
-            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4/MP3/GIF/DOCX/PPTX files:[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4/MP3/GIF/DOCX/PPTX/TXT files:[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
@@ -405,6 +408,7 @@ def main():
                 gif_files = []
                 docx_files = []
                 pptx_files = []
+                txt_files = []
                 for p in paths:
                     path_obj = Path(os.path.expanduser(p))
                     if path_obj.is_file():
@@ -421,6 +425,8 @@ def main():
                             docx_files.append(path_obj)
                         elif suffix == ".pptx":
                             pptx_files.append(path_obj)
+                        elif suffix == ".txt":
+                            txt_files.append(path_obj)
                     elif path_obj.is_dir():
                         pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
                         mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
@@ -428,6 +434,7 @@ def main():
                         gif_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"])
                         docx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".docx"])
                         pptx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pptx"])
+                        txt_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".txt"])
                 
                 combine_type = None
                 available_types = []
@@ -437,6 +444,7 @@ def main():
                 if gif_files: available_types.append(('gif', 'GIF files'))
                 if docx_files: available_types.append(('docx', 'DOCX files'))
                 if pptx_files: available_types.append(('pptx', 'PPTX files'))
+                if txt_files: available_types.append(('txt', 'TXT files'))
                 
                 if len(available_types) > 1:
                     console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
@@ -455,7 +463,7 @@ def main():
                 elif len(available_types) == 1:
                     combine_type = available_types[0][0]
                 else:
-                    console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, or PPTX files found to combine.[/bold red]")
+                    console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, PPTX, or TXT files found to combine.[/bold red]")
                     get_char("\nPress any key to continue...")
                     continue
                 
@@ -471,6 +479,8 @@ def main():
                     out_path = conv.combine_docx(paths)
                 elif combine_type == 'pptx':
                     out_path = conv.combine_pptx(paths)
+                elif combine_type == 'txt':
+                    out_path = conv.combine_txt(paths)
                 
                 if out_path:
                     prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)

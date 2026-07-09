@@ -30,7 +30,7 @@ def save_shortcuts(shortcuts):
 
 def get_menu_entries(conv):
     entries = [
-        {"key": "0", "label": "Combine:", "exts": "docx, gif, mp3, mp4, pdf, pptx", "operation": "combine"},
+        {"key": "0", "label": "Combine:", "exts": "docx, gif, mp3, mp4, pdf, pptx, txt", "operation": "combine"},
         {"key": "1", "label": "Split:", "exts": "docx, gif, mp3, mp4, pdf, pptx", "operation": "split"},
         {"key": "2", "label": "Resize:", "exts": "mp4, jpg, png, heic", "operation": "resize"},
     ]
@@ -242,6 +242,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         console.print(" 5. Always combine GIFs")
         console.print(" 6. Always combine DOCX files")
         console.print(" 7. Always combine PPTX files")
+        console.print(" 8. Always combine TXT files")
         combine_choice = get_char("\nSelect Option: ")
         if combine_choice == '2':
             combine_type = "pdf"
@@ -255,6 +256,8 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
             combine_type = "docx"
         elif combine_choice == '7':
             combine_type = "pptx"
+        elif combine_choice == '8':
+            combine_type = "txt"
 
     elif entry["operation"] == "compress":
         target_fmt = prompt_compress_format(console, get_char)
@@ -403,6 +406,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             console.print(" 5. Always GIF")
             console.print(" 6. Always DOCX")
             console.print(" 7. Always PPTX")
+            console.print(" 8. Always TXT")
             console.print(" [bold white]Enter[/bold white]. Keep Current")
             combine_choice = get_input("Pick a # (or Enter): ")
             if combine_choice == '2':
@@ -417,6 +421,8 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                 new_combine_type = "docx"
             elif combine_choice == '7':
                 new_combine_type = "pptx"
+            elif combine_choice == '8':
+                new_combine_type = "txt"
             elif combine_choice == '1':
                 new_combine_type = "auto"
         elif operation == "compress":
@@ -629,6 +635,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
     gif_files = []
     docx_files = []
     pptx_files = []
+    txt_files = []
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
         if path_obj.is_file():
@@ -645,6 +652,8 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
                 docx_files.append(path_obj)
             elif suffix == ".pptx":
                 pptx_files.append(path_obj)
+            elif suffix == ".txt":
+                txt_files.append(path_obj)
         elif path_obj.is_dir():
             pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
             mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
@@ -652,6 +661,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
             gif_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"])
             docx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".docx"])
             pptx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pptx"])
+            txt_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".txt"])
 
     combine_type = sc.get("combine_type", "auto")
     if combine_type == "auto":
@@ -662,6 +672,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
         if gif_files: available_types.append(('gif', 'GIF files'))
         if docx_files: available_types.append(('docx', 'DOCX files'))
         if pptx_files: available_types.append(('pptx', 'PPTX files'))
+        if txt_files: available_types.append(('txt', 'TXT files'))
         
         if len(available_types) > 1:
             if not interactive:
@@ -682,7 +693,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
         elif len(available_types) == 1:
             combine_type = available_types[0][0]
         else:
-            console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, or PPTX files found to combine.[/bold red]")
+            console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, PPTX, or TXT files found to combine.[/bold red]")
             if interactive:
                 get_char("\nPress any key to continue...")
             return False
@@ -699,6 +710,8 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
         out_path = conv.combine_docx(paths)
     elif combine_type == 'pptx':
         out_path = conv.combine_pptx(paths)
+    elif combine_type == 'txt':
+        out_path = conv.combine_txt(paths)
     else:
         out_path = None
 
