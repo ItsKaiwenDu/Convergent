@@ -19,7 +19,7 @@
     ```bash
     make setup
     ```
-    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `ghostscript`, `pandoc`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
+    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `pandoc`, `ghostscript`, `typst`, `7-zip`, `unrar`, `rar`, `libreoffice`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
 3.  **Check Dependencies & Auto-Update**:
     ```bash
     make check
@@ -79,6 +79,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |
+| `--resume` | Resume / retry the last failed batch conversion | `--resume` |
 
 **Example Commands:**
 ```bash
@@ -109,6 +110,7 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout) and **combining** plain text (TXT) files (with interactive ordering and line-count preview).
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
+    -   **Resize**: Resize or crop images (JPG, JPEG, PNG, HEIC) and videos (MP4) by percentage, target height, or custom dimensions, with optional center-crop to a target aspect ratio (16:9, 4:3, 1:1, 9:16).
 -   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
 -   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
 -   **Premium UI**: Rich terminal interface with progress bars, status indicators, and real-time benchmarking timers.
@@ -183,6 +185,7 @@ Convergent/
 │   ├── doc.py           # Document conversion (Office & Markdown)
 │   ├── image.py         # Image conversion (HEIC, JPG, PNG, RAW, etc.)
 │   ├── ntb.py           # Notability .ntb to vector PDF conversion
+│   ├── resize.py        # Image & video resize / aspect-ratio crop engine
 │   ├── ocr.py           # Local OCR text extraction engine
 │   ├── pdf_manip.py     # PDF format conversion (PDF to Image)
 │   ├── split.py         # Centralized file split engine
