@@ -60,6 +60,27 @@ def get_char(prompt):
     console.print(ch, end="")
     return ch
 
+def get_choice(prompt, choices=None, max_option=None):
+    use_input = False
+    if max_option is not None and max_option >= 10:
+        use_input = True
+    elif choices is not None:
+        if isinstance(choices, int):
+            if choices >= 10:
+                use_input = True
+        elif isinstance(choices, dict):
+            for k in choices.keys():
+                if (isinstance(k, int) and k >= 10) or len(str(k)) > 1:
+                    use_input = True
+                    break
+        elif hasattr(choices, '__len__'):
+            if len(choices) >= 10:
+                use_input = True
+
+    if use_input:
+        return get_input(prompt)
+    else:
+        return get_char(prompt)
 
 def prompt_fps():
     import time

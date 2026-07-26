@@ -36,7 +36,7 @@ from modules import pdf_manip, image, video, audio, doc, compress, decompress, n
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run
 from customs.run_command import run_command
-from customs.console import console, get_input, get_char, prompt_fps, prompt_bitrate, prompt_strip_metadata
+from customs.console import console, get_input, get_char, get_choice, prompt_fps, prompt_bitrate, prompt_strip_metadata
 
 try:
     import termios
@@ -451,7 +451,7 @@ def main():
                     for i, (t_code, t_name) in enumerate(available_types, 1):
                         console.print(f" {i}. {t_name}")
                     console.print(" [bold white]B[/bold white]. Back")
-                    c_choice = get_char("\nSelect Option: ")
+                    c_choice = get_choice("\nSelect Option: ", choices=available_types)
                     try:
                         c_idx = int(c_choice) - 1
                         if 0 <= c_idx < len(available_types):
@@ -717,7 +717,7 @@ def main():
                 console.print(f" {i}. {fmt.lower()}")
             console.print(" [bold white]B[/bold white]. Back")
             
-            target_choice = get_char("\nSelect Option: ")
+            target_choice = get_choice("\nSelect Option: ", choices=sorted_targets)
             if target_choice.lower() == 'b':
                 console.print()
                 continue

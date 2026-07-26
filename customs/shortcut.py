@@ -2,6 +2,7 @@ import json
 import os
 import time
 from pathlib import Path
+from customs.console import get_choice
 
 SHORTCUTS_FILE = Path.home() / ".convergent_shortcuts.json"
 MENU_LABEL_WIDTH = 14
@@ -215,7 +216,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
             console.print(f" {i}. {fmt.lower()}")
         console.print(" [bold white]B[/bold white]. Back")
 
-        target_choice = get_char("\nPick target #: ")
+        target_choice = get_choice("\nPick target #: ", choices=sorted_targets)
         if target_choice.lower() == 'b':
             console.print()
             return
@@ -681,7 +682,7 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
             console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
             for i, (t_code, t_name) in enumerate(available_types, 1):
                 console.print(f" {i}. {t_name}")
-            c_choice = get_char("\nSelect Option: ")
+            c_choice = get_choice("\nSelect Option: ", choices=available_types)
             try:
                 c_idx = int(c_choice) - 1
                 if 0 <= c_idx < len(available_types):
