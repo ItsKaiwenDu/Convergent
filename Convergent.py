@@ -127,6 +127,9 @@ class Converter:
         return ocr.convert_image_to_text(source, target_ext, **kwargs)
 
     def convert_pdf(self, source, target_ext, **kwargs):
+        is_ocr = kwargs.get("ocr", False) or target_ext.upper() in ("TXT", "MD", "DOCX")
+        if is_ocr:
+            return self.convert_ocr(source, target_ext, **kwargs)
         return pdf_manip.convert_pdf_to_image(source, target_ext)
 
     def convert_ntb(self, source, target_ext, **kwargs):
@@ -688,14 +691,14 @@ def main():
                 continue
                 
             console.print()
-            console.print(f"\n[bold yellow]Enter image file or folder path(s) for OCR (JPG/JPEG/PNG/HEIC):[/bold yellow]")
+            console.print(f"\n[bold yellow]Enter image or PDF file or folder path(s) for OCR (JPG/JPEG/PNG/HEIC/PDF):[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
             flush_stdin()
             if paths:
                 success_map = {}
-                converted = conv.process(["JPG", "JPEG", "PNG", "HEIC"], target_fmt, paths, ocr=True, success_map=success_map)
+                converted = conv.process(["JPG", "JPEG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map)
                 prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
             

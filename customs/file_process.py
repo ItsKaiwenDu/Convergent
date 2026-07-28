@@ -101,7 +101,7 @@ FORMAT_REGISTRY = [
     FormatDef("DOCX", "5", ["PDF"], "convert_office"),
     FormatDef("MD", "5", ["PDF", "HTML", "TXT"], "convert_markdown"),
     FormatDef("NTB", "5", ["PDF"], "convert_ntb"),
-    FormatDef("PDF", "5", ["JPG", "JPEG", "PNG", "TIFF", "BMP"], "convert_pdf"),
+    FormatDef("PDF", "5", ["JPG", "JPEG", "PNG", "TIFF", "BMP", "TXT", "MD", "DOCX"], "convert_pdf"),
     FormatDef("PPTX", "5", ["PDF"], "convert_office"),
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]

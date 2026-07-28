@@ -54,50 +54,142 @@ def _convert_heic_to_temp_png(source: Path) -> Path:
     )
 
 
+def _convert_pdf_to_temp_images(source: Path):
+    """
+    Converts a PDF file to a directory of temporary PNG page images for OCR.
+    Tries pdftoppm, Ghostscript (gs), ImageMagick (magick/convert), and sips.
+    Returns (temp_dir_path, list_of_png_paths).
+    Caller is responsible for removing temp_dir_path.
+    """
+    temp_dir = Path(tempfile.mkdtemp(prefix="convergent_pdf_ocr_"))
+    
+    # 1. pdftoppm (poppler) - fast & native rendering
+    if shutil.which("pdftoppm"):
+        out_prefix = temp_dir / "page"
+        result = subprocess.run(
+            ["pdftoppm", "-png", "-r", "300", str(source), str(out_prefix)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            pngs = sorted(list(temp_dir.glob("*.png")))
+            if pngs:
+                return temp_dir, pngs
+
+    # 2. Ghostscript (gs)
+    if shutil.which("gs"):
+        out_pattern = temp_dir / "page_%04d.png"
+        result = subprocess.run(
+            [
+                "gs", "-dNOPAUSE", "-dBATCH", "-dNOSAFER",
+                "-sDEVICE=png16m", "-r300",
+                f"-sOUTPUTFILE={out_pattern}", str(source)
+            ],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            pngs = sorted(list(temp_dir.glob("*.png")))
+            if pngs:
+                return temp_dir, pngs
+
+    # 3. ImageMagick (magick / convert)
+    if shutil.which("magick"):
+        out_pattern = temp_dir / "page_%04d.png"
+        result = subprocess.run(
+            ["magick", "-density", "300", str(source), str(out_pattern)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            pngs = sorted(list(temp_dir.glob("*.png")))
+            if pngs:
+                return temp_dir, pngs
+    elif shutil.which("convert"):
+        out_pattern = temp_dir / "page_%04d.png"
+        result = subprocess.run(
+            ["convert", "-density", "300", str(source), str(out_pattern)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            pngs = sorted(list(temp_dir.glob("*.png")))
+            if pngs:
+                return temp_dir, pngs
+
+    # 4. sips (macOS fallback)
+    if shutil.which("sips"):
+        out_png = temp_dir / "page_0001.png"
+        result = subprocess.run(
+            ["sips", "-s", "format", "png", str(source), "--out", str(out_png)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and out_png.exists():
+            return temp_dir, [out_png]
+
+    # Cleanup temp dir if conversion failed
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    raise RuntimeError(
+        "Could not convert PDF pages to PNG for OCR. "
+        "Ensure 'pdftoppm', 'gs' (Ghostscript), or ImageMagick is installed."
+    )
+
+
 def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
     """
-    Extracts text from PNG/JPG/HEIC/etc. and saves it to a .txt, .md, .docx, or .pdf file.
+    Extracts text from PNG/JPG/HEIC/PDF/etc. and saves it to a .txt, .md, .docx, or .pdf file.
     Returns: (bool, str) - Success status and error message or empty string.
     """
     source = Path(source_path)
     target_ext = target_ext.upper()
     output = source.with_suffix(f".{target_ext.lower()}")
 
-    # HEIC cannot be read directly by Vision or Tesseract — convert to temp PNG first
     temp_png = None
-    ocr_source = source
-    if source.suffix.lower() in (".heic", ".heif"):
+    temp_dir = None
+    ocr_sources = []
+
+    if source.suffix.lower() == ".pdf":
         try:
-            temp_png = _convert_heic_to_temp_png(source)
-            ocr_source = temp_png
+            temp_dir, ocr_sources = _convert_pdf_to_temp_images(source)
         except RuntimeError as e:
             return False, str(e)
+    elif source.suffix.lower() in (".heic", ".heif"):
+        try:
+            temp_png = _convert_heic_to_temp_png(source)
+            ocr_sources = [temp_png]
+        except RuntimeError as e:
+            return False, str(e)
+    else:
+        ocr_sources = [source]
 
     try:
-        text = ""
-        # 1. Try macOS Vision first (zero installation, hardware-accelerated)
-        if HAS_MACOS_VISION:
-            try:
-                text = _ocr_macos_native(ocr_source)
-            except Exception:
-                # If there's an error, fallback to Tesseract
-                pass
-                
-        # 2. Fallback/Standard option: Tesseract CLI
-        if not text:
-            text = _ocr_tesseract(ocr_source)
-            
+        page_texts = []
+        for ocr_src in ocr_sources:
+            text = ""
+            # 1. Try macOS Vision first (zero installation, hardware-accelerated)
+            if HAS_MACOS_VISION:
+                try:
+                    text = _ocr_macos_native(ocr_src)
+                except Exception:
+                    # If there's an error, fallback to Tesseract
+                    pass
+                    
+            # 2. Fallback/Standard option: Tesseract CLI
+            if not text:
+                text = _ocr_tesseract(ocr_src)
+
+            if text.strip():
+                page_texts.append(text)
+
+        combined_text = "\n\n".join(page_texts)
+
         # 3. Write/Compile extracted text to the target format
         if target_ext in ("TXT", "MD"):
             with open(output, "w", encoding="utf-8") as f:
-                f.write(text)
+                f.write(combined_text)
             return True, ""
             
         elif target_ext == "DOCX":
             temp_md = source.with_suffix(".temp_ocr.md")
             try:
                 with open(temp_md, "w", encoding="utf-8") as f:
-                    f.write(text)
+                    f.write(combined_text)
                 
                 if shutil.which("pandoc"):
                     result = subprocess.run(
@@ -118,7 +210,7 @@ def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
             temp_md = source.with_suffix(".temp_ocr.md")
             try:
                 with open(temp_md, "w", encoding="utf-8") as f:
-                    f.write(text)
+                    f.write(combined_text)
                 
                 # Try typst first
                 if shutil.which("typst"):
@@ -157,9 +249,11 @@ def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
     except Exception as e:
         return False, str(e)
     finally:
-        # Clean up the temporary PNG created from HEIC/HEIF input
+        # Clean up temporary files / directories created
         if temp_png is not None and temp_png.exists():
             temp_png.unlink()
+        if temp_dir is not None and temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 def _ocr_macos_native(image_path: Path) -> str:
     if not HAS_MACOS_VISION:

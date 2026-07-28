@@ -47,7 +47,7 @@ def get_menu_entries(conv):
     entries.extend([
         {"key": "7", "label": "Compress:", "exts": "7z, rar, tar.(gz/bz2/xz), zip", "operation": "compress"},
         {"key": "8", "label": "Decompress:", "exts": "7z, rar, tar.(gz/bz2/xz), zip", "operation": "decompress"},
-        {"key": "9", "label": "OCR:", "exts": "jpg, png, heic", "operation": "ocr"},
+        {"key": "9", "label": "OCR:", "exts": "jpg, png, heic, pdf", "operation": "ocr"},
     ])
     return entries
 
