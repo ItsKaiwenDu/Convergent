@@ -251,7 +251,14 @@ def main():
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
     parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
     parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
+    parser.add_argument("--mcp", action="store_true", help="Launch local MCP (Model Context Protocol) server over stdio")
     args = parser.parse_args()
+
+    if args.mcp:
+        import importlib
+        mcp_server_mod = importlib.import_module("mcp_server.server")
+        mcp_server_mod.run_server()
+        sys.exit(0)
 
     if args.resume:
         failed_run = load_failed_run()

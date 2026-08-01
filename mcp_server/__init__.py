@@ -1,0 +1,3 @@
+"""
+Convergent MCP Server Package
+"""

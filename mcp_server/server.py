@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+"""
+Convergent Local MCP (Model Context Protocol) Server
+---------------------------------------------------
+Exposes Convergent file conversion capabilities as an MCP server over stdio.
+Enables local AI models (OpenCode, Claude Desktop, Cursor, etc.) to convert,
+extract, process, combine, split, and OCR local files.
+"""
+
+import os
+import sys
+import json
+from pathlib import Path
+from typing import List, Optional, Dict, Any
+
+# Ensure repository root is in sys.path
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from mcp.server.fastmcp import FastMCP
+from Convergent import Converter, clean_paths
+from customs.file_process import FORMAT_REGISTRY
+
+# Initialize FastMCP Server
+mcp = FastMCP(
+    "Convergent",
+    instructions=(
+        "Convergent Local MCP Server provides high-performance local file conversion, "
+        "media processing (video/audio/image), document processing (PDF, Markdown, DOCX, Typst), "
+        "OCR, compression, splitting, and merging. All processing runs 100% locally."
+    ),
+)
+
+conv = Converter()
+
+
+@mcp.tool()
+def convergent_convert(
+    input_path: str,
+    target_format: str,
+    output_path: Optional[str] = None,
+    fps: Optional[int] = None,
+    bitrate: Optional[str] = None,
+    md_pdf_mode: str = "formatted",
+    strip_metadata: bool = False,
+    ocr: bool = False,
+    overwrite: bool = True,
+) -> Dict[str, Any]:
+    """
+    Convert a file or directory of files to a target format using Convergent.
+
+    Args:
+        input_path: Absolute or relative path to file or directory to convert.
+        target_format: Extension of target format (e.g., 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'GIF').
+        output_path: Optional output directory or file path. Defaults to input path location.
+        fps: Target frames per second for video/GIF outputs (e.g. 30).
+        bitrate: Audio bitrate for MP3/Audio outputs (e.g. '192k', '320k').
+        md_pdf_mode: Rendering mode for Markdown to PDF ('formatted' or 'raw'). Default 'formatted'.
+        strip_metadata: If True, strips EXIF/IPTC metadata from image outputs.
+        ocr: If True, applies optical character recognition on image/scanned input.
+        overwrite: If True, overwrites existing files without asking. Default True.
+
+    Returns:
+        Dictionary containing status, list of converted output files, and any warnings.
+    """
+    cleaned_input = os.path.expanduser(input_path)
+    if not os.path.exists(cleaned_input):
+        return {
+            "success": False,
+            "error": f"Input path does not exist: {input_path}",
+            "converted_files": [],
+        }
+
+    target_fmt = target_format.upper().lstrip(".")
+    fps_val = str(fps) if fps is not None else None
+    bitrate_val = str(bitrate) if bitrate is not None else None
+
+    # Determine source format if possible
+    path_obj = Path(cleaned_input)
+    if path_obj.is_file():
+        source_fmts = [path_obj.suffix.lstrip(".").upper()]
+    else:
+        source_fmts = sorted(list(conv.formats.keys()))
+
+    success_map: Dict[str, str] = {}
+
+    try:
+        conv.process(
+            source_formats=source_fmts,
+            target_format=target_fmt,
+            paths=[cleaned_input],
+            fps=fps_val,
+            bitrate=bitrate_val,
+            overwrite=overwrite,
+            skip=not overwrite,
+            md_pdf_mode=md_pdf_mode,
+            strip_metadata=strip_metadata,
+            interactive=False,
+            ocr=ocr,
+            success_map=success_map,
+        )
+
+        converted_list = list(success_map.values())
+        return {
+            "success": True,
+            "count": len(converted_list),
+            "converted_files": converted_list,
+            "target_format": target_fmt,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "converted_files": list(success_map.values()),
+        }
+
+
+@mcp.tool()
+def pdf_to_images(
+    pdf_path: str,
+    target_format: str = "JPG",
+    dpi: int = 150,
+) -> Dict[str, Any]:
+    """
+    Convert a multi-page PDF into individual image files (one image per page).
+    Ideal for feeding visual model context page by page.
+
+    Args:
+        pdf_path: Absolute or relative path to PDF file.
+        target_format: Output image extension ('JPG', 'PNG'). Default 'JPG'.
+        dpi: Quality DPI resolution (default 150).
+
+    Returns:
+        Dictionary with list of generated page image file paths.
+    """
+    full_path = os.path.expanduser(pdf_path)
+    if not os.path.exists(full_path):
+        return {"success": False, "error": f"File not found: {pdf_path}", "images": []}
+
+    target_fmt = target_format.upper().lstrip(".")
+    if target_fmt not in ("JPG", "JPEG", "PNG"):
+        target_fmt = "JPG"
+
+    res = convergent_convert(
+        input_path=full_path,
+        target_format=target_fmt,
+        overwrite=True,
+    )
+    return {
+        "success": res.get("success", False),
+        "count": res.get("count", 0),
+        "images": res.get("converted_files", []),
+        "error": res.get("error"),
+    }
+
+
+@mcp.tool()
+def extract_audio(
+    video_path: str,
+    target_format: str = "MP3",
+    bitrate: str = "192k",
+) -> Dict[str, Any]:
+    """
+    Extract audio track from a video file. Useful for pre-processing video for audio transcription.
+
+    Args:
+        video_path: Absolute or relative path to video file.
+        target_format: Target audio format ('MP3', 'WAV', 'AAC', 'FLAC', 'M4A'). Default 'MP3'.
+        bitrate: Audio bitrate (e.g. '128k', '192k', '320k'). Default '192k'.
+
+    Returns:
+        Dictionary containing path to extracted audio file.
+    """
+    full_path = os.path.expanduser(video_path)
+    if not os.path.exists(full_path):
+        return {"success": False, "error": f"File not found: {video_path}"}
+
+    res = convergent_convert(
+        input_path=full_path,
+        target_format=target_format.upper(),
+        bitrate=bitrate,
+        overwrite=True,
+    )
+    return res
+
+
+@mcp.tool()
+def perform_ocr(
+    input_path: str,
+    target_format: str = "TXT",
+) -> Dict[str, Any]:
+    """
+    Perform Optical Character Recognition (OCR) on an image or scanned PDF document to extract text.
+
+    Args:
+        input_path: Path to image or scanned PDF file.
+        target_format: Output text format ('TXT', 'MD', 'DOCX'). Default 'TXT'.
+
+    Returns:
+        Dictionary with status, extracted file paths, and extracted text snippet if available.
+    """
+    full_path = os.path.expanduser(input_path)
+    if not os.path.exists(full_path):
+        return {"success": False, "error": f"File not found: {input_path}"}
+
+    res = convergent_convert(
+        input_path=full_path,
+        target_format=target_format.upper(),
+        ocr=True,
+        overwrite=True,
+    )
+
+    # Read extracted text if single text file generated
+    extracted_text = None
+    converted_files = res.get("converted_files", [])
+    if converted_files and os.path.exists(converted_files[0]):
+        try:
+            with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
+                extracted_text = f.read(4000)  # first 4k chars snippet
+        except Exception:
+            pass
+
+    if extracted_text:
+        res["extracted_text_preview"] = extracted_text
+
+    return res
+
+
+@mcp.tool()
+def combine_files(
+    file_paths: List[str],
+    output_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Combine multiple PDF, video, audio, GIF, or document files into a single merged file.
+
+    Args:
+        file_paths: List of file paths to combine (must all share compatible file types).
+        output_path: Optional destination path. If not provided, saved in same directory as first file.
+
+    Returns:
+        Dictionary with path to combined output file.
+    """
+    expanded_paths = [os.path.expanduser(p) for p in file_paths if os.path.exists(os.path.expanduser(p))]
+    if not expanded_paths:
+        return {"success": False, "error": "No valid existing files provided to combine."}
+
+    ext = Path(expanded_paths[0]).suffix.lower()
+
+    try:
+        out_file = None
+        if ext == ".pdf":
+            out_file = conv.combine_pdfs(expanded_paths)
+        elif ext in (".mp4", ".mov", ".mkv", ".avi", ".webm"):
+            out_file = conv.combine_videos(expanded_paths)
+        elif ext in (".mp3", ".wav", ".aac", ".flac", ".m4a"):
+            out_file = conv.combine_audios(expanded_paths)
+        elif ext == ".gif":
+            out_file = conv.combine_gifs(expanded_paths)
+        elif ext == ".docx":
+            out_file = conv.combine_docx(expanded_paths)
+        elif ext == ".pptx":
+            out_file = conv.combine_pptx(expanded_paths)
+        elif ext == ".txt":
+            out_file = conv.combine_txt(expanded_paths)
+        else:
+            return {"success": False, "error": f"Unsupported file type for combination: {ext}"}
+
+        if out_file and output_path:
+            dest = os.path.expanduser(output_path)
+            os.rename(out_file, dest)
+            out_file = dest
+
+        return {
+            "success": True if out_file else False,
+            "output_file": out_file,
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def split_file(file_path: str) -> Dict[str, Any]:
+    """
+    Split a PDF, video, audio, or archive into individual pages or segments.
+
+    Args:
+        file_path: Path to file to split.
+
+    Returns:
+        Dictionary with status of split operation.
+    """
+    full_path = os.path.expanduser(file_path)
+    if not os.path.exists(full_path):
+        return {"success": False, "error": f"File not found: {file_path}"}
+
+    ext = Path(full_path).suffix.lower()
+    try:
+        if ext == ".pdf":
+            conv.split_pdf(full_path)
+        elif ext in (".mp4", ".mov", ".mkv", ".avi"):
+            conv.split_video(full_path)
+        elif ext in (".mp3", ".wav", ".aac", ".flac"):
+            conv.split_audio(full_path)
+        elif ext == ".gif":
+            conv.split_gif(full_path)
+        elif ext == ".docx":
+            conv.split_docx(full_path)
+        elif ext == ".pptx":
+            conv.split_pptx(full_path)
+        else:
+            return {"success": False, "error": f"Unsupported file type for splitting: {ext}"}
+
+        return {"success": True, "message": f"Successfully split {file_path}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool()
+def list_supported_formats() -> Dict[str, Any]:
+    """
+    List all source formats and available target conversion formats in Convergent.
+
+    Returns:
+        Dictionary mapping input extension to list of valid target output extensions.
+    """
+    return {
+        "source_formats": conv.source_formats,
+        "categories": conv.categories,
+        "format_mapping": conv.formats,
+    }
+
+
+def run_server():
+    """Run the FastMCP server over stdio."""
+    mcp.run(transport="stdio")
+
+
+if __name__ == "__main__":
+    run_server()

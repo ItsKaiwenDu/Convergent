@@ -115,6 +115,48 @@ make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
 -   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
 -   **Premium UI**: Rich terminal interface with progress bars, status indicators, and real-time benchmarking timers.
 
+## Local MCP Server Integration
+
+Convergent can run as a **100% local Model Context Protocol (MCP) server** over `stdio`. This allows local AI models, assistants, and IDE extensions (such as OpenCode, Claude Desktop, Cursor, Windsurf, Zed, etc.) to use Convergent's conversion capabilities directly.
+
+### Running the MCP Server
+```bash
+# Start MCP server over stdio
+make mcp
+
+# Or directly via Python
+python Convergent.py --mcp
+```
+
+### Client Configuration Helper
+To print ready-to-use JSON configuration snippets for your AI clients:
+```bash
+make mcp-config
+```
+
+#### Example `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "convergent": {
+      "command": "python3",
+      "args": [
+        "/path/to/Convergent/mcp_server/server.py"
+      ]
+    }
+  }
+}
+```
+
+### Available MCP Tools Exposed to AI Models
+- `convergent_convert`: General-purpose file & directory converter (PDF, JPG, PNG, MP3, MP4, DOCX, MD, etc.).
+- `pdf_to_images`: Convert multi-page PDFs to image sequences (JPG/PNG) for visual model analysis.
+- `extract_audio`: Extract audio tracks (`MP3`, `WAV`, `AAC`) from video files for transcription.
+- `perform_ocr`: Extract plain text or Markdown from images or scanned PDFs using local OCR.
+- `combine_files`: Merge multiple PDFs, videos, audio clips, or documents into a single file.
+- `split_file`: Split PDFs, videos, audio files, or documents into segments.
+- `list_supported_formats`: Query all supported format conversions and category mappings.
+
 ## Quick Shortcuts
 
 Save frequent workflows as persistent shortcuts for instant access.
@@ -175,8 +217,12 @@ After conversion, you can choose from the Post-Convert Options menu:
 ```
 Convergent/
 ├── Convergent.py        # Main CLI entry point and menu orchestrator
-├── Makefile             # Task automation (setup, run, check, clean)
+├── Makefile             # Task automation (setup, run, check, mcp, clean)
 ├── requirements.txt     # Python dependencies
+├── mcp_server/          # Local MCP (Model Context Protocol) Server package
+│   ├── __init__.py      # Package initialization
+│   ├── server.py        # FastMCP server & tool definitions over stdio
+│   └── config_generator.py # Helper script for generating client mcpServers JSON
 ├── modules/             # Format-specific conversion engines
 │   ├── audio.py         # Audio format conversion
 │   ├── combine.py       # Centralized file combine/merge engine

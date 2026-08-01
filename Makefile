@@ -6,7 +6,13 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start check shortcut quick-action clean
+.PHONY: help setup start check shortcut quick-action mcp mcp-config clean
+
+mcp: check ## Start local MCP server over stdio
+	$(PYTHON) mcp_server/server.py
+
+mcp-config: ## Print copy-paste JSON config for Claude Desktop / OpenCode / Cursor
+	$(PYTHON) mcp_server/config_generator.py
 
 help: ## Show this help message
 	@echo "\033[1mUsage:\033[0m make [target]"
