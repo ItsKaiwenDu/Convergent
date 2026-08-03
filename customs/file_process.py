@@ -14,7 +14,7 @@ from customs.run_command import send_to_trash
 
 FAILED_RUN_FILE = Path.home() / ".convergent_failed.json"
 
-def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False):
+def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, use_cache=False):
     if not failed_files:
         clear_failed_run()
         return
@@ -26,7 +26,8 @@ def save_failed_run(failed_files, source_formats, target_format, fps=None, bitra
         "fps": fps,
         "bitrate": bitrate,
         "md_pdf_mode": md_pdf_mode,
-        "strip_metadata": strip_metadata
+        "strip_metadata": strip_metadata,
+        "use_cache": use_cache
     }
     try:
         with open(FAILED_RUN_FILE, 'w') as f:
@@ -148,7 +149,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False):
     """
     Processes a batch of files for conversion.
     """
@@ -190,8 +191,71 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         console.print(f"[bold red]{msg}[/bold red]")
         return []
 
+    # Content-Addressable Cache pre-filter (opt-in via --cache)
+    cached_count = 0
+    cached_skipped_files = []  # list of (src, out, reason)
+    cache_mgr = None
+    if use_cache:
+        try:
+            from customs.cache import CacheManager
+            cache_mgr = CacheManager()
+            params_for_cache = {
+                "target": target_format,
+                "fps": fps,
+                "bitrate": bitrate,
+                "md_pdf_mode": md_pdf_mode,
+                "strip_metadata": strip_metadata,
+                "ocr": ocr,
+            }
+            remaining_after_cache = []
+            for f in files:
+                # PDF source maps to _images dir, others to suffix file
+                if f.suffix.lower() == ".pdf":
+                    out_path = f.parent / f"{f.stem}_images"
+                else:
+                    out_path = f.with_suffix(f".{target_format.lower()}")
+                is_valid, reason = cache_mgr.is_cached_valid(f, out_path, params_for_cache)
+                if is_valid:
+                    cached_count += 1
+                    cached_skipped_files.append((f, out_path, reason))
+                    # Keep success_map in sync for move/undo flows – treat cached outputs as "converted" for post-actions
+                    if isinstance(success_map, dict):
+                        success_map[out_path] = f
+                    try:
+                        console.print(f" [dim]↷ {f.name} → cached ({reason})[/dim]")
+                    except Exception:
+                        pass
+                else:
+                    remaining_after_cache.append(f)
+            if cached_count > 0:
+                console.print(f"[bold cyan]⚡ Cache: {cached_count} file(s) already up-to-date, skipping...[/bold cyan]")
+            files = remaining_after_cache
+            if not files:
+                # All files cached – report and return cached outputs
+                if cache_mgr:
+                    try:
+                        cache_mgr.close()
+                    except Exception:
+                        pass
+                if cached_skipped_files:
+                    console.print(f"[bold green]✓ All {cached_count} file(s) cached — no conversion needed.[/bold green]")
+                    return [out for _, out, _ in cached_skipped_files]
+                return []
+        except Exception as e:
+            # Cache failures must never break conversion
+            try:
+                console.print(f"[dim]Cache check failed ({e}), proceeding without cache.[/dim]")
+            except Exception:
+                pass
+            # Ensure files list unchanged if cache init failed
+            # (already filtered partially – if error after filtering, keep remaining)
+            if 'remaining_after_cache' not in locals():
+                pass
+
     final_files = []
     temp_symlinks = {}
+    skipped_count = 0
+    batch_start_time = time.perf_counter()
     
     # 1. Identify conflicts
     conflicts = []
@@ -425,6 +489,23 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                 converted_files.append(out_path)
                                 if isinstance(success_map, dict):
                                     success_map[out_path] = orig_file
+                                # Cache: save successful conversion
+                                if use_cache and cache_mgr:
+                                    try:
+                                        if 'params_for_cache' not in locals():
+                                            params_for_cache_local = {
+                                                "target": target_format,
+                                                "fps": fps,
+                                                "bitrate": bitrate,
+                                                "md_pdf_mode": md_pdf_mode,
+                                                "strip_metadata": strip_metadata,
+                                                "ocr": ocr,
+                                            }
+                                        else:
+                                            params_for_cache_local = params_for_cache
+                                        cache_mgr.save(orig_file, out_path, params_for_cache_local)
+                                    except Exception:
+                                        pass
                                 
                                 if error != "Skipped (Same format)":
                                     progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
@@ -457,6 +538,23 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     converted_files.append(out_path)
                     if isinstance(success_map, dict):
                         success_map[out_path] = f
+                    if use_cache and cache_mgr:
+                        try:
+                            # Ensure params_for_cache exists (may not if cache init failed earlier)
+                            if 'params_for_cache' not in locals():
+                                params_for_cache_local = {
+                                    "target": target_format,
+                                    "fps": fps,
+                                    "bitrate": bitrate,
+                                    "md_pdf_mode": md_pdf_mode,
+                                    "strip_metadata": strip_metadata,
+                                    "ocr": ocr,
+                                }
+                            else:
+                                params_for_cache_local = params_for_cache
+                            cache_mgr.save(f, out_path, params_for_cache_local)
+                        except Exception:
+                            pass
                     
                     if error != "Skipped (Same format)":
                         console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
@@ -476,7 +574,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         raise
     finally:
         if failed_files:
-            save_failed_run(failed_files, source_formats, target_format, fps, bitrate, md_pdf_mode, strip_metadata)
+            save_failed_run(failed_files, source_formats, target_format, fps, bitrate, md_pdf_mode, strip_metadata, use_cache=use_cache)
         else:
             clear_failed_run()
         
@@ -485,17 +583,37 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 sym.unlink()
             except:
                 pass
+
+        # Close cache manager
+        if use_cache and cache_mgr:
+            try:
+                cache_mgr.close()
+            except Exception:
+                pass
             
     total_time = time.perf_counter() - batch_start_time
     summary_parts = [
         f"[bold green]✓ {success_count} converted[/bold green]",
         f"[bold red]✗ {fail_count} failed[/bold red]"
     ]
+    if cached_count > 0:
+        summary_parts.append(f"[bold cyan]↷ {cached_count} cached[/bold cyan]")
     if skipped_count > 0:
         summary_parts.append(f"[bold yellow]↷ {skipped_count} skipped[/bold yellow]")
     summary_parts.append(f"[bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
     
     console.print(f"\n{', '.join(summary_parts)}")
+
+    # Include cached outputs in returned list so post-move/undo sees them
+    if use_cache and cached_skipped_files:
+        try:
+            cached_outs = [out for _, out, _ in cached_skipped_files]
+            # Avoid duplicates if some were reconverted (shouldn't happen)
+            for co in cached_outs:
+                if co not in converted_files:
+                    converted_files.append(co)
+        except Exception:
+            pass
     
     if failed_files and interactive and sys.stdin.isatty():
         console.print(f"\n[bold yellow]Retry {len(failed_files)} failed file(s)? (y/n): [/bold yellow]", end="")
@@ -507,7 +625,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 conv, console, get_char, source_formats, target_format, retry_paths,
                 fps=fps, bitrate=bitrate, jobs=jobs, overwrite=overwrite, skip=skip,
                 md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive, ocr=ocr,
-                success_map=success_map
+                success_map=success_map, use_cache=use_cache
             )
             converted_files.extend(retry_converted)
             

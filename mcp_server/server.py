@@ -46,6 +46,7 @@ def convergent_convert(
     strip_metadata: bool = False,
     ocr: bool = False,
     overwrite: bool = True,
+    use_cache: bool = False,
 ) -> Dict[str, Any]:
     """
     Convert a file or directory of files to a target format using Convergent.
@@ -99,6 +100,7 @@ def convergent_convert(
             interactive=False,
             ocr=ocr,
             success_map=success_map,
+            use_cache=use_cache,
         )
 
         converted_list = list(success_map.values())

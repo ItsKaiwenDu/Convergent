@@ -159,3 +159,25 @@ def prompt_strip_metadata():
         time.sleep(0.5)
         return "invalid", False
 
+
+def prompt_cache():
+    import time
+    console.print("\n[bold yellow]Enable cache (skip unchanged files via checksum)?[/bold yellow]")
+    console.print(" 1. Yes (use ~/.convergent_cache.sqlite)")
+    console.print(" 2. No")
+    console.print(" [bold white]B[/bold white]. Back")
+    choice = get_char("\nSelect Option: ")
+    if choice.lower() == 'b':
+        console.print()
+        return "back", False
+    elif choice == '1':
+        console.print()
+        return "success", True
+    elif choice == '2':
+        console.print()
+        return "success", False
+    else:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return "invalid", False
+

@@ -6,7 +6,7 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start check shortcut quick-action mcp mcp-config clean
+.PHONY: help setup start check shortcut quick-action mcp mcp-config clean clean-cache cache-stats
 
 mcp: check ## Start local MCP server over stdio
 	$(PYTHON) mcp_server/server.py
@@ -69,4 +69,10 @@ quick-action: ## Install Finder Quick Action for a saved shortcut (macOS only)
 
 clean: ## Clean up __pycache__ directories
 	find . -type d -name __pycache__ -exec rm -rf {} +
+
+clean-cache: ## Clear conversion cache (checksum DB)
+	@$(PYTHON) -c "from customs.cache import clear_cache; removed=clear_cache(); print(f'Removed cache DBs: {removed}' if removed else 'No cache DB found.')"
+
+cache-stats: ## Show cache entry count
+	@$(PYTHON) -c "from customs.cache import CacheManager; cm=CacheManager(); print(cm.stats()); cm.close()"
 

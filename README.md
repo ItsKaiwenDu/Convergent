@@ -63,6 +63,19 @@ Remove all compiled Python cache (`__pycache__`) directories across project:
 make clean
 ```
 
+### Cache Management (Content-Addressable Checksum Skip)
+Clear or inspect the persistent conversion cache (`~/.convergent_cache.sqlite`):
+
+```bash
+# Remove all cached checksums (forces full re-convert on next --cache run)
+make clean-cache
+
+# Show number of cached entries and DB path
+make cache-stats
+```
+
+*The cache stores `blake2b` fingerprints of source files + conversion params (`target|fps|bitrate|strip|ocr`). On `make start ARGS="--cache"` runs, unchanged files are reported as `↷ cached (blake2b:ab12...)` and skipped without invoking FFmpeg/ImageMagick. Great for 10k-file libraries where only a few files are added.*
+
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using `ARGS` variable.
 
@@ -76,6 +89,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
 | `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
+| `--cache` | Enable content-addressable cache to skip unchanged files (checksum skip) | `--cache` |
 | `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |
@@ -217,7 +231,7 @@ After conversion, you can choose from the Post-Convert Options menu:
 ```
 Convergent/
 ├── Convergent.py        # Main CLI entry point and menu orchestrator
-├── Makefile             # Task automation (setup, run, check, mcp, clean)
+├── Makefile             # Task automation (setup, run, check, mcp, clean, clean-cache, cache-stats)
 ├── requirements.txt     # Python dependencies
 ├── mcp_server/          # Local MCP (Model Context Protocol) Server package
 │   ├── __init__.py      # Package initialization
@@ -237,9 +251,10 @@ Convergent/
 │   ├── split.py         # Centralized file split engine
 │   └── video.py         # Video format conversion
 └── customs/             # Shared helpers and utility frameworks
+    ├── cache.py         # Content-addressable conversion cache (blake2b + SQLite)
     ├── check_deps.py    # CLI dependency validator
     ├── console.py       # Terminal UI and rich-text helper
-    ├── file_process.py  # Queue manager and collision handler
+    ├── file_process.py  # Queue manager, collision handler, and cache skip
     ├── run_command.py   # Subprocess shell command runner
     ├── shortcut.py      # Custom workflow CRUD manager
     └── quick_action.py  # macOS Finder Quick Action installer

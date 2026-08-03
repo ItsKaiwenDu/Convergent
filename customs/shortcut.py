@@ -833,6 +833,7 @@ def run_shortcut(
     jobs=None,
     overwrite=False,
     skip=False,
+    use_cache=False,
     cli_bitrate=None,
     cli_strip_metadata=False,
     prompt_fps=None,
@@ -901,6 +902,7 @@ def run_shortcut(
         strip_metadata=options["strip_metadata"],
         interactive=interactive,
         success_map=success_map,
+        use_cache=use_cache,
     )
     if interactive and prompt_move_files:
         prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
