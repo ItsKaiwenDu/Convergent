@@ -34,9 +34,9 @@ import shlex
 from pathlib import Path
 from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb, combine, split, ocr
 from customs import shortcut, file_process
-from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run
+from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run, process_stream
 from customs.run_command import run_command
-from customs.console import console, get_input, get_char, get_choice, prompt_fps, prompt_bitrate, prompt_strip_metadata, prompt_cache
+from customs.console import console, set_stderr_mode, get_input, get_char, get_choice, prompt_fps, prompt_bitrate, prompt_strip_metadata, prompt_cache
 
 try:
     import termios
@@ -56,6 +56,9 @@ def clean_paths(path_str):
         return resolved
     
     path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
+    
+    if path_str == "-":
+        return ["-"]
     
     # If the entire path_str exists as a single file or directory, treat it as one path.
     # This prevents splitting a single path that has spaces but no quotes/escapes.
@@ -186,8 +189,8 @@ class Converter:
     def decompress(self, path, output_dir=None):
         return decompress.decompress(path, output_dir)
 
-    def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None, ocr=False):
-        return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode, ocr=ocr)
+    def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, hwaccel="auto"):
+        return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, hwaccel=hwaccel)
 
     def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False, hwaccel="auto"):
         return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel)
@@ -245,6 +248,8 @@ def main():
     parser.add_argument("--bitrate", help="Audio bitrate for MP3 conversion (e.g., 128k, 192k, 320k)")
     parser.add_argument("--md-pdf-mode", choices=["formatted", "raw"], default="formatted", help="Rendering mode for Markdown to PDF (default: formatted)")
     parser.add_argument("--path", nargs="+", help="Path to file or directory")
+    parser.add_argument("--stdin", action="store_true", help="Read binary input from standard input (stdin)")
+    parser.add_argument("--stdout", action="store_true", help="Write binary converted output to standard output (stdout)")
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs (default: CPU count)")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
@@ -308,6 +313,67 @@ def main():
             prompt_strip_metadata=prompt_strip_metadata,
         )
         sys.exit(0 if ok else 1)
+
+    # Check if stream mode (stdin/stdout or Unix pipe) is requested or auto-detected
+    is_stdin_req = args.stdin or (args.path and args.path[0] == "-") or (not sys.stdin.isatty() and args.from_fmt is not None)
+
+    input_p = "-" if is_stdin_req else None
+    output_p = None
+    if args.path:
+        clean_p = clean_paths(args.path)
+        if clean_p:
+            if clean_p[0] != "-":
+                input_p = clean_p[0]
+            if len(clean_p) > 1 and clean_p[1] != "-":
+                output_p = clean_p[1]
+
+    is_stdout_req = args.stdout or (args.path and len(args.path) > 1 and args.path[1] == "-") or (output_p is None and not sys.stdout.isatty() and (is_stdin_req or args.stdin or args.stdout))
+
+    if is_stdin_req or args.stdin or args.stdout or (args.path and "-" in args.path):
+        if not args.from_fmt or not args.to_fmt:
+            if is_stdout_req:
+                set_stderr_mode(True)
+            console.print("[bold red]Error: Stream processing (--stdin / --stdout / Unix pipe) requires both --from and --to flags.[/bold red]")
+            sys.exit(1)
+
+        source_fmt = args.from_fmt.upper()
+        target_fmt = args.to_fmt.upper()
+
+        if source_fmt not in conv.formats:
+            if is_stdout_req:
+                set_stderr_mode(True)
+            console.print(f"[bold red]Error: Unsupported source format '{source_fmt}'.[/bold red]")
+            sys.exit(1)
+        if target_fmt not in conv.formats[source_fmt]:
+            if is_stdout_req:
+                set_stderr_mode(True)
+            console.print(f"[bold red]Error: Unsupported target format '{target_fmt}' for {source_fmt}.[/bold red]")
+            sys.exit(1)
+
+        if args.bitrate and args.bitrate not in ["128k", "192k", "320k"]:
+            if is_stdout_req:
+                set_stderr_mode(True)
+            console.print("[bold red]Error: Invalid bitrate. Choose from 128k, 192k, 320k.[/bold red]")
+            sys.exit(1)
+
+        if is_stdout_req:
+            set_stderr_mode(True)
+
+        success = file_process.process_stream(
+            conv,
+            console,
+            source_fmt,
+            target_fmt,
+            input_path=input_p,
+            output_path=output_p,
+            to_stdout=is_stdout_req,
+            fps=args.fps,
+            bitrate=args.bitrate,
+            md_pdf_mode=args.md_pdf_mode,
+            strip_metadata=args.strip_metadata,
+            hwaccel=args.hwaccel
+        )
+        sys.exit(0 if success else 1)
 
     if args.from_fmt or args.to_fmt or args.path:
         if not all([args.from_fmt, args.to_fmt, args.path]):

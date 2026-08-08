@@ -83,7 +83,9 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 |---|---|---|
 | `--from` | Source file extension (e.g., `HEIC`, `MOV`) | `--from HEIC` |
 | `--to` | Target output extension (e.g., `JPG`, `MP3`) | `--to JPG` |
-| `--path` | Absolute path to file or directory | `--path ~/Desktop/Photos` |
+| `--path` | Path to input file/dir (or `-` for stdin pipe) | `--path ~/Desktop/Photos` |
+| `--stdin` | Read binary input from standard input (`stdin`) | `--stdin` |
+| `--stdout` | Write binary converted output to standard output (`stdout`) | `--stdout` |
 | `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) | `--jobs 4` |
 | `--fps` | Target frames per second (for GIF output) | `--fps 30` |
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
@@ -115,11 +117,21 @@ make start ARGS="--from JPG --to PNG --path ./images --overwrite"
 
 # Convert Markdown to raw PDF instead of human-friendly typeset PDF
 make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
+
+# Stream pipe: convert image from stdin and write binary JPG to stdout
+cat input.heic | python3 Convergent.py --from HEIC --to JPG --stdout > output.jpg
+
+# Convert image directly from macOS clipboard
+pbpaste | python3 Convergent.py --from PNG --to WEBP --stdout > clipboard.webp
+
+# Pipe FFmpeg audio stream into Convergent for 320k MP3 output
+ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP3 --bitrate 320k --stdout > audio.mp3
 ```
 
 ## Features
 
 -   **Interactive & CLI**: Numeric menu for manual runs, or direct command-line arguments for automated pipelines.
+-   **Unix Pipe Composition & Streaming**: Direct `stdin`/`stdout` piping via `--stdin` and `--stdout` (or `-` paths). Allows seamless integration with macOS clipboard (`pbpaste`/`pbcopy`), `curl`, `ffmpeg`, and custom shell scripts with zero disk file clutter.
 -   **High Performance**: Multi-core parallel batch processing for high-speed conversions, with **Hardware-Accelerated Transcode Auto-Detection & Fallback** (`h264_videotoolbox`, `hevc_videotoolbox`, `nvenc`, `qsv`) yielding 4x–8x faster video encoding on Apple Silicon and discrete GPUs.
 -   **Smart Input**: Handles escaped spaces, messy paths, and EXIF auto-rotation for drag-and-dropped files.
 -   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag, interactive prompts, or saved shortcuts.

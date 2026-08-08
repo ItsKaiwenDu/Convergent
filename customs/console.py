@@ -10,23 +10,41 @@ except ImportError:
     HAS_TERMIOS = False
 
 class MockConsole:
+    def __init__(self, stderr=False):
+        self.file = sys.stderr if stderr else sys.stdout
+
     def print(self, *args, **kwargs):
         import re
         msg = " ".join(map(str, args))
         msg = re.sub(r"\[.*?\]", "", msg)
+        file_dest = kwargs.get('file', self.file)
         if 'end' in kwargs:
-            print(msg, end=kwargs['end'])
+            print(msg, end=kwargs['end'], file=file_dest)
         else:
-            print(msg)
+            print(msg, file=file_dest)
             
     def rule(self, title):
-        print(f"\n{'='*20} {title} {'='*20}")
+        file_dest = self.file
+        print(f"\n{'='*20} {title} {'='*20}", file=file_dest)
 
 try:
     from rich.console import Console
     console = Console()
 except ImportError:
     console = MockConsole()
+
+def set_stderr_mode(enabled=True):
+    global console
+    if enabled:
+        if isinstance(console, MockConsole):
+            console.file = sys.stderr
+        else:
+            console.file = sys.stderr
+    else:
+        if isinstance(console, MockConsole):
+            console.file = sys.stdout
+        else:
+            console.file = sys.stdout
 
 def get_input(prompt):
     try:

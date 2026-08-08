@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import uuid
 import datetime
 import shlex
 import shutil
@@ -751,3 +752,98 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
         sys.exit(0)
     else:
         console.print()
+
+
+def process_stream(conv, console, source_format, target_format, input_path=None, output_path=None, to_stdout=False, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, hwaccel="auto"):
+    """
+    Processes stream-based conversion (stdin/stdout or Unix pipe).
+    Reads binary input from sys.stdin.buffer (or input file) to a temporary file,
+    executes single-file conversion via conv.process_single_file,
+    and outputs the result to sys.stdout.buffer or output_path.
+    """
+    workspace_dir = Path(__file__).parent.parent.resolve()
+    tmp_dir = workspace_dir / ".convergent_tmp"
+    tmp_dir.mkdir(exist_ok=True)
+
+    unique_id = uuid.uuid4().hex
+    source_ext = source_format.lower()
+    target_ext = target_format.lower()
+
+    temp_source = tmp_dir / f"stream_in_{unique_id}.{source_ext}"
+    temp_target = temp_source.with_suffix(f".{target_ext}")
+
+    try:
+        if not input_path or input_path == "-":
+            # Read binary input from stdin
+            with open(temp_source, "wb") as f_out:
+                shutil.copyfileobj(sys.stdin.buffer, f_out)
+        else:
+            # Copy provided input file to temp_source
+            shutil.copy2(os.path.expanduser(input_path), temp_source)
+
+        if not temp_source.exists() or temp_source.stat().st_size == 0:
+            console.print("[bold red]Error: Received empty input data from stream/file.[/bold red]")
+            return False
+
+        fname, success, err, duration = conv.process_single_file(
+            temp_source,
+            target_format.upper(),
+            fps=fps,
+            bitrate=bitrate,
+            md_pdf_mode=md_pdf_mode,
+            strip_metadata=strip_metadata,
+            ocr=ocr,
+            hwaccel=hwaccel
+        )
+
+        if not success:
+            console.print(f"[bold red]Stream conversion failed: {err}[/bold red]")
+            return False
+
+        if temp_target.is_dir():
+            if to_stdout:
+                console.print("[bold red]Error: Conversion generated multiple output files (directory output), which cannot be streamed to stdout. Please specify an output path.[/bold red]")
+                return False
+            elif output_path and output_path != "-":
+                out_dest = Path(os.path.expanduser(output_path)).resolve()
+                if out_dest.exists():
+                    send_to_trash(out_dest)
+                shutil.copytree(temp_target, out_dest)
+                console.print(f"[bold green]✓ Converted stream to directory {out_dest}[/bold green]")
+                return True
+
+        if not temp_target.exists():
+            console.print("[bold red]Stream conversion succeeded but output temp file was not created.[/bold red]")
+            return False
+
+        if to_stdout:
+            with open(temp_target, "rb") as f_in:
+                shutil.copyfileobj(f_in, sys.stdout.buffer)
+                sys.stdout.buffer.flush()
+        elif output_path and output_path != "-":
+            out_dest = Path(os.path.expanduser(output_path)).resolve()
+            out_dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(temp_target, out_dest)
+            console.print(f"[bold green]✓ Converted stream to {out_dest}[/bold green]")
+        else:
+            # Default fallback if neither to_stdout nor output_path specified
+            with open(temp_target, "rb") as f_in:
+                shutil.copyfileobj(f_in, sys.stdout.buffer)
+                sys.stdout.buffer.flush()
+
+        return True
+    except Exception as e:
+        console.print(f"[bold red]Stream processing error: {e}[/bold red]")
+        return False
+    finally:
+        try:
+            if temp_source.exists():
+                temp_source.unlink()
+            if temp_target.exists():
+                if temp_target.is_dir():
+                    shutil.rmtree(temp_target)
+                else:
+                    temp_target.unlink()
+        except Exception:
+            pass
+
