@@ -107,7 +107,7 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, hwaccel="auto"):
     """
     Processes a single file conversion using the provided Converter instance.
     """
@@ -139,7 +139,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                 bitrate=bitrate,
                 md_pdf_mode=md_pdf_mode,
                 strip_metadata=strip_metadata,
-                ocr=ocr
+                ocr=ocr,
+                hwaccel=hwaccel
             )
         else:
             error = f"Handler method {fmt_def.handler_method} not found on Converter"
@@ -149,7 +150,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False, hwaccel="auto"):
     """
     Processes a batch of files for conversion.
     """
@@ -472,7 +473,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr): f for f in files}
+                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, hwaccel): f for f in files}
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
@@ -528,7 +529,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             # Fallback for systems without rich
             for f in files:
                 completed_files.add(f)
-                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr)
+                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, hwaccel)
                 if success:
                     success_count += 1
                     if f.suffix.lower() == ".pdf":

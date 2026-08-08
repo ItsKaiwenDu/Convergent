@@ -6,6 +6,7 @@ import concurrent.futures
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 from customs.file_process import prompt_move_files
+from customs.hwaccel import get_video_encoder
 
 try:
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
@@ -128,7 +129,7 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
 
     return w_crop, h_crop, w_final, h_final
 
-def resize_single_file(f, method, scale_val, target_aspect):
+def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto"):
     """
     Resizes/crops a single file (image or video) and saves it with a '_resized' suffix.
     """
@@ -168,11 +169,19 @@ def resize_single_file(f, method, scale_val, target_aspect):
         if scale_needed:
             filters.append(f"scale={w_final}:{h_final}")
             
+        encoder, extra_flags, mode_tag = get_video_encoder("MP4", hwaccel)
         cmd = ["ffmpeg", "-i", str(f)]
         if filters:
             cmd += ["-vf", ",".join(filters)]
-        cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(output)]
+        cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "copy", "-y", "-loglevel", "error", str(output)]
         success, error = run_command(cmd)
+
+        if not success and encoder != "libx264":
+            fallback_cmd = ["ffmpeg", "-i", str(f)]
+            if filters:
+                fallback_cmd += ["-vf", ",".join(filters)]
+            fallback_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(output)]
+            success, error = run_command(fallback_cmd)
     else:
         cmd = ["magick", str(f), "-auto-orient"]
         if crop_needed:

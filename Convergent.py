@@ -109,7 +109,7 @@ class Converter:
         return image.convert_heic(source, target_ext, strip_metadata=strip_metadata)
 
     def convert_video(self, source, target_ext, fps=None, bitrate=None, **kwargs):
-        return video.convert_video(source, target_ext, fps, bitrate)
+        return video.convert_video(source, target_ext, fps, bitrate, hwaccel=kwargs.get("hwaccel", "auto"))
 
     def convert_audio(self, source, target_ext, bitrate=None, **kwargs):
         return audio.convert_audio(source, target_ext, bitrate)
@@ -189,8 +189,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, md_pdf_mode=None, ocr=False):
         return file_process.process_single_file(self, f, target_format, fps, md_pdf_mode=md_pdf_mode, ocr=ocr)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, success_map=success_map, use_cache=use_cache)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False, hwaccel="auto"):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -249,6 +249,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
+    parser.add_argument("--hwaccel", choices=["auto", "videotoolbox", "nvenc", "qsv", "none"], default="auto", help="Hardware acceleration mode for video encoding (default: auto)")
     parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (checksum skip)")
     parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
     parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
@@ -283,7 +284,7 @@ def main():
         use_cache_failed = failed_run.get("use_cache", False) or args.cache
         
         console.print(f"[bold cyan]Resuming last failed batch run: {len(existing_failed)} file(s)...[/bold cyan]")
-        conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=False, use_cache=use_cache_failed)
+        conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=False, use_cache=use_cache_failed, hwaccel=args.hwaccel)
         return
 
     if args.shortcut_key:
@@ -328,7 +329,7 @@ def main():
             sys.exit(1)
             
         paths = clean_paths(args.path)
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, use_cache=args.cache)
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, use_cache=args.cache, hwaccel=args.hwaccel)
         return
 
     while True:
