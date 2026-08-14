@@ -327,7 +327,7 @@ def main():
         sys.exit(0 if ok else 1)
 
     # Check if stream mode (stdin/stdout or Unix pipe) is requested or auto-detected
-    is_stdin_req = args.stdin or (args.path and args.path[0] == "-") or (not sys.stdin.isatty() and args.from_fmt is not None)
+    is_stdin_req = args.stdin or (args.path and args.path[0] == "-") or (not sys.stdin.isatty() and args.from_fmt is not None and not args.path)
 
     input_p = "-" if is_stdin_req else None
     output_p = None

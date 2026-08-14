@@ -109,13 +109,40 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
 
     temp_dest = model_path.with_suffix(".tmp")
     try:
-        def reporthook(blocknum, blocksize, totalsize):
-            if totalsize > 0:
-                percent = min(100.0, blocknum * blocksize * 100.0 / totalsize)
-                sys.stdout.write(f"\r[STT] Downloading: {percent:5.1f}% ({blocknum * blocksize / (1024*1024):.1f} MB / {totalsize / (1024*1024):.1f} MB)")
-                sys.stdout.flush()
+        download_success = False
+        if shutil.which("curl"):
+            cmd = ["curl", "-L", "-f", "--progress-bar", "-o", str(temp_dest), url]
+            res = subprocess.run(cmd)
+            if res.returncode == 0 and temp_dest.exists() and temp_dest.stat().st_size > 1024 * 1024:
+                download_success = True
 
-        urllib.request.urlretrieve(url, temp_dest, reporthook=reporthook)
+        if not download_success:
+            import ssl
+            try:
+                import certifi
+                ssl_context = ssl.create_default_context(cafile=certifi.where())
+            except Exception:
+                try:
+                    ssl_context = ssl._create_unverified_context()
+                except Exception:
+                    ssl_context = None
+
+            req = urllib.request.Request(url, headers={"User-Agent": "Convergent/1.0"})
+            with urllib.request.urlopen(req, context=ssl_context) as response, open(temp_dest, "wb") as out_file:
+                totalsize = int(response.headers.get("Content-Length", 0))
+                downloaded = 0
+                blocksize = 1024 * 1024
+                while True:
+                    chunk = response.read(blocksize)
+                    if not chunk:
+                        break
+                    downloaded += len(chunk)
+                    out_file.write(chunk)
+                    if totalsize > 0:
+                        percent = min(100.0, downloaded * 100.0 / totalsize)
+                        sys.stdout.write(f"\r[STT] Downloading: {percent:5.1f}% ({downloaded / (1024*1024):.1f} MB / {totalsize / (1024*1024):.1f} MB)")
+                        sys.stdout.flush()
+
         print("\n[STT] Model download complete!\n")
         temp_dest.replace(model_path)
     except Exception as e:
