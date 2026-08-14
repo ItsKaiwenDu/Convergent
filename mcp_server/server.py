@@ -45,6 +45,9 @@ def convergent_convert(
     md_pdf_mode: str = "formatted",
     strip_metadata: bool = False,
     ocr: bool = False,
+    stt: bool = False,
+    model: str = "base",
+    language: Optional[str] = None,
     overwrite: bool = True,
     use_cache: bool = False,
 ) -> Dict[str, Any]:
@@ -53,13 +56,16 @@ def convergent_convert(
 
     Args:
         input_path: Absolute or relative path to file or directory to convert.
-        target_format: Extension of target format (e.g., 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'GIF').
+        target_format: Extension of target format (e.g., 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'GIF', 'SRT', 'VTT').
         output_path: Optional output directory or file path. Defaults to input path location.
         fps: Target frames per second for video/GIF outputs (e.g. 30).
         bitrate: Audio bitrate for MP3/Audio outputs (e.g. '192k', '320k').
         md_pdf_mode: Rendering mode for Markdown to PDF ('formatted' or 'raw'). Default 'formatted'.
         strip_metadata: If True, strips EXIF/IPTC metadata from image outputs.
         ocr: If True, applies optical character recognition on image/scanned input.
+        stt: If True, performs Speech-to-Text transcription on audio/video input.
+        model: Whisper model size for STT ('tiny', 'base', 'small', 'medium', 'turbo'). Default 'base'.
+        language: Language code for STT transcription (e.g. 'en', 'es', 'zh', 'auto').
         overwrite: If True, overwrites existing files without asking. Default True.
 
     Returns:
@@ -99,6 +105,9 @@ def convergent_convert(
             strip_metadata=strip_metadata,
             interactive=False,
             ocr=ocr,
+            stt=stt,
+            model=model,
+            language=language,
             success_map=success_map,
             use_cache=use_cache,
         )
@@ -214,6 +223,53 @@ def perform_ocr(
     )
 
     # Read extracted text if single text file generated
+    extracted_text = None
+    converted_files = res.get("converted_files", [])
+    if converted_files and os.path.exists(converted_files[0]):
+        try:
+            with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
+                extracted_text = f.read(4000)  # first 4k chars snippet
+        except Exception:
+            pass
+
+    if extracted_text:
+        res["extracted_text_preview"] = extracted_text
+
+    return res
+
+
+@mcp.tool()
+def perform_stt(
+    input_path: str,
+    target_format: str = "TXT",
+    model: str = "base",
+    language: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Perform Speech-to-Text (STT) transcription on an audio or video file to extract text or generate subtitles.
+
+    Args:
+        input_path: Path to audio (MP3, WAV, M4A, FLAC, AAC, OGG) or video (MP4, MOV, MKV, etc.) file.
+        target_format: Output text/subtitle format ('TXT', 'SRT', 'VTT', 'MD'). Default 'TXT'.
+        model: Whisper model size ('tiny', 'base', 'small', 'medium', 'turbo'). Default 'base'.
+        language: Language code (e.g. 'en', 'es', 'zh', 'auto'). Default None ('auto').
+
+    Returns:
+        Dictionary with status, extracted file paths, and transcript preview snippet if available.
+    """
+    full_path = os.path.expanduser(input_path)
+    if not os.path.exists(full_path):
+        return {"success": False, "error": f"File not found: {input_path}"}
+
+    res = convergent_convert(
+        input_path=full_path,
+        target_format=target_format.upper(),
+        stt=True,
+        model=model,
+        language=language,
+        overwrite=True,
+    )
+
     extracted_text = None
     converted_files = res.get("converted_files", [])
     if converted_files and os.path.exists(converted_files[0]):

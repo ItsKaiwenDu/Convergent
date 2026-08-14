@@ -86,18 +86,20 @@ FORMAT_REGISTRY = [
     FormatDef("WEBP", "2", ["JPG", "JPEG", "PNG", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
 
     # Video Category ("3")
-    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
     FormatDef("GIF", "3", ["MOV", "MP4", "WEBM", "AVI", "MKV"], "convert_video"),
-    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
-    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
-    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
-    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC"], "convert_video"),
+    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
 
     # Audio Category ("4")
-    FormatDef("FLAC", "4", ["MP3", "WAV", "M4A"], "convert_audio"),
-    FormatDef("M4A", "4", ["MP3", "WAV", "FLAC"], "convert_audio"),
-    FormatDef("MP3", "4", ["WAV", "M4A", "FLAC"], "convert_audio"),
-    FormatDef("WAV", "4", ["MP3", "M4A", "FLAC"], "convert_audio"),
+    FormatDef("AAC", "4", ["MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("FLAC", "4", ["MP3", "WAV", "M4A", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("M4A", "4", ["MP3", "WAV", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("MP3", "4", ["WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("OGG", "4", ["MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("WAV", "4", ["MP3", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
 
     # Document Category ("5")
     FormatDef("DOCX", "5", ["PDF"], "convert_office"),
@@ -108,7 +110,7 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, hwaccel="auto"):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto"):
     """
     Processes a single file conversion using the provided Converter instance.
     """
@@ -141,6 +143,9 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                 md_pdf_mode=md_pdf_mode,
                 strip_metadata=strip_metadata,
                 ocr=ocr,
+                stt=stt,
+                model=model,
+                language=language,
                 hwaccel=hwaccel
             )
         else:
@@ -151,7 +156,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False, hwaccel="auto"):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=False, hwaccel="auto"):
     """
     Processes a batch of files for conversion.
     """
@@ -208,6 +213,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 "md_pdf_mode": md_pdf_mode,
                 "strip_metadata": strip_metadata,
                 "ocr": ocr,
+                "stt": stt,
+                "model": model,
+                "language": language,
             }
             remaining_after_cache = []
             for f in files:
@@ -474,7 +482,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, hwaccel): f for f in files}
+                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel): f for f in files}
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
@@ -502,6 +510,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                                 "md_pdf_mode": md_pdf_mode,
                                                 "strip_metadata": strip_metadata,
                                                 "ocr": ocr,
+                                                "stt": stt,
+                                                "model": model,
+                                                "language": language,
                                             }
                                         else:
                                             params_for_cache_local = params_for_cache
@@ -530,7 +541,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             # Fallback for systems without rich
             for f in files:
                 completed_files.add(f)
-                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, hwaccel)
+                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel)
                 if success:
                     success_count += 1
                     if f.suffix.lower() == ".pdf":
@@ -551,6 +562,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                     "md_pdf_mode": md_pdf_mode,
                                     "strip_metadata": strip_metadata,
                                     "ocr": ocr,
+                                    "stt": stt,
+                                    "model": model,
+                                    "language": language,
                                 }
                             else:
                                 params_for_cache_local = params_for_cache
@@ -754,7 +768,7 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
         console.print()
 
 
-def process_stream(conv, console, source_format, target_format, input_path=None, output_path=None, to_stdout=False, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, hwaccel="auto"):
+def process_stream(conv, console, source_format, target_format, input_path=None, output_path=None, to_stdout=False, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto"):
     """
     Processes stream-based conversion (stdin/stdout or Unix pipe).
     Reads binary input from sys.stdin.buffer (or input file) to a temporary file,
@@ -793,6 +807,9 @@ def process_stream(conv, console, source_format, target_format, input_path=None,
             md_pdf_mode=md_pdf_mode,
             strip_metadata=strip_metadata,
             ocr=ocr,
+            stt=stt,
+            model=model,
+            language=language,
             hwaccel=hwaccel
         )
 

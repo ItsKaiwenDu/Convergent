@@ -89,6 +89,9 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) | `--jobs 4` |
 | `--fps` | Target frames per second (for GIF output) | `--fps 30` |
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
+| `--stt` | Perform Speech-to-Text transcription on audio/video input | `--stt` |
+| `--model` | Whisper model size for STT (`tiny`, `base`, `small`, `medium`, `turbo`) | `--model turbo` |
+| `--language` | Language code for STT transcription (e.g., `en`, `es`, `zh`, `auto`) | `--language en` |
 | `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) | `--hwaccel auto` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
 | `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
@@ -100,6 +103,12 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 
 **Example Commands:**
 ```bash
+# Transcribe MP3 audio to plain text using local Whisper engine
+make start ARGS="--from MP3 --to TXT --path ~/Desktop/recording.mp3"
+
+# Generate timestamped SRT subtitles from an MP4 video using Whisper Turbo model
+make start ARGS="--from MP4 --to SRT --path ./meeting.mp4 --model turbo"
+
 # Convert HEIC images to JPG using 4 parallel jobs and strip EXIF metadata
 make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4 --strip-metadata"
 
@@ -140,6 +149,7 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, JPEG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
     -   **OCR**: Extract text from images (`JPG`/`JPEG`/`PNG`/`HEIC`) or documents (`PDF`) and save results locally to plain text (`.txt`), Markdown (`.md`), Word Document (`.docx`), or PDF format (uses macOS native Vision API or Tesseract fallback; HEIC/PDF pages are auto-rendered to PNG internally).
+    -   **Speech-to-Text (STT) Transcription (`*`)**: Local, offline transcription of audio (`MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`) and video (`MP4`, `MOV`, `MKV`, `WEBM`) into plain text (`.txt`), timestamped subtitles (`.srt`, `.vtt`), or formatted Markdown (`.md`) using `whisper.cpp` / `whisper-cli` with Metal GPU acceleration and on-demand GGML models (`tiny`, `base`, `small`, `turbo`).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout) and **combining** plain text (TXT) files (with interactive ordering and line-count preview).
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
@@ -186,6 +196,7 @@ make mcp-config
 - `pdf_to_images`: Convert multi-page PDFs to image sequences (JPG/PNG) for visual model analysis.
 - `extract_audio`: Extract audio tracks (`MP3`, `WAV`, `AAC`) from video files for transcription.
 - `perform_ocr`: Extract plain text or Markdown from images or scanned PDFs using local OCR.
+- `perform_stt`: Perform local Speech-to-Text transcription on audio/video to generate text or subtitles.
 - `combine_files`: Merge multiple PDFs, videos, audio clips, or documents into a single file.
 - `split_file`: Split PDFs, videos, audio files, or documents into segments.
 - `list_supported_formats`: Query all supported format conversions and category mappings.
@@ -225,6 +236,7 @@ After conversion, you can choose from the Post-Convert Options menu:
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts / Markdown to PDF**: If converting documents to PDF fails, ensure you have a LaTeX distribution or Typst installed (e.g., `brew install pandoc typst`).
 - **Office styling off**: Install LibreOffice (`brew install --cask libreoffice`) for high-fidelity DOCX/PPTX/RTF to PDF layout conversion.
+- **Whisper Speech-to-Text**: Install whisper.cpp via `brew install whisper-cpp`. Models are automatically cached in `~/.cache/convergent/models/`.
 - **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide necessary delegates for ImageMagick.
 
 ## Tech Stack & Requirements
@@ -238,6 +250,7 @@ After conversion, you can choose from the Post-Convert Options menu:
 | **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
 | **Document Engine** | [Pandoc](https://pandoc.org/) + [Typst](https://typst.app/) + [LibreOffice](https://www.libreoffice.org/) | 3+ / 0.14+ / 24+ |
 | **OCR Engine** | Apple Vision (macOS native) + [Tesseract](https://github.com/tesseract-ocr/tesseract) | - / 5+ |
+| **STT Engine** | [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (`whisper-cli`) | 1.5+ |
 | **Archive Engine** | [7-Zip](https://www.7-zip.org/) + `unrar`/`rar` | 23+ |
 | **CLI Framework** | `argparse` + `tty` | - |
 | **UI/Styling** | [Rich](https://github.com/Textualize/rich) | - |
@@ -268,6 +281,7 @@ Convergent/
 │   ├── ocr.py           # Local OCR text extraction engine
 │   ├── pdf_manip.py     # PDF format conversion (PDF to Image)
 │   ├── split.py         # Centralized file split engine
+│   ├── stt.py           # Local Speech-to-Text transcription engine (whisper.cpp)
 │   └── video.py         # Video format conversion
 └── customs/             # Shared helpers and utility frameworks
     ├── cache.py         # Content-addressable conversion cache (blake2b + SQLite)

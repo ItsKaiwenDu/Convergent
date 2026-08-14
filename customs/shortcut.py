@@ -48,6 +48,7 @@ def get_menu_entries(conv):
         {"key": "7", "label": "Compress:", "exts": "7z, rar, tar.(gz/bz2/xz), zip", "operation": "compress"},
         {"key": "8", "label": "Decompress:", "exts": "7z, rar, tar.(gz/bz2/xz), zip", "operation": "decompress"},
         {"key": "9", "label": "OCR:", "exts": "jpg, png, heic, pdf", "operation": "ocr"},
+        {"key": "*", "label": "STT:", "exts": "mp3, wav, m4a, flac, mp4, mov", "operation": "stt"},
     ])
     return entries
 
@@ -86,7 +87,7 @@ def prompt_compress_format(console, get_char):
 
 def _prompt_shortcut_identity(console, get_input, get_char):
     sym = get_input("\nInput a single symbol/key for this shortcut (e.g., 'S'): ").strip().upper()
-    reserved_keys = [str(i) for i in range(10)] + ['+', '-', '=', 'Q']
+    reserved_keys = [str(i) for i in range(10)] + ['+', '-', '=', 'Q', '*', 'R']
     if sym in reserved_keys:
         console.print(f"\n[bold red][!] '{sym}' is a reserved key. Please choose a letter not in: {' '.join(reserved_keys)}[/bold red]")
         get_char("\nPress any key to continue...")
@@ -155,7 +156,7 @@ def _collect_convert_options(console, get_char, category_id, target_fmt):
     return bitrate, strip_metadata
 
 def _build_shortcut_data(entry, target_fmt=None, fixed_path="", bitrate="ask", strip_metadata="ask",
-                         combine_type="auto", password=None, output_name="", output_dir=""):
+                         combine_type="auto", password=None, output_name="", output_dir="", model="base"):
     sc_data = {
         "title": "",
         "operation": entry["operation"],
@@ -176,6 +177,11 @@ def _build_shortcut_data(entry, target_fmt=None, fixed_path="", bitrate="ask", s
         sc_data["output_name"] = output_name
     elif entry["operation"] == "decompress":
         sc_data["output_dir"] = output_dir
+    elif entry["operation"] == "ocr":
+        sc_data["target_fmt"] = target_fmt or "TXT"
+    elif entry["operation"] == "stt":
+        sc_data["target_fmt"] = target_fmt or "TXT"
+        sc_data["model"] = model or "base"
     return sc_data
 
 def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths):
@@ -288,6 +294,32 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
             output_dir = out_dirs[0] if out_dirs else ""
             flush_stdin()
 
+    elif entry["operation"] == "ocr":
+        console.print("\n[bold yellow]Select target format for OCR text:[/bold yellow]")
+        console.print(" 1. txt")
+        console.print(" 2. md")
+        console.print(" 3. docx")
+        console.print(" 4. pdf")
+        ocr_choice = get_char("\nSelect Option: ")
+        target_fmt = "TXT" if ocr_choice == '1' else "MD" if ocr_choice == '2' else "DOCX" if ocr_choice == '3' else "PDF" if ocr_choice == '4' else "TXT"
+
+    elif entry["operation"] == "stt":
+        console.print("\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
+        console.print(" 1. txt")
+        console.print(" 2. srt")
+        console.print(" 3. vtt")
+        console.print(" 4. md")
+        stt_choice = get_char("\nSelect Option: ")
+        target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
+
+        console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
+        console.print(" 1. Standard (~142MB)")
+        console.print(" 2. Mini (~75MB)")
+        console.print(" 3. Medium (~466MB)")
+        console.print(" 4. Large (~1.5GB)")
+        m_choice = get_char("\nSelect Option: ")
+        model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
+
     fixed_path = _prompt_fixed_path(console, get_char, get_input, flush_stdin, clean_paths)
     flush_stdin()
     sym, title = _prompt_shortcut_identity(console, get_input, get_char)
@@ -304,6 +336,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         password=password,
         output_name=output_name,
         output_dir=output_dir,
+        model=model if entry["operation"] == "stt" else "base",
     )
     sc_data["title"] = title
     shortcuts[sym] = sc_data
@@ -441,6 +474,16 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             elif out_input:
                 out_dirs = clean_paths(out_input)
                 new_output_dir = out_dirs[0] if out_dirs else ""
+        elif operation == "ocr":
+            console.print("\n[bold yellow]Target text format for OCR:[/bold yellow]")
+            console.print(" 1. txt\n 2. md\n 3. docx\n 4. pdf")
+            ocr_choice = get_char("\nSelect Option: ")
+            new_target_fmt = "TXT" if ocr_choice == '1' else "MD" if ocr_choice == '2' else "DOCX" if ocr_choice == '3' else "PDF" if ocr_choice == '4' else "TXT"
+        elif operation == "stt":
+            console.print("\n[bold yellow]Target format for STT:[/bold yellow]")
+            console.print(" 1. txt\n 2. srt\n 3. vtt\n 4. md")
+            stt_choice = get_char("\nSelect Option: ")
+            new_target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
 
         sc_data = _build_shortcut_data(
             new_entry,
@@ -452,6 +495,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             password=new_password,
             output_name=new_output_name,
             output_dir=new_output_dir,
+            model=old_sc.get("model", "base"),
         )
     else:
         operation = old_sc.get("operation", "convert")
@@ -488,7 +532,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                     "192k": "192k",
                     "320k": "320k"
                 }.get(sc_data.get("bitrate", "ask"), "Ask every time")
-                console.print(f"\n[bold yellow]2b. Bitrate for MP3[/bold yellow] (Current: {current_bitrate_str})")
+                console.print(f"\n[bold yellow]2b. Audio Bitrate[/bold yellow] (Current: {current_bitrate_str})")
                 console.print(" 1. Ask every time")
                 console.print(" 2. Default")
                 console.print(" 3. 128k")
@@ -546,7 +590,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
     if not new_sym:
         new_sym = sym_to_edit
 
-    reserved_keys = [str(i) for i in range(10)] + ['+', '-', '=', 'Q']
+    reserved_keys = [str(i) for i in range(10)] + ['+', '-', '=', 'Q', '*', 'R']
     if new_sym != sym_to_edit and (new_sym in reserved_keys or new_sym in shortcuts):
         error_msg = f"'{new_sym}' is reserved" if new_sym in reserved_keys else f"'{new_sym}' already exists"
         console.print(f"\n[bold red][!] {error_msg}. Keeping old symbol '{sym_to_edit}'.[/bold red]")
@@ -866,6 +910,21 @@ def run_shortcut(
         return _run_decompress_shortcut(
             conv, sc, paths, console, get_char, get_input, prompt_move_files, flush_stdin, clean_paths, interactive
         )
+    if operation == "ocr":
+        target_fmt = sc.get("target_fmt", "TXT")
+        success_map = {}
+        converted = conv.process(["JPG", "JPEG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, interactive=interactive, success_map=success_map, use_cache=use_cache)
+        if interactive and prompt_move_files:
+            prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+        return True
+    if operation == "stt":
+        target_fmt = sc.get("target_fmt", "TXT")
+        model = sc.get("model", "base")
+        success_map = {}
+        converted = conv.process(["MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM"], target_fmt, paths, stt=True, model=model, interactive=interactive, success_map=success_map, use_cache=use_cache)
+        if interactive and prompt_move_files:
+            prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+        return True
 
     category = conv.categories[sc["category"]]
     source_fmts = category["extensions"]

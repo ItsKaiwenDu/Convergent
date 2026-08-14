@@ -42,6 +42,22 @@ def get_libreoffice_version():
             return match.group(1) if match else "Found"
     return None
 
+def get_whisper_version():
+    import os
+    candidates = [
+        "whisper-cli",
+        "whisper-cpp",
+        "whisper.cpp",
+        "whisper",
+    ]
+    for cand in candidates:
+        if shutil.which(cand):
+            return "Found"
+    for p in ["/opt/homebrew/bin/whisper-cli", "/opt/homebrew/bin/whisper-cpp", "/usr/local/bin/whisper-cli"]:
+        if os.path.exists(p) and os.access(p, os.X_OK):
+            return "Found"
+    return None
+
 def check_dependencies():
     deps = [
         {
@@ -96,6 +112,12 @@ def check_dependencies():
             "cmd": ["tesseract", "--version"],
             "version_regex": r"tesseract ([\d\.]+)",
             "install_hint": "brew install tesseract (Optional for image to text OCR conversion)",
+            "optional": True
+        },
+        {
+            "name": "Whisper (STT)",
+            "custom_func": get_whisper_version,
+            "install_hint": "brew install whisper-cpp (Optional for local Speech-to-Text transcription)",
             "optional": True
         },
         {

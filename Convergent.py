@@ -32,7 +32,7 @@ import sys
 import argparse
 import shlex
 from pathlib import Path
-from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb, combine, split, ocr
+from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb, combine, split, ocr, stt
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run, process_stream
 from customs.run_command import run_command
@@ -112,10 +112,19 @@ class Converter:
         return image.convert_heic(source, target_ext, strip_metadata=strip_metadata)
 
     def convert_video(self, source, target_ext, fps=None, bitrate=None, **kwargs):
+        is_stt = kwargs.get("stt", False) or target_ext.upper() in ("TXT", "SRT", "VTT", "MD")
+        if is_stt:
+            return self.convert_stt(source, target_ext, **kwargs)
         return video.convert_video(source, target_ext, fps, bitrate, hwaccel=kwargs.get("hwaccel", "auto"))
 
     def convert_audio(self, source, target_ext, bitrate=None, **kwargs):
+        is_stt = kwargs.get("stt", False) or target_ext.upper() in ("TXT", "SRT", "VTT", "MD")
+        if is_stt:
+            return self.convert_stt(source, target_ext, **kwargs)
         return audio.convert_audio(source, target_ext, bitrate)
+
+    def convert_stt(self, source, target_ext, **kwargs):
+        return stt.convert_audio_to_text(source, target_ext, **kwargs)
 
     def convert_office(self, source, target_ext, **kwargs):
         return doc.convert_office(source, target_ext)
@@ -189,11 +198,11 @@ class Converter:
     def decompress(self, path, output_dir=None):
         return decompress.decompress(path, output_dir)
 
-    def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, hwaccel="auto"):
-        return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, hwaccel=hwaccel)
+    def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto"):
+        return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, success_map=None, use_cache=False, hwaccel="auto"):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=False, hwaccel="auto"):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -254,6 +263,9 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
+    parser.add_argument("--stt", action="store_true", help="Perform Speech-to-Text transcription on audio/video input")
+    parser.add_argument("--model", default="base", choices=["tiny", "base", "small", "medium", "turbo", "large-v3-turbo"], help="Whisper model size for STT (default: base)")
+    parser.add_argument("--language", default=None, help="Language code for STT transcription (e.g. en, es, zh, auto)")
     parser.add_argument("--hwaccel", choices=["auto", "videotoolbox", "nvenc", "qsv", "none"], default="auto", help="Hardware acceleration mode for video encoding (default: auto)")
     parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (checksum skip)")
     parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
@@ -359,6 +371,9 @@ def main():
         if is_stdout_req:
             set_stderr_mode(True)
 
+        is_ocr = source_fmt in ("JPG", "JPEG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
+        is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
+
         success = file_process.process_stream(
             conv,
             console,
@@ -371,6 +386,10 @@ def main():
             bitrate=args.bitrate,
             md_pdf_mode=args.md_pdf_mode,
             strip_metadata=args.strip_metadata,
+            ocr=is_ocr,
+            stt=is_stt,
+            model=args.model,
+            language=args.language,
             hwaccel=args.hwaccel
         )
         sys.exit(0 if success else 1)
@@ -395,7 +414,9 @@ def main():
             sys.exit(1)
             
         paths = clean_paths(args.path)
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, use_cache=args.cache, hwaccel=args.hwaccel)
+        is_ocr = source_fmt in ("JPG", "JPEG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
+        is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
+        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=args.cache, hwaccel=args.hwaccel)
         return
 
     while True:
@@ -780,6 +801,74 @@ def main():
             if paths:
                 success_map = {}
                 converted = conv.process(["JPG", "JPEG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=use_cache)
+                prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+            continue
+
+        elif choice == '*':
+            console.print()
+            console.print(f"\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
+            console.print(" 1. txt")
+            console.print(" 2. srt")
+            console.print(" 3. vtt")
+            console.print(" 4. md")
+            console.print(" [bold white]B[/bold white]. Back")
+            fmt_choice = get_char("\nSelect Option: ")
+
+            if fmt_choice.lower() == 'b':
+                continue
+
+            target_fmt = (
+                "TXT" if fmt_choice == '1' else
+                "SRT" if fmt_choice == '2' else
+                "VTT" if fmt_choice == '3' else
+                "MD" if fmt_choice == '4' else
+                None
+            )
+
+            if not target_fmt:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
+
+            console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
+            console.print(" 1. Standard (~142MB)")
+            console.print(" 2. Mini (~75MB)")
+            console.print(" 3. Medium (~466MB)")
+            console.print(" 4. Large (~1.5GB)")
+            console.print(" [bold white]B[/bold white]. Back")
+            model_choice = get_char("\nSelect Option: ")
+
+            if model_choice.lower() == 'b':
+                continue
+
+            model = (
+                "tiny" if model_choice == '2' else
+                "small" if model_choice == '3' else
+                "turbo" if model_choice == '4' else
+                "base"
+            )
+
+            console.print()
+            status, use_cache = prompt_cache()
+            if status in ("back", "invalid"):
+                continue
+
+            console.print(f"\n[bold yellow]Enter audio/video file or folder path(s) for STT:[/bold yellow]")
+            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+            flush_stdin()
+            paths = clean_paths(get_input("Path: "))
+            flush_stdin()
+            if paths:
+                success_map = {}
+                converted = conv.process(
+                    ["MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"],
+                    target_fmt,
+                    paths,
+                    stt=True,
+                    model=model,
+                    success_map=success_map,
+                    use_cache=use_cache
+                )
                 prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
             
