@@ -485,6 +485,14 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             stt_choice = get_char("\nSelect Option: ")
             new_target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
 
+            console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
+            console.print(" 1. Standard (~142MB)")
+            console.print(" 2. Mini (~75MB)")
+            console.print(" 3. Medium (~466MB)")
+            console.print(" 4. Large (~1.5GB)")
+            m_choice = get_char("\nSelect Option: ")
+            new_model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
+
         sc_data = _build_shortcut_data(
             new_entry,
             target_fmt=new_target_fmt,
@@ -495,7 +503,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             password=new_password,
             output_name=new_output_name,
             output_dir=new_output_dir,
-            model=old_sc.get("model", "base"),
+            model=new_model if operation == "stt" else old_sc.get("model", "base"),
         )
     else:
         operation = old_sc.get("operation", "convert")
@@ -569,6 +577,62 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                     sc_data["strip_metadata"] = True
                 elif strip_choice == '3':
                     sc_data["strip_metadata"] = False
+
+        elif operation == "ocr":
+            current_target = old_sc.get("target_fmt", "TXT").lower()
+            console.print(f"\n[bold yellow]2. Target Format for OCR[/bold yellow] (Current: {current_target})")
+            console.print(" 1. txt\n 2. md\n 3. docx\n 4. pdf\n [bold white]Enter[/bold white]. Keep Current")
+            ocr_choice = get_input("Pick target # (or Enter): ")
+            if ocr_choice == '1':
+                sc_data["target_fmt"] = "TXT"
+            elif ocr_choice == '2':
+                sc_data["target_fmt"] = "MD"
+            elif ocr_choice == '3':
+                sc_data["target_fmt"] = "DOCX"
+            elif ocr_choice == '4':
+                sc_data["target_fmt"] = "PDF"
+
+        elif operation == "stt":
+            current_target = old_sc.get("target_fmt", "TXT").lower()
+            console.print(f"\n[bold yellow]2. Target Format for STT[/bold yellow] (Current: {current_target})")
+            console.print(" 1. txt\n 2. srt\n 3. vtt\n 4. md\n [bold white]Enter[/bold white]. Keep Current")
+            stt_choice = get_input("Pick target # (or Enter): ")
+            if stt_choice == '1':
+                sc_data["target_fmt"] = "TXT"
+            elif stt_choice == '2':
+                sc_data["target_fmt"] = "SRT"
+            elif stt_choice == '3':
+                sc_data["target_fmt"] = "VTT"
+            elif stt_choice == '4':
+                sc_data["target_fmt"] = "MD"
+
+            model_labels = {
+                "base": "Standard (~142MB)",
+                "standard": "Standard (~142MB)",
+                "tiny": "Mini (~75MB)",
+                "mini": "Mini (~75MB)",
+                "small": "Medium (~466MB)",
+                "medium": "Medium (~466MB)",
+                "turbo": "Large (~1.5GB)",
+                "large": "Large (~1.5GB)",
+                "large-v3-turbo": "Large (~1.5GB)",
+            }
+            current_model_label = model_labels.get(old_sc.get("model", "base"), "Standard (~142MB)")
+            console.print(f"\n[bold yellow]2b. STT Model Size[/bold yellow] (Current: {current_model_label})")
+            console.print(" 1. Standard (~142MB)")
+            console.print(" 2. Mini (~75MB)")
+            console.print(" 3. Medium (~466MB)")
+            console.print(" 4. Large (~1.5GB)")
+            console.print(" [bold white]Enter[/bold white]. Keep Current")
+            m_choice = get_input("Pick model # (or Enter): ")
+            if m_choice == '1':
+                sc_data["model"] = "base"
+            elif m_choice == '2':
+                sc_data["model"] = "tiny"
+            elif m_choice == '3':
+                sc_data["model"] = "small"
+            elif m_choice == '4':
+                sc_data["model"] = "turbo"
 
     current_path = sc_data.get("fixed_path", old_sc.get("fixed_path", ""))
     console.print(f"\n[bold yellow]3. Fixed Path[/bold yellow] (Current: {'[None]' if not current_path else current_path})")

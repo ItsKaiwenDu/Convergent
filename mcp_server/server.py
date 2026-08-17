@@ -64,7 +64,7 @@ def convergent_convert(
         strip_metadata: If True, strips EXIF/IPTC metadata from image outputs.
         ocr: If True, applies optical character recognition on image/scanned input.
         stt: If True, performs Speech-to-Text transcription on audio/video input.
-        model: Whisper model size for STT ('tiny', 'base', 'small', 'medium', 'turbo'). Default 'base'.
+        model: Whisper model size for STT ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo'). Default 'base'.
         language: Language code for STT transcription (e.g. 'en', 'es', 'zh', 'auto').
         overwrite: If True, overwrites existing files without asking. Default True.
 
@@ -251,7 +251,7 @@ def perform_stt(
     Args:
         input_path: Path to audio (MP3, WAV, M4A, FLAC, AAC, OGG) or video (MP4, MOV, MKV, etc.) file.
         target_format: Output text/subtitle format ('TXT', 'SRT', 'VTT', 'MD'). Default 'TXT'.
-        model: Whisper model size ('tiny', 'base', 'small', 'medium', 'turbo'). Default 'base'.
+        model: Whisper model size ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo'). Default 'base'.
         language: Language code (e.g. 'en', 'es', 'zh', 'auto'). Default None ('auto').
 
     Returns:

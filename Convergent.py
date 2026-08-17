@@ -264,7 +264,7 @@ def main():
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
     parser.add_argument("--stt", action="store_true", help="Perform Speech-to-Text transcription on audio/video input")
-    parser.add_argument("--model", default="base", choices=["tiny", "base", "small", "medium", "turbo", "large-v3-turbo"], help="Whisper model size for STT (default: base)")
+    parser.add_argument("--model", default="base", choices=["standard", "mini", "medium", "large", "tiny", "base", "small", "turbo", "large-v3-turbo"], help="Whisper model size for STT: standard (~142MB), mini (~75MB), medium (~466MB), large (~1.5GB); default: standard")
     parser.add_argument("--language", default=None, help="Language code for STT transcription (e.g. en, es, zh, auto)")
     parser.add_argument("--hwaccel", choices=["auto", "videotoolbox", "nvenc", "qsv", "none"], default="auto", help="Hardware acceleration mode for video encoding (default: auto)")
     parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (checksum skip)")

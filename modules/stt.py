@@ -21,22 +21,54 @@ MODELS_DIR = Path.home() / ".cache" / "convergent" / "models"
 # Standard GGML Whisper model download URLs
 MODEL_URLS = {
     "tiny": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+    "mini": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
     "base": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+    "standard": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
     "small": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-    "medium": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
+    "medium": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
     "large-v3-turbo": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
     "turbo": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+    "large": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
 }
 
 # Approximate file sizes for display
 MODEL_SIZES = {
     "tiny": "~75 MB",
+    "mini": "~75 MB",
     "base": "~142 MB",
+    "standard": "~142 MB",
     "small": "~466 MB",
-    "medium": "~1.5 GB",
+    "medium": "~466 MB",
     "large-v3-turbo": "~1.5 GB",
     "turbo": "~1.5 GB",
+    "large": "~1.5 GB",
 }
+
+# User-friendly display names for STT models
+MODEL_DISPLAY_NAMES = {
+    "base": "Standard (~142MB)",
+    "standard": "Standard (~142MB)",
+    "tiny": "Mini (~75MB)",
+    "mini": "Mini (~75MB)",
+    "small": "Medium (~466MB)",
+    "medium": "Medium (~466MB)",
+    "turbo": "Large (~1.5GB)",
+    "large": "Large (~1.5GB)",
+    "large-v3-turbo": "Large (~1.5GB)",
+}
+
+
+def normalize_model_name(model_name: str) -> str:
+    """Normalizes friendly model names and aliases to canonical Whisper model identifiers."""
+    name = (model_name or "base").lower().strip()
+    aliases = {
+        "standard": "base",
+        "mini": "tiny",
+        "medium": "small",
+        "large": "turbo",
+        "large-turbo": "turbo",
+    }
+    return aliases.get(name, name)
 
 
 def find_whisper_binary() -> Optional[str]:
@@ -77,7 +109,8 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
     Resolves the local path for a GGML Whisper model.
     If the model does not exist locally and auto_download is True, downloads it to MODELS_DIR.
     """
-    normalized_name = model_name.lower().strip()
+    raw_name = (model_name or "base").lower().strip()
+    normalized_name = normalize_model_name(raw_name)
     if normalized_name not in MODEL_URLS:
         normalized_name = "base"
 
@@ -104,7 +137,8 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
         raise FileNotFoundError(f"Whisper model '{normalized_name}' not found at {model_path}")
 
     url = MODEL_URLS[normalized_name]
-    print(f"\n[STT] Downloading Whisper '{normalized_name}' model ({MODEL_SIZES.get(normalized_name, '')})...")
+    display_title = MODEL_DISPLAY_NAMES.get(raw_name, MODEL_DISPLAY_NAMES.get(normalized_name, normalized_name))
+    print(f"\n[STT] Downloading Whisper '{display_title}' model ({MODEL_SIZES.get(normalized_name, '')})...")
     print(f"      Saving to: {model_path}")
 
     temp_dest = model_path.with_suffix(".tmp")
@@ -196,7 +230,7 @@ def convert_audio_to_text(
     Args:
         source_path: Path to audio or video file.
         target_ext: Target extension ('TXT', 'SRT', 'VTT', 'MD').
-        model: Whisper model size ('tiny', 'base', 'small', 'medium', 'turbo').
+        model: Whisper model size ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo').
         language: Language code (e.g. 'en', 'auto').
 
     Returns:
