@@ -14,7 +14,12 @@
 
 ### Installation
 
-1.  **Clone Repository**: Clone or download full repository. Ensure `Convergent.py`, `Makefile`, `modules/`, and `customs/` are all present in same directory.
+1.  **Clone Repository**: Clone the repository and navigate into the project directory:
+    ```bash
+    git clone https://github.com/ItsKaiwenDu/Convergent.git
+    cd Convergent
+    ```
+    *Ensure `Convergent.py`, `Makefile`, `modules/`, and `customs/` are all present in the same directory.*
 2.  **Run Setup**:
     ```bash
     make setup
@@ -265,6 +270,9 @@ Convergent/
 ├── Convergent.py        # Main CLI entry point and menu orchestrator
 ├── Makefile             # Task automation (setup, run, check, mcp, clean, clean-cache, cache-stats)
 ├── requirements.txt     # Python dependencies
+├── _config.yml          # Jekyll configuration for GitHub Pages & SEO
+├── _includes/           # Jekyll template includes
+│   └── head-custom.html # Custom HTML head elements & Google site verification
 ├── mcp_server/          # Local MCP (Model Context Protocol) Server package
 │   ├── __init__.py      # Package initialization
 │   ├── server.py        # FastMCP server & tool definitions over stdio
