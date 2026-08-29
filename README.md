@@ -5,6 +5,8 @@
 > **Convergent** is a professional, high-performance CLI utility designed for batch file conversion. 
 > It leverages power of FFmpeg and ImageMagick to provide seamless transformations between images, videos, and documents with a premium command-line experience.
 
+[![CI](https://github.com/ItsKaiwenDu/Convergent/actions/workflows/ci.yml/badge.svg)](https://github.com/ItsKaiwenDu/Convergent/actions/workflows/ci.yml)
+
 ## Getting Started
 
 ### Prerequisites
@@ -35,6 +37,11 @@
     make update
     ```
     *Pulls latest updates from GitHub origin and syncs Python dependencies.*
+5.  **Run Tests**:
+    ```bash
+    make test
+    ```
+    *Runs the automated unit test suite verifying caching, collision handling, MCP tools, and flags.*
 
 ## Usage
 
@@ -279,8 +286,9 @@ After conversion, you can choose from the Post-Convert Options menu:
 ```
 Convergent/
 ├── Convergent.py        # Main CLI entry point and menu orchestrator
-├── Makefile             # Task automation (setup, run, check, mcp, clean, clean-cache, cache-stats)
+├── Makefile             # Task automation (setup, run, test, check, mcp, clean, cache)
 ├── requirements.txt     # Python dependencies
+├── tests/               # Automated unit test suite (cache, MCP, flags, orchestration)
 ├── _config.yml          # Jekyll configuration for GitHub Pages & SEO
 ├── _includes/           # Jekyll template includes
 │   └── head-custom.html # Custom HTML head elements & Google site verification
