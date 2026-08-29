@@ -941,7 +941,7 @@ def run_shortcut(
     jobs=None,
     overwrite=False,
     skip=False,
-    use_cache=False,
+    use_cache=True,
     cli_bitrate=None,
     cli_strip_metadata=False,
     prompt_fps=None,

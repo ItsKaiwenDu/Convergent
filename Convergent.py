@@ -36,7 +36,7 @@ from modules import pdf_manip, image, video, audio, doc, compress, decompress, n
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run, process_stream
 from customs.run_command import run_command
-from customs.console import console, set_stderr_mode, get_input, get_char, get_choice, prompt_fps, prompt_bitrate, prompt_strip_metadata, prompt_cache
+from customs.console import console, set_stderr_mode, get_input, get_char, get_choice, prompt_fps, prompt_bitrate, prompt_strip_metadata
 
 try:
     import termios
@@ -201,7 +201,7 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto"):
         return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=False, hwaccel="auto"):
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto"):
         return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
@@ -267,11 +267,18 @@ def main():
     parser.add_argument("--model", default="base", choices=["standard", "mini", "medium", "large", "tiny", "base", "small", "turbo", "large-v3-turbo"], help="Whisper model size for STT: standard (~142MB), mini (~75MB), medium (~466MB), large (~1.5GB); default: standard")
     parser.add_argument("--language", default=None, help="Language code for STT transcription (e.g. en, es, zh, auto)")
     parser.add_argument("--hwaccel", choices=["auto", "videotoolbox", "nvenc", "qsv", "none"], default="auto", help="Hardware acceleration mode for video encoding (default: auto)")
-    parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (checksum skip)")
+    parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (default: enabled)")
+    parser.add_argument("--no-cache", "--force", action="store_true", dest="no_cache", help="Disable cache and force re-conversion of all files")
+    parser.add_argument("--cache-ttl", type=float, default=None, help="Cache Time-To-Live in days (default: 30 days, 0 to disable expiration)")
     parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
     parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
     parser.add_argument("--mcp", action="store_true", help="Launch local MCP (Model Context Protocol) server over stdio")
     args = parser.parse_args()
+
+    if args.cache_ttl is not None:
+        os.environ["CONVERGENT_CACHE_TTL_DAYS"] = str(args.cache_ttl)
+
+    use_cache = not args.no_cache
 
     if args.mcp:
         import importlib
@@ -298,7 +305,7 @@ def main():
         bitrate = failed_run.get("bitrate")
         md_pdf_mode = failed_run.get("md_pdf_mode")
         strip_metadata = failed_run.get("strip_metadata", False)
-        use_cache_failed = failed_run.get("use_cache", False) or args.cache
+        use_cache_failed = failed_run.get("use_cache", True) and not args.no_cache
         
         console.print(f"[bold cyan]Resuming last failed batch run: {len(existing_failed)} file(s)...[/bold cyan]")
         conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=False, use_cache=use_cache_failed, hwaccel=args.hwaccel)
@@ -317,7 +324,7 @@ def main():
             jobs=args.jobs,
             overwrite=args.overwrite,
             skip=args.skip,
-            use_cache=args.cache,
+            use_cache=use_cache,
             cli_bitrate=args.bitrate,
             cli_strip_metadata=args.strip_metadata,
             prompt_fps=prompt_fps,
@@ -416,7 +423,7 @@ def main():
         paths = clean_paths(args.path)
         is_ocr = source_fmt in ("JPG", "JPEG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
         is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
-        converted = conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=args.cache, hwaccel=args.hwaccel)
+        converted = conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=use_cache, hwaccel=args.hwaccel)
         sys.exit(0 if converted else 1)
 
     while True:
@@ -788,11 +795,6 @@ def main():
                 time.sleep(0.5)
                 continue
                 
-            console.print()
-            status, use_cache = prompt_cache()
-            if status in ("back", "invalid"):
-                continue
-
             console.print(f"\n[bold yellow]Enter image or PDF file or folder path(s) for OCR (JPG/JPEG/PNG/HEIC/PDF):[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
@@ -800,7 +802,7 @@ def main():
             flush_stdin()
             if paths:
                 success_map = {}
-                converted = conv.process(["JPG", "JPEG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=use_cache)
+                converted = conv.process(["JPG", "JPEG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=True)
                 prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
 
@@ -848,11 +850,6 @@ def main():
                 "base"
             )
 
-            console.print()
-            status, use_cache = prompt_cache()
-            if status in ("back", "invalid"):
-                continue
-
             console.print(f"\n[bold yellow]Enter audio/video file or folder path(s) for STT:[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
@@ -867,7 +864,7 @@ def main():
                     stt=True,
                     model=model,
                     success_map=success_map,
-                    use_cache=use_cache
+                    use_cache=True
                 )
                 prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
@@ -928,10 +925,6 @@ def main():
                     continue
                 strip_metadata = val
 
-            status, use_cache = prompt_cache()
-            if status in ("back", "invalid"):
-                continue
-                
             console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
@@ -945,7 +938,7 @@ def main():
             if md_pdf_mode == "back":
                 continue
             success_map = {}
-            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map, use_cache=use_cache)
+            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map, use_cache=True)
             prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
 
         else:

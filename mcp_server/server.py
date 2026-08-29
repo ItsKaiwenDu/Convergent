@@ -49,7 +49,7 @@ def convergent_convert(
     model: str = "base",
     language: Optional[str] = None,
     overwrite: bool = True,
-    use_cache: bool = False,
+    use_cache: bool = True,
 ) -> Dict[str, Any]:
     """
     Convert a file or directory of files to a target format using Convergent.
@@ -67,6 +67,7 @@ def convergent_convert(
         model: Whisper model size for STT ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo'). Default 'base'.
         language: Language code for STT transcription (e.g. 'en', 'es', 'zh', 'auto').
         overwrite: If True, overwrites existing files without asking. Default True.
+        use_cache: If True, uses content-addressable cache to skip unchanged files. Default True.
 
     Returns:
         Dictionary containing status, list of converted output files, and any warnings.

@@ -68,18 +68,22 @@ Remove all compiled Python cache (`__pycache__`) directories across project:
 make clean
 ```
 
-### Cache Management (Content-Addressable Checksum Skip)
-Clear or inspect the persistent conversion cache (`~/.convergent_cache.sqlite`):
+### Cache Management (Content-Addressable Checksum Skip & TTL)
+Convergent automatically caches conversion fingerprints to skip re-encoding unchanged files across runs.
+Cache entries are stored in `~/.convergent_cache.sqlite` and expire after **30 days** (configurable via `--cache-ttl <days>` or `CONVERGENT_CACHE_TTL_DAYS`).
 
 ```bash
-# Remove all cached checksums (forces full re-convert on next --cache run)
-make clean-cache
-
-# Show number of cached entries and DB path
+# Show number of cached entries, storage size, TTL, and DB path
 make cache-stats
+
+# Prune expired cache records and cap total entries
+make cache-prune
+
+# Remove all cached checksums (forces full re-convert)
+make clean-cache
 ```
 
-*The cache stores `blake2b` fingerprints of source files + conversion params (`target|fps|bitrate|strip|ocr`). On `make start ARGS="--cache"` runs, unchanged files are reported as `↷ cached (blake2b:ab12...)` and skipped without invoking FFmpeg/ImageMagick. Great for 10k-file libraries where only a few files are added.*
+*The cache computes fast `blake2b` fingerprints of source files + conversion params (`target|fps|bitrate|strip|ocr|stt`). Unchanged files are reported as `↷ cached (blake2b:ab12...)` and skipped instantly without invoking FFmpeg/ImageMagick.*
 
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using `ARGS` variable.
@@ -100,7 +104,9 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) | `--hwaccel auto` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
 | `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
-| `--cache` | Enable content-addressable cache to skip unchanged files (checksum skip) | `--cache` |
+| `--cache` | Enable content-addressable cache (default: enabled) | `--cache` |
+| `--no-cache`, `--force` | Disable cache and force re-conversion of all files | `--no-cache` |
+| `--cache-ttl` | Cache expiration Time-To-Live in days (default: `30`, `0` to disable) | `--cache-ttl 14` |
 | `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |

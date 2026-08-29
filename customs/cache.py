@@ -2,11 +2,13 @@
 Convergent: Content-Addressable Conversion Cache (Checksum Skip)
 - Fast blake2b fingerprinting (partial for large files)
 - SQLite persistence at ~/.convergent_cache.sqlite
-- Validates via src mtime/size + hash + output existence
+- Validates via src mtime/size + hash + output existence + params
+- Automatic Time-To-Live (TTL) expiration & LRU pruning
 """
 
 import hashlib
 import json
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -15,6 +17,9 @@ from typing import Dict, Optional, Tuple
 CACHE_DB_PATH = Path.home() / ".convergent_cache.sqlite"
 # Also support legacy .db name -> migrate / check both
 CACHE_DB_ALT = Path.home() / ".convergent_cache.db"
+
+DEFAULT_TTL_DAYS = 30.0  # Default cache expiration (30 days)
+MAX_CACHE_ENTRIES = 50000  # Cap cache entries to prevent unbounded growth
 
 PARTIAL_THRESHOLD = 10 * 1024 * 1024  # 10 MB – above this, hash head+tail
 HEAD_TAIL_SIZE = 1 * 1024 * 1024  # 1 MB
@@ -29,9 +34,11 @@ CREATE TABLE IF NOT EXISTS entries (
     out_path TEXT,
     out_mtime REAL,
     params_hash TEXT,
-    created_at REAL
+    created_at REAL,
+    last_accessed_at REAL
 );
 CREATE INDEX IF NOT EXISTS idx_src_path ON entries(src_path);
+CREATE INDEX IF NOT EXISTS idx_last_accessed ON entries(last_accessed_at);
 """
 
 
@@ -117,7 +124,7 @@ def make_content_key(src_hash: str, params: Dict) -> str:
 
 
 class CacheManager:
-    def __init__(self, db_path: Path = CACHE_DB_PATH):
+    def __init__(self, db_path: Path = CACHE_DB_PATH, ttl_days: Optional[float] = None):
         self.db_path = db_path
         # Support migration from alt path if main doesn't exist
         if not db_path.exists() and CACHE_DB_ALT.exists():
@@ -126,10 +133,37 @@ class CacheManager:
                 self.db_path = CACHE_DB_ALT
             except Exception:
                 pass
+
+        if ttl_days is None:
+            env_ttl = os.environ.get("CONVERGENT_CACHE_TTL_DAYS")
+            if env_ttl:
+                try:
+                    self.ttl_days = float(env_ttl)
+                except ValueError:
+                    self.ttl_days = DEFAULT_TTL_DAYS
+            else:
+                self.ttl_days = DEFAULT_TTL_DAYS
+        else:
+            self.ttl_days = float(ttl_days)
+
         self.conn = sqlite3.connect(str(self.db_path))
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.executescript(_SCHEMA)
+
+        # Migration: Add last_accessed_at column if upgrading from older schema
+        try:
+            self.conn.execute("ALTER TABLE entries ADD COLUMN last_accessed_at REAL;")
+            self.conn.commit()
+        except Exception:
+            pass
+
         self.conn.commit()
+
+        # Opportunistic prune on startup (clean up expired & keep size bounded)
+        try:
+            self.prune()
+        except Exception:
+            pass
 
     def close(self):
         try:
@@ -138,10 +172,21 @@ class CacheManager:
         except Exception:
             pass
 
+    def delete_entry(self, key: str):
+        """Removes a single cache record."""
+        try:
+            self.conn.execute("DELETE FROM entries WHERE key=?", (key,))
+            self.conn.commit()
+        except Exception:
+            pass
+
     def _get_entry(self, key: str) -> Optional[Dict]:
         try:
             cur = self.conn.cursor()
-            cur.execute("SELECT key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, params_hash, created_at FROM entries WHERE key=?", (key,))
+            cur.execute(
+                "SELECT key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, params_hash, created_at, last_accessed_at FROM entries WHERE key=?",
+                (key,),
+            )
             row = cur.fetchone()
             if row:
                 return {
@@ -154,6 +199,7 @@ class CacheManager:
                     "out_mtime": row[6],
                     "params_hash": row[7],
                     "created_at": row[8],
+                    "last_accessed_at": row[9] if len(row) > 9 and row[9] is not None else row[8],
                 }
         except Exception:
             pass
@@ -163,13 +209,20 @@ class CacheManager:
         """
         Checks if cache entry is valid.
         Returns (is_valid, reason_or_hash_preview)
-        - Valid if: entry exists, src mtime/size matches (or hash matches), and out_path exists.
-        - For speed: if mtime and size match DB, skip recomputing hash.
+        - Valid if: entry exists, not expired by TTL, src mtime/size matches (or hash matches), and out_path exists.
+        - Updates last_accessed_at timestamp on valid cache hit.
         """
         key = make_cache_key(src_path, params)
         entry = self._get_entry(key)
         if not entry:
             return False, "miss"
+
+        # Check TTL expiration (if ttl_days > 0)
+        if self.ttl_days > 0:
+            access_time = entry.get("last_accessed_at") or entry.get("created_at") or 0.0
+            if time.time() - access_time > self.ttl_days * 86400:
+                self.delete_entry(key)
+                return False, "expired"
 
         # Check output existence (file or dir for PDF->images)
         try:
@@ -186,20 +239,9 @@ class CacheManager:
             return False, "src stat failed"
 
         # Fast path: if mtime and size identical to cached, assume valid (no need to re-hash)
-        # This makes 10k-file scans very fast (stat only)
         if entry["src_mtime"] is not None and entry["src_size"] is not None:
             if abs(entry["src_mtime"] - cur_mtime) < 0.001 and entry["src_size"] == cur_size:
-                # Also check out_mtime is newer than src? optional
-                try:
-                    out_mtime = out_path.stat().st_mtime
-                    # If output is newer than source cached time, valid
-                    # (We don't enforce strict out_mtime match, just existence)
-                    if out_mtime >= entry["out_mtime"] or entry["out_mtime"] is not None:
-                        hash_preview = entry["src_hash"][:8] if entry["src_hash"] else "...."
-                        return True, f"blake2b:{hash_preview}..."
-                except Exception:
-                    pass
-                # Still valid even if out_mtime check skipped
+                self._touch_access(key)
                 hash_preview = entry["src_hash"][:8] if entry["src_hash"] else "...."
                 return True, f"blake2b:{hash_preview}..."
 
@@ -209,10 +251,20 @@ class CacheManager:
             return False, "hash fail"
 
         if cur_hash == entry["src_hash"]:
+            self._touch_access(key)
             hash_preview = cur_hash[:8]
             return True, f"blake2b:{hash_preview}..."
 
         return False, "hash mismatch"
+
+    def _touch_access(self, key: str):
+        """Update last_accessed_at on cache hit."""
+        try:
+            now = time.time()
+            self.conn.execute("UPDATE entries SET last_accessed_at = ? WHERE key = ?", (now, key))
+            self.conn.commit()
+        except Exception:
+            pass
 
     def save(self, src_path: Path, out_path: Path, params: Dict):
         """Upsert cache entry after successful conversion."""
@@ -240,15 +292,53 @@ class CacheManager:
             self.conn.execute(
                 """
                 INSERT OR REPLACE INTO entries
-                (key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, params_hash, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, params_hash, created_at, last_accessed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (key, resolved_src, src_hash, src_mtime, src_size, resolved_out, out_mtime, params_hash, now),
+                (key, resolved_src, src_hash, src_mtime, src_size, resolved_out, out_mtime, params_hash, now, now),
             )
             self.conn.commit()
         except Exception:
             # Cache failures should never break conversion
             pass
+
+    def prune(self, ttl_days: Optional[float] = None, max_entries: int = MAX_CACHE_ENTRIES) -> int:
+        """
+        Prunes expired cache entries and caps total entries via LRU.
+        Returns the number of deleted records.
+        """
+        deleted = 0
+        effective_ttl = self.ttl_days if ttl_days is None else float(ttl_days)
+        try:
+            if effective_ttl > 0:
+                cutoff = time.time() - (effective_ttl * 86400)
+                cur = self.conn.cursor()
+                cur.execute(
+                    "DELETE FROM entries WHERE COALESCE(last_accessed_at, created_at) < ?",
+                    (cutoff,),
+                )
+                deleted += cur.rowcount
+                self.conn.commit()
+
+            if max_entries > 0:
+                cur = self.conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM entries;")
+                total = cur.fetchone()[0]
+                if total > max_entries:
+                    excess = total - max_entries
+                    cur.execute(
+                        """
+                        DELETE FROM entries WHERE key IN (
+                            SELECT key FROM entries ORDER BY COALESCE(last_accessed_at, created_at) ASC LIMIT ?
+                        )
+                        """,
+                        (excess,),
+                    )
+                    deleted += cur.rowcount
+                    self.conn.commit()
+        except Exception:
+            pass
+        return deleted
 
     def clear(self):
         try:
@@ -258,13 +348,48 @@ class CacheManager:
             pass
 
     def stats(self) -> Dict:
+        """Returns statistics on cache database, TTL, and records."""
         try:
             cur = self.conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM entries;")
-            count = cur.fetchone()[0]
-            return {"count": count, "db_path": str(self.db_path)}
+            cur.execute(
+                "SELECT COUNT(*), MIN(COALESCE(last_accessed_at, created_at)), MAX(COALESCE(last_accessed_at, created_at)) FROM entries;"
+            )
+            row = cur.fetchone()
+            count = row[0] if row else 0
+            oldest_ts = row[1] if row and row[1] else None
+            newest_ts = row[2] if row and row[2] else None
+
+            size_bytes = 0
+            try:
+                if self.db_path.exists():
+                    size_bytes = self.db_path.stat().st_size
+            except Exception:
+                pass
+
+            def _format_size(b: int) -> str:
+                if b < 1024:
+                    return f"{b} B"
+                elif b < 1024 * 1024:
+                    return f"{b / 1024:.1f} KB"
+                else:
+                    return f"{b / (1024 * 1024):.2f} MB"
+
+            def _format_ts(ts: Optional[float]) -> str:
+                if not ts:
+                    return "none"
+                return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+
+            return {
+                "count": count,
+                "db_path": str(self.db_path),
+                "size_bytes": size_bytes,
+                "size_formatted": _format_size(size_bytes),
+                "ttl_days": self.ttl_days if self.ttl_days > 0 else "disabled",
+                "oldest_entry": _format_ts(oldest_ts),
+                "newest_entry": _format_ts(newest_ts),
+            }
         except Exception:
-            return {"count": 0, "db_path": str(self.db_path)}
+            return {"count": 0, "db_path": str(self.db_path), "ttl_days": self.ttl_days}
 
 
 def clear_cache(db_path: Path = CACHE_DB_PATH):
@@ -287,3 +412,4 @@ def clear_cache(db_path: Path = CACHE_DB_PATH):
             except Exception:
                 pass
     return removed
+

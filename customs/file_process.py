@@ -15,7 +15,7 @@ from customs.run_command import send_to_trash
 
 FAILED_RUN_FILE = Path.home() / ".convergent_failed.json"
 
-def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, use_cache=False):
+def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, use_cache=True):
     if not failed_files:
         clear_failed_run()
         return
@@ -156,7 +156,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=False, hwaccel="auto"):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto"):
     """
     Processes a batch of files for conversion.
     """
@@ -198,7 +198,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         console.print(f"[bold red]{msg}[/bold red]")
         return []
 
-    # Content-Addressable Cache pre-filter (opt-in via --cache)
+    # Content-Addressable Cache pre-filter (automatic by default, bypass via --no-cache)
     cached_count = 0
     cached_skipped_files = []  # list of (src, out, reason)
     cache_mgr = None

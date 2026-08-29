@@ -6,7 +6,7 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start check shortcut quick-action mcp mcp-config clean clean-cache cache-stats
+.PHONY: help setup start check shortcut quick-action mcp mcp-config clean clean-cache cache-stats cache-prune
 
 mcp: check ## Start local MCP server over stdio
 	$(PYTHON) mcp_server/server.py
@@ -73,6 +73,9 @@ clean: ## Clean up __pycache__ directories
 clean-cache: ## Clear conversion cache (checksum DB)
 	@$(PYTHON) -c "from customs.cache import clear_cache; removed=clear_cache(); print(f'Removed cache DBs: {removed}' if removed else 'No cache DB found.')"
 
-cache-stats: ## Show cache entry count
-	@$(PYTHON) -c "from customs.cache import CacheManager; cm=CacheManager(); print(cm.stats()); cm.close()"
+cache-stats: ## Show cache entry count and storage stats
+	@$(PYTHON) -c "from customs.cache import CacheManager; import json; cm=CacheManager(); print(json.dumps(cm.stats(), indent=2)); cm.close()"
+
+cache-prune: ## Prune expired cache entries and enforce capacity limit
+	@$(PYTHON) -c "from customs.cache import CacheManager; cm=CacheManager(); deleted=cm.prune(); print(f'Pruned {deleted} expired/excess cache entries.'); cm.close()"
 
