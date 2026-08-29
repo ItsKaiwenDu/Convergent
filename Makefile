@@ -6,7 +6,10 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup update start check shortcut quick-action mcp mcp-config clean clean-cache cache-stats cache-prune
+.PHONY: help setup update start check test shortcut quick-action mcp mcp-config clean clean-cache cache-stats cache-prune
+
+test: ## Run automated unit test suite
+	$(PYTHON) -m unittest discover -s tests -v
 
 update: ## Pull latest updates from Git and refresh dependencies
 	@echo "Pulling latest updates..."
