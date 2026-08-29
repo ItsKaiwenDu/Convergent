@@ -110,7 +110,7 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto"):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
     """
     Processes a single file conversion using the provided Converter instance.
     """
@@ -146,7 +146,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                 stt=stt,
                 model=model,
                 language=language,
-                hwaccel=hwaccel
+                hwaccel=hwaccel,
+                dpi=dpi
             )
         else:
             error = f"Handler method {fmt_def.handler_method} not found on Converter"
@@ -156,7 +157,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto"):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None):
     """
     Processes a batch of files for conversion.
     """
@@ -216,6 +217,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 "stt": stt,
                 "model": model,
                 "language": language,
+                "dpi": dpi,
             }
             remaining_after_cache = []
             for f in files:
@@ -482,7 +484,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel): f for f in files}
+                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi): f for f in files}
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
@@ -513,6 +515,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                                 "stt": stt,
                                                 "model": model,
                                                 "language": language,
+                                                "dpi": dpi,
                                             }
                                         else:
                                             params_for_cache_local = params_for_cache
@@ -541,7 +544,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             # Fallback for systems without rich
             for f in files:
                 completed_files.add(f)
-                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel)
+                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi)
                 if success:
                     success_count += 1
                     if f.suffix.lower() == ".pdf":

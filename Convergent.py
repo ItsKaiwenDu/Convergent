@@ -142,7 +142,8 @@ class Converter:
         is_ocr = kwargs.get("ocr", False) or target_ext.upper() in ("TXT", "MD", "DOCX")
         if is_ocr:
             return self.convert_ocr(source, target_ext, **kwargs)
-        return pdf_manip.convert_pdf_to_image(source, target_ext)
+        dpi = kwargs.get("dpi", 300)
+        return pdf_manip.convert_pdf_to_image(source, target_ext, dpi=dpi)
 
     def convert_ntb(self, source, target_ext, **kwargs):
         return ntb.convert_ntb(source, target_ext)
@@ -198,11 +199,11 @@ class Converter:
     def decompress(self, path, output_dir=None):
         return decompress.decompress(path, output_dir)
 
-    def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto"):
-        return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel)
+    def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
+        return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel, dpi=dpi)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto"):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel, dpi=dpi)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:
@@ -263,6 +264,7 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files without prompting")
     parser.add_argument("--skip", action="store_true", help="Skip existing output files without prompting")
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
+    parser.add_argument("--dpi", type=int, default=None, help="Resolution DPI for PDF to image conversion (default: 300)")
     parser.add_argument("--stt", action="store_true", help="Perform Speech-to-Text transcription on audio/video input")
     parser.add_argument("--model", default="base", choices=["standard", "mini", "medium", "large", "tiny", "base", "small", "turbo", "large-v3-turbo"], help="Whisper model size for STT: standard (~142MB), mini (~75MB), medium (~466MB), large (~1.5GB); default: standard")
     parser.add_argument("--language", default=None, help="Language code for STT transcription (e.g. en, es, zh, auto)")
@@ -423,7 +425,7 @@ def main():
         paths = clean_paths(args.path)
         is_ocr = source_fmt in ("JPG", "JPEG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
         is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
-        converted = conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=use_cache, hwaccel=args.hwaccel)
+        converted = conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=use_cache, hwaccel=args.hwaccel, dpi=args.dpi)
         sys.exit(0 if converted else 1)
 
     while True:

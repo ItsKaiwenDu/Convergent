@@ -50,6 +50,7 @@ def convergent_convert(
     language: Optional[str] = None,
     overwrite: bool = True,
     use_cache: bool = True,
+    dpi: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Convert a file or directory of files to a target format using Convergent.
@@ -68,6 +69,7 @@ def convergent_convert(
         language: Language code for STT transcription (e.g. 'en', 'es', 'zh', 'auto').
         overwrite: If True, overwrites existing files without asking. Default True.
         use_cache: If True, uses content-addressable cache to skip unchanged files. Default True.
+        dpi: Quality DPI resolution for PDF-to-image conversion (e.g. 150, 300).
 
     Returns:
         Dictionary containing status, list of converted output files, and any warnings.
@@ -111,9 +113,59 @@ def convergent_convert(
             language=language,
             success_map=success_map,
             use_cache=use_cache,
+            dpi=dpi,
         )
 
         converted_list = [str(p) for p in (converted or list(success_map.keys()))]
+
+        # Honor output_path parameter if specified
+        if output_path and converted_list:
+            import shutil
+            dest_target = Path(os.path.expanduser(output_path)).resolve()
+            final_converted_list = []
+
+            is_dest_dir = (
+                dest_target.is_dir()
+                or output_path.endswith(os.sep)
+                or output_path.endswith("/")
+                or output_path.endswith("\\")
+                or not dest_target.suffix
+                or len(converted_list) > 1
+            )
+
+            if is_dest_dir:
+                dest_target.mkdir(parents=True, exist_ok=True)
+                for out_item in converted_list:
+                    out_p = Path(out_item)
+                    if out_p.exists():
+                        target_loc = dest_target / out_p.name
+                        if target_loc != out_p:
+                            if target_loc.is_dir():
+                                shutil.rmtree(target_loc)
+                            elif target_loc.is_file():
+                                target_loc.unlink()
+                            shutil.move(str(out_p), str(target_loc))
+                            final_converted_list.append(str(target_loc))
+                        else:
+                            final_converted_list.append(str(out_p))
+            else:
+                dest_target.parent.mkdir(parents=True, exist_ok=True)
+                out_p = Path(converted_list[0])
+                if out_p.exists():
+                    if dest_target != out_p:
+                        if dest_target.is_dir():
+                            shutil.rmtree(dest_target)
+                        elif dest_target.is_file():
+                            dest_target.unlink()
+                        shutil.move(str(out_p), str(dest_target))
+                        final_converted_list.append(str(dest_target))
+                    else:
+                        final_converted_list.append(str(out_p))
+                for out_item in converted_list[1:]:
+                    final_converted_list.append(out_item)
+
+            converted_list = final_converted_list
+
         if converted_list:
             return {
                 "success": True,
@@ -167,11 +219,24 @@ def pdf_to_images(
         input_path=full_path,
         target_format=target_fmt,
         overwrite=True,
+        dpi=dpi,
     )
+
+    converted_files = res.get("converted_files", [])
+    image_files = []
+    for item in converted_files:
+        p = Path(item)
+        if p.is_dir():
+            for img in sorted(p.iterdir()):
+                if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "jpeg", "png", "tiff", "tif", "bmp"):
+                    image_files.append(str(img))
+        elif p.is_file():
+            image_files.append(str(p))
+
     return {
         "success": res.get("success", False),
-        "count": res.get("count", 0),
-        "images": res.get("converted_files", []),
+        "count": len(image_files) if image_files else res.get("count", 0),
+        "images": image_files if image_files else converted_files,
         "error": res.get("error"),
     }
 
