@@ -25,11 +25,16 @@
     make setup
     ```
     *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `pandoc`, `ghostscript`, `typst`, `7-zip`, `unrar`, `rar`, `libreoffice`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
-3.  **Check Dependencies & Auto-Update**:
+3.  **Check Dependencies**:
     ```bash
     make check
     ```
-    *Verifies dependencies and automatically pulls remote updates from GitHub origin if behind.*
+    *Verifies all required and optional system dependencies.*
+4.  **Update Repository**:
+    ```bash
+    make update
+    ```
+    *Pulls latest updates from GitHub origin and syncs Python dependencies.*
 
 ## Usage
 

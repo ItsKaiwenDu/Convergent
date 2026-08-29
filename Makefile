@@ -6,7 +6,14 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup start check shortcut quick-action mcp mcp-config clean clean-cache cache-stats cache-prune
+.PHONY: help setup update start check shortcut quick-action mcp mcp-config clean clean-cache cache-stats cache-prune
+
+update: ## Pull latest updates from Git and refresh dependencies
+	@echo "Pulling latest updates..."
+	git pull
+	@echo "Syncing Python dependencies..."
+	$(PYTHON) -m pip install -r requirements.txt
+	@echo "Update complete!"
 
 mcp: check ## Start local MCP server over stdio
 	$(PYTHON) mcp_server/server.py

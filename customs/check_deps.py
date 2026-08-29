@@ -155,65 +155,6 @@ def check_dependencies():
     if not all_found:
         sys.exit(1)
 
-def check_git_updates():
-    if not shutil.which("git"):
-        return
-
-    # Verify if inside a Git repository
-    try:
-        res = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True, timeout=5)
-        if res.returncode != 0 or res.stdout.strip() != "true":
-            return
-    except Exception:
-        return
-
-    # Verify if remote 'origin' exists
-    try:
-        res = subprocess.run(["git", "remote"], capture_output=True, text=True, timeout=5)
-        if "origin" not in res.stdout.split():
-            return
-    except Exception:
-        return
-
-    # Fetch updates from origin
-    try:
-        subprocess.run(["git", "fetch"], capture_output=True, text=True, timeout=10)
-    except Exception:
-        # If fetch fails (e.g. offline), exit silently
-        return
-
-    # Check how many commits we are behind origin
-    behind = 0
-    try:
-        res = subprocess.run(["git", "rev-list", "--count", "HEAD..@{u}"], capture_output=True, text=True, timeout=5)
-        if res.returncode == 0:
-            behind = int(res.stdout.strip())
-        else:
-            # Fallback to current branch against origin/branch
-            branch_res = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, timeout=5)
-            branch = branch_res.stdout.strip()
-            if branch:
-                res = subprocess.run(["git", "rev-list", "--count", f"HEAD..origin/{branch}"], capture_output=True, text=True, timeout=5)
-                if res.returncode == 0:
-                    behind = int(res.stdout.strip())
-    except Exception:
-        pass
-
-    if behind > 0:
-        print(f"{'GitHub':<13} {GREEN}✓{RESET}  New updates found! Pulling {behind} commit{'s' if behind > 1 else ''}...")
-        try:
-            pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
-            if pull_res.returncode == 0:
-                print(f"{'GitHub':<13} {GREEN}✓{RESET}  Repository updated successfully.")
-                print("")
-            else:
-                print(f"{'GitHub':<13} {RED}✗{RESET}  Failed to pull: {pull_res.stderr.strip() or pull_res.stdout.strip()}")
-                print("")
-        except Exception as e:
-            print(f"{'GitHub':<13} {RED}✗{RESET}  Failed to pull: {str(e)}")
-            print("")
-
 if __name__ == "__main__":
     check_dependencies()
-    check_git_updates()
 
