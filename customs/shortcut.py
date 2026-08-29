@@ -808,19 +808,19 @@ def _run_combine_shortcut(conv, sc, paths, console, get_char, get_input, prompt_
             return False
 
     if combine_type == 'pdf':
-        out_path = conv.combine_pdfs(paths)
+        out_path = conv.combine_pdfs(paths, interactive=interactive)
     elif combine_type == 'mp4':
-        out_path = conv.combine_videos(paths)
+        out_path = conv.combine_videos(paths, interactive=interactive)
     elif combine_type == 'mp3':
-        out_path = conv.combine_audios(paths)
+        out_path = conv.combine_audios(paths, interactive=interactive)
     elif combine_type == 'gif':
-        out_path = conv.combine_gifs(paths)
+        out_path = conv.combine_gifs(paths, interactive=interactive)
     elif combine_type == 'docx':
-        out_path = conv.combine_docx(paths)
+        out_path = conv.combine_docx(paths, interactive=interactive)
     elif combine_type == 'pptx':
-        out_path = conv.combine_pptx(paths)
+        out_path = conv.combine_pptx(paths, interactive=interactive)
     elif combine_type == 'txt':
-        out_path = conv.combine_txt(paths)
+        out_path = conv.combine_txt(paths, interactive=interactive)
     else:
         out_path = None
 
@@ -837,27 +837,27 @@ def _run_split_shortcut(conv, paths, console, get_char, get_input, prompt_move_f
     for path in paths:
         p = Path(path)
         if p.suffix.lower() == ".pdf":
-            out_dir = conv.split_pdf(path)
+            out_dir = conv.split_pdf(path, interactive=interactive)
             if out_dir:
                 split_dirs.append(out_dir)
         elif p.suffix.lower() == ".mp4":
-            out_dir = conv.split_video(path)
+            out_dir = conv.split_video(path, interactive=interactive)
             if out_dir:
                 split_dirs.append(out_dir)
         elif p.suffix.lower() == ".mp3":
-            out_dir = conv.split_audio(path)
+            out_dir = conv.split_audio(path, interactive=interactive)
             if out_dir:
                 split_dirs.append(out_dir)
         elif p.suffix.lower() == ".gif":
-            out_dir = conv.split_gif(path)
+            out_dir = conv.split_gif(path, interactive=interactive)
             if out_dir:
                 split_dirs.append(out_dir)
         elif p.suffix.lower() == ".docx":
-            out_dir = conv.split_docx(path)
+            out_dir = conv.split_docx(path, interactive=interactive)
             if out_dir:
                 split_dirs.append(out_dir)
         elif p.suffix.lower() == ".pptx":
-            out_dir = conv.split_pptx(path)
+            out_dir = conv.split_pptx(path, interactive=interactive)
             if out_dir:
                 split_dirs.append(out_dir)
         else:

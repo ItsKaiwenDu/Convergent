@@ -150,47 +150,47 @@ class Converter:
     def convert_markdown(self, source, target_ext, md_pdf_mode=None, **kwargs):
         return doc.convert_markdown(source, target_ext, md_pdf_mode)
 
-    def combine_pdfs(self, paths):
-        return combine.combine_pdfs(paths)
+    def combine_pdfs(self, paths, output_path=None, interactive=True):
+        return combine.combine_pdfs(paths, output_path=output_path, interactive=interactive)
 
-    def combine_videos(self, paths):
-        return combine.combine_videos(paths)
+    def combine_videos(self, paths, output_path=None, interactive=True):
+        return combine.combine_videos(paths, output_path=output_path, interactive=interactive)
 
-    def combine_audios(self, paths):
-        return combine.combine_audios(paths)
+    def combine_audios(self, paths, output_path=None, interactive=True):
+        return combine.combine_audios(paths, output_path=output_path, interactive=interactive)
 
-    def combine_gifs(self, paths):
-        return combine.combine_gifs(paths)
+    def combine_gifs(self, paths, output_path=None, interactive=True):
+        return combine.combine_gifs(paths, output_path=output_path, interactive=interactive)
 
-    def combine_docx(self, paths):
-        return combine.combine_docx(paths)
+    def combine_docx(self, paths, output_path=None, interactive=True):
+        return combine.combine_docx(paths, output_path=output_path, interactive=interactive)
 
-    def combine_pptx(self, paths):
-        return combine.combine_pptx(paths)
+    def combine_pptx(self, paths, output_path=None, interactive=True):
+        return combine.combine_pptx(paths, output_path=output_path, interactive=interactive)
 
-    def combine_txt(self, paths):
-        return combine.combine_txt(paths)
+    def combine_txt(self, paths, output_path=None, interactive=True):
+        return combine.combine_txt(paths, output_path=output_path, interactive=interactive)
 
     def get_pdf_page_count(self, path):
         return combine.get_pdf_page_count(path)
 
-    def split_pdf(self, path):
-        return split.split_pdf(path)
+    def split_pdf(self, path, mode="pages", ranges=None, num_parts=None, output_dir=None, interactive=True, display_name=None):
+        return split.split_pdf(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive, display_name=display_name)
 
-    def split_video(self, path):
-        return split.split_video(path)
+    def split_video(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+        return split.split_video(path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
-    def split_audio(self, path):
-        return split.split_audio(path)
+    def split_audio(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+        return split.split_audio(path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
-    def split_gif(self, path):
-        return split.split_gif(path)
+    def split_gif(self, path, mode="frames", frame_format="png", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+        return split.split_gif(path, mode=mode, frame_format=frame_format, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
-    def split_docx(self, path):
-        return split.split_docx(path)
+    def split_docx(self, path, mode="pages", ranges=None, num_parts=None, output_dir=None, interactive=True):
+        return split.split_docx(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
-    def split_pptx(self, path):
-        return split.split_pptx(path)
+    def split_pptx(self, path, mode="pages", ranges=None, num_parts=None, output_dir=None, interactive=True):
+        return split.split_pptx(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
     def compress(self, paths, output_name, format_choice, password=None):
         return compress.compress(paths, output_name, format_choice, password)

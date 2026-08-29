@@ -291,14 +291,14 @@ def combine_files(
     output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Combine multiple PDF, video, audio, GIF, or document files into a single merged file.
+    Combine multiple PDF, video, audio, GIF, or document files into a single merged file non-interactively.
 
     Args:
         file_paths: List of file paths to combine (must all share compatible file types).
-        output_path: Optional destination path. If not provided, saved in same directory as first file.
+        output_path: Optional destination file or directory path.
 
     Returns:
-        Dictionary with path to combined output file.
+        Dictionary with status and path to the combined output file.
     """
     expanded_paths = [os.path.expanduser(p) for p in file_paths if os.path.exists(os.path.expanduser(p))]
     if not expanded_paths:
@@ -309,45 +309,63 @@ def combine_files(
     try:
         out_file = None
         if ext == ".pdf":
-            out_file = conv.combine_pdfs(expanded_paths)
+            out_file = conv.combine_pdfs(expanded_paths, output_path=output_path, interactive=False)
         elif ext in (".mp4", ".mov", ".mkv", ".avi", ".webm"):
-            out_file = conv.combine_videos(expanded_paths)
-        elif ext in (".mp3", ".wav", ".aac", ".flac", ".m4a"):
-            out_file = conv.combine_audios(expanded_paths)
+            out_file = conv.combine_videos(expanded_paths, output_path=output_path, interactive=False)
+        elif ext in (".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
+            out_file = conv.combine_audios(expanded_paths, output_path=output_path, interactive=False)
         elif ext == ".gif":
-            out_file = conv.combine_gifs(expanded_paths)
+            out_file = conv.combine_gifs(expanded_paths, output_path=output_path, interactive=False)
         elif ext == ".docx":
-            out_file = conv.combine_docx(expanded_paths)
+            out_file = conv.combine_docx(expanded_paths, output_path=output_path, interactive=False)
         elif ext == ".pptx":
-            out_file = conv.combine_pptx(expanded_paths)
+            out_file = conv.combine_pptx(expanded_paths, output_path=output_path, interactive=False)
         elif ext == ".txt":
-            out_file = conv.combine_txt(expanded_paths)
+            out_file = conv.combine_txt(expanded_paths, output_path=output_path, interactive=False)
         else:
             return {"success": False, "error": f"Unsupported file type for combination: {ext}"}
 
-        if out_file and output_path:
-            dest = os.path.expanduser(output_path)
-            os.rename(out_file, dest)
-            out_file = dest
-
-        return {
-            "success": True if out_file else False,
-            "output_file": out_file,
-        }
+        if out_file:
+            return {
+                "success": True,
+                "output_file": str(out_file),
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to combine files. Check dependencies (ghostscript, ffmpeg, libreoffice).",
+            }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 @mcp.tool()
-def split_file(file_path: str) -> Dict[str, Any]:
+def split_file(
+    file_path: str,
+    mode: str = "pages",
+    interval: Optional[float] = None,
+    ranges: Optional[str] = None,
+    num_parts: Optional[int] = None,
+    frame_format: str = "png",
+    output_dir: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    Split a PDF, video, audio, or archive into individual pages or segments.
+    Split a PDF, video, audio, GIF, or document into individual pages, segments, frames, or parts non-interactively.
 
     Args:
-        file_path: Path to file to split.
+        file_path: Path to the file to split.
+        mode: Split mode. Options:
+              - For PDF / DOCX / PPTX: 'pages' (default, 1 page per file), 'ranges' (e.g. ranges='1-5,6-10'), 'parts' (num_parts=N)
+              - For Video / Audio: 'interval' (default, e.g. interval=60), 'ranges' (e.g. ranges='0-10,60-120'), 'parts' (num_parts=N)
+              - For GIF: 'frames' (default, extracts frame images), 'interval', 'ranges', 'parts'
+        interval: Interval in seconds for video/audio/GIF interval split (e.g. 30, 60).
+        ranges: Page or time ranges string (e.g. '1-3,4-8' for PDF, '00:00:00-00:01:00,00:02:00-00:03:00' for video).
+        num_parts: Total number of parts to split into equally.
+        frame_format: Image format for GIF frame extraction ('png', 'jpg'). Default 'png'.
+        output_dir: Optional target directory path to save the split files.
 
     Returns:
-        Dictionary with status of split operation.
+        Dictionary with status, output directory, and list of generated files.
     """
     full_path = os.path.expanduser(file_path)
     if not os.path.exists(full_path):
@@ -355,22 +373,34 @@ def split_file(file_path: str) -> Dict[str, Any]:
 
     ext = Path(full_path).suffix.lower()
     try:
+        out_dir = None
         if ext == ".pdf":
-            conv.split_pdf(full_path)
-        elif ext in (".mp4", ".mov", ".mkv", ".avi"):
-            conv.split_video(full_path)
-        elif ext in (".mp3", ".wav", ".aac", ".flac"):
-            conv.split_audio(full_path)
+            out_dir = conv.split_pdf(full_path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+        elif ext in (".mp4", ".mov", ".mkv", ".avi", ".webm"):
+            out_dir = conv.split_video(full_path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+        elif ext in (".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
+            out_dir = conv.split_audio(full_path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".gif":
-            conv.split_gif(full_path)
+            out_dir = conv.split_gif(full_path, mode=mode, frame_format=frame_format, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".docx":
-            conv.split_docx(full_path)
+            out_dir = conv.split_docx(full_path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".pptx":
-            conv.split_pptx(full_path)
+            out_dir = conv.split_pptx(full_path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         else:
             return {"success": False, "error": f"Unsupported file type for splitting: {ext}"}
 
-        return {"success": True, "message": f"Successfully split {file_path}"}
+        if out_dir and Path(out_dir).exists():
+            out_path_obj = Path(out_dir)
+            files = [str(f) for f in sorted(out_path_obj.iterdir(), key=lambda p: p.name) if f.is_file()]
+            return {
+                "success": True,
+                "output_dir": str(out_path_obj),
+                "split_files": files,
+                "count": len(files),
+                "message": f"Successfully split {file_path} into {len(files)} files.",
+            }
+        else:
+            return {"success": False, "error": f"Failed to split {file_path}."}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
