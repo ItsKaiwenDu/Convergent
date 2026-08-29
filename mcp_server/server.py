@@ -93,7 +93,7 @@ def convergent_convert(
     success_map: Dict[str, str] = {}
 
     try:
-        conv.process(
+        converted = conv.process(
             source_formats=source_fmts,
             target_format=target_fmt,
             paths=[cleaned_input],
@@ -112,18 +112,27 @@ def convergent_convert(
             use_cache=use_cache,
         )
 
-        converted_list = list(success_map.values())
-        return {
-            "success": True,
-            "count": len(converted_list),
-            "converted_files": converted_list,
-            "target_format": target_fmt,
-        }
+        converted_list = [str(p) for p in (converted or list(success_map.keys()))]
+        if converted_list:
+            return {
+                "success": True,
+                "count": len(converted_list),
+                "converted_files": converted_list,
+                "target_format": target_fmt,
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"No matching files found or conversion failed for: {input_path}",
+                "count": 0,
+                "converted_files": [],
+                "target_format": target_fmt,
+            }
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
-            "converted_files": list(success_map.values()),
+            "converted_files": [str(p) for p in (converted if 'converted' in locals() and converted else list(success_map.keys()))],
         }
 
 

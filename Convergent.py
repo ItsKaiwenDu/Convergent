@@ -416,8 +416,8 @@ def main():
         paths = clean_paths(args.path)
         is_ocr = source_fmt in ("JPG", "JPEG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
         is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
-        conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=args.cache, hwaccel=args.hwaccel)
-        return
+        converted = conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=args.cache, hwaccel=args.hwaccel)
+        sys.exit(0 if converted else 1)
 
     while True:
         shortcuts = shortcut.load_shortcuts()
