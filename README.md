@@ -116,7 +116,6 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) | `--hwaccel auto` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
 | `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
-| `--cache` | Enable content-addressable cache (default: enabled) | `--cache` |
 | `--dpi` | Resolution for PDF-to-image conversion (default: `300`) | `--dpi 150` |
 | `--cache` | Enable checksum-validated caching (default: enabled) | `--cache` |
 | `--no-cache`, `--force` | Disable cache and force re-conversion of all files | `--no-cache` |
