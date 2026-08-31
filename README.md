@@ -80,7 +80,7 @@ Remove all compiled Python cache (`__pycache__`) directories across project:
 make clean
 ```
 
-### Cache Management (Content-Addressable Checksum Skip & TTL)
+### Cache Management (Checksum-Validated Skip & TTL)
 Convergent automatically caches conversion fingerprints to skip re-encoding unchanged files across runs.
 Cache entries are stored in `~/.convergent_cache.sqlite` and expire after **30 days** (configurable via `--cache-ttl <days>` or `CONVERGENT_CACHE_TTL_DAYS`).
 
@@ -95,7 +95,7 @@ make cache-prune
 make clean-cache
 ```
 
-*The cache computes fast `blake2b` fingerprints of source files + conversion params (`target|fps|bitrate|strip|ocr|stt`). Unchanged files are reported as `↷ cached (blake2b:ab12...)` and skipped instantly without invoking FFmpeg/ImageMagick.*
+*Cache entries are keyed by each source file path plus conversion parameters, then validated with fast `blake2b` source fingerprints. Parameters include target, FPS, bitrate, Markdown-PDF mode, metadata stripping, OCR/STT settings, model, language, and DPI. Unchanged files are reported as `↷ cached (blake2b:ab12...)` and skipped without invoking FFmpeg/ImageMagick.*
 
 ### CLI Mode (Arguments)
 For automated workflows, you can pass arguments directly using `ARGS` variable.
@@ -117,6 +117,8 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
 | `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
 | `--cache` | Enable content-addressable cache (default: enabled) | `--cache` |
+| `--dpi` | Resolution for PDF-to-image conversion (default: `300`) | `--dpi 150` |
+| `--cache` | Enable checksum-validated caching (default: enabled) | `--cache` |
 | `--no-cache`, `--force` | Disable cache and force re-conversion of all files | `--no-cache` |
 | `--cache-ttl` | Cache expiration Time-To-Live in days (default: `30`, `0` to disable) | `--cache-ttl 14` |
 | `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
