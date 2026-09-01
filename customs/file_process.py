@@ -110,6 +110,18 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]
 
+def get_expected_output_path(source_file: Path, target_format: str) -> Path:
+    """
+    Returns the expected output Path (file or directory) for a given source file and target format.
+    PDF to images (JPG/PNG/etc.) creates a directory named '{stem}_images', whereas PDF to text (OCR)
+    or standard conversions create a file named '{stem}.{target_format.lower()}'.
+    """
+    target_upper = str(target_format).upper().lstrip(".")
+    if source_file.suffix.lower() == ".pdf" and target_upper in ("JPG", "JPEG", "PNG", "TIFF", "TIF", "BMP"):
+        return source_file.parent / f"{source_file.stem}_images"
+    return source_file.with_suffix(f".{target_format.lower()}")
+
+
 def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
     """
     Processes a single file conversion using the provided Converter instance.
@@ -124,8 +136,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
         return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
     # Move existing single output file to Trash if it exists
-    if source_fmt != "PDF":
-        output_file = f.with_suffix(f".{target_format.lower()}")
+    output_file = get_expected_output_path(f, target_format)
+    if output_file.is_file():
         send_to_trash(output_file)
 
     success = False
@@ -221,11 +233,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             }
             remaining_after_cache = []
             for f in files:
-                # PDF source maps to _images dir, others to suffix file
-                if f.suffix.lower() == ".pdf":
-                    out_path = f.parent / f"{f.stem}_images"
-                else:
-                    out_path = f.with_suffix(f".{target_format.lower()}")
+                out_path = get_expected_output_path(f, target_format)
                 is_valid, reason = cache_mgr.is_cached_valid(f, out_path, params_for_cache)
                 if is_valid:
                     cached_count += 1
@@ -268,11 +276,16 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     temp_symlinks = {}
     skipped_count = 0
     batch_start_time = time.perf_counter()
+    success_count = 0
+    fail_count = 0
+    converted_files = []
+    failed_files = []
+    completed_files = set()
     
     # 1. Identify conflicts
     conflicts = []
     for f in files:
-        output = f.with_suffix(f".{target_format.lower()}")
+        output = get_expected_output_path(f, target_format)
         if output.exists():
             conflicts.append((f, output))
 
@@ -332,7 +345,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
 
 
         for f in files:
-            output = f.with_suffix(f".{target_format.lower()}")
+            output = get_expected_output_path(f, target_format)
             if output.exists() and not overwrite and not skip and not keep_all:
                 console.print(f"\n[bold yellow]⚠  File already exists: {output.name}[/bold yellow]")
                 console.print("   [bold]\\[o][/bold] Overwrite   [bold]\\[s][/bold] Skip   [bold]\\[k][/bold] Keep both   [bold]\\[c][/bold] Cancel")
@@ -493,11 +506,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             name, success, error, duration = future.result()
                             if success:
                                 success_count += 1
-                                # PDF source maps to an images output directory, other formats map to target format suffix
-                                if orig_file.suffix.lower() == ".pdf":
-                                    out_path = orig_file.parent / f"{orig_file.stem}_images"
-                                else:
-                                    out_path = orig_file.with_suffix(f".{target_format.lower()}")
+                                out_path = get_expected_output_path(orig_file, target_format)
                                 converted_files.append(out_path)
                                 if isinstance(success_map, dict):
                                     success_map[out_path] = orig_file
@@ -547,10 +556,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi)
                 if success:
                     success_count += 1
-                    if f.suffix.lower() == ".pdf":
-                        out_path = f.parent / f"{f.stem}_images"
-                    else:
-                        out_path = f.with_suffix(f".{target_format.lower()}")
+                    out_path = get_expected_output_path(f, target_format)
                     converted_files.append(out_path)
                     if isinstance(success_map, dict):
                         success_map[out_path] = f

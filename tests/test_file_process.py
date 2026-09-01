@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from Convergent import Converter, clean_paths
 from customs.file_process import (
     FORMAT_REGISTRY,
+    get_expected_output_path,
     process_single_file,
     save_failed_run,
     load_failed_run,
@@ -65,6 +66,40 @@ class TestFileProcess(unittest.TestCase):
                 hasattr(conv, fd.handler_method),
                 f"Converter is missing handler method '{fd.handler_method}' for {fd.name}"
             )
+
+    def test_expected_output_path_resolution(self):
+        pdf_file = self.dir_path / "report.pdf"
+        img_file = self.dir_path / "photo.jpg"
+
+        # PDF -> Image outputs to _images folder
+        self.assertEqual(
+            get_expected_output_path(pdf_file, "JPG"),
+            self.dir_path / "report_images"
+        )
+        self.assertEqual(
+            get_expected_output_path(pdf_file, "PNG"),
+            self.dir_path / "report_images"
+        )
+
+        # PDF -> OCR (TXT/MD/DOCX) outputs to a single file
+        self.assertEqual(
+            get_expected_output_path(pdf_file, "TXT"),
+            self.dir_path / "report.txt"
+        )
+        self.assertEqual(
+            get_expected_output_path(pdf_file, "MD"),
+            self.dir_path / "report.md"
+        )
+        self.assertEqual(
+            get_expected_output_path(pdf_file, "DOCX"),
+            self.dir_path / "report.docx"
+        )
+
+        # Standard file conversion
+        self.assertEqual(
+            get_expected_output_path(img_file, "PNG"),
+            self.dir_path / "photo.png"
+        )
 
     def test_failed_run_lifecycle(self):
         test_failed_file = self.dir_path / ".convergent_failed.json"
@@ -167,6 +202,106 @@ class TestFileProcess(unittest.TestCase):
         out_names = [p.name for p in res]
         self.assertIn("1.png", out_names)
         self.assertIn("2.png", out_names)
+
+    def test_collision_policy_skip(self):
+        conv = MagicMock()
+        conv.formats = {"JPG": ["PNG"]}
+
+        src_file = self.dir_path / "photo.jpg"
+        existing_out = self.dir_path / "photo.png"
+        src_file.write_bytes(b"jpg content")
+        existing_out.write_bytes(b"existing png content")
+
+        def mock_get_char():
+            return "s"
+
+        res = process(
+            conv=conv,
+            console=self.console,
+            get_char=mock_get_char,
+            source_formats=["JPG"],
+            target_format="PNG",
+            paths=[str(src_file)],
+            overwrite=False,
+            skip=True,
+            use_cache=False,
+            interactive=False,
+        )
+
+        # Existing output was skipped, no conversion performed
+        self.assertEqual(res, [])
+        self.assertEqual(existing_out.read_bytes(), b"existing png content")
+        conv.convert_image.assert_not_called()
+
+    def test_collision_policy_overwrite(self):
+        conv = MagicMock()
+        conv.formats = {"JPG": ["PNG"]}
+
+        src_file = self.dir_path / "photo.jpg"
+        existing_out = self.dir_path / "photo.png"
+        src_file.write_bytes(b"jpg content")
+        existing_out.write_bytes(b"old content")
+
+        def mock_convert(src, target_ext, **kwargs):
+            existing_out.write_bytes(b"new overwritten content")
+            return True, ""
+
+        conv.convert_image.side_effect = mock_convert
+
+        def mock_get_char():
+            return "o"
+
+        res = process(
+            conv=conv,
+            console=self.console,
+            get_char=mock_get_char,
+            source_formats=["JPG"],
+            target_format="PNG",
+            paths=[str(src_file)],
+            overwrite=True,
+            skip=False,
+            use_cache=False,
+            interactive=False,
+        )
+
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0], existing_out)
+        self.assertEqual(existing_out.read_bytes(), b"new overwritten content")
+
+    def test_pdf_ocr_batch_output_discovery(self):
+        conv = MagicMock()
+        conv.formats = {"PDF": ["TXT", "MD", "DOCX", "JPG", "PNG"]}
+
+        src_pdf = self.dir_path / "scan.pdf"
+        src_pdf.write_bytes(b"%PDF-1.4 dummy")
+        expected_txt = self.dir_path / "scan.txt"
+
+        def mock_convert_pdf(src, target_ext, **kwargs):
+            expected_txt.write_text("Extracted OCR text")
+            return True, ""
+
+        conv.convert_pdf.side_effect = mock_convert_pdf
+
+        def mock_get_char():
+            return "1"
+
+        res = process(
+            conv=conv,
+            console=self.console,
+            get_char=mock_get_char,
+            source_formats=["PDF"],
+            target_format="TXT",
+            paths=[str(src_pdf)],
+            overwrite=True,
+            use_cache=False,
+            interactive=False,
+            ocr=True,
+        )
+
+        self.assertEqual(len(res), 1)
+        # Must discover scan.txt and NOT scan_images
+        self.assertEqual(res[0], expected_txt)
+        self.assertTrue(expected_txt.exists())
 
 
 if __name__ == "__main__":

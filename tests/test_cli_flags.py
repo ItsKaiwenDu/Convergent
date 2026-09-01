@@ -1,47 +1,18 @@
-import argparse
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from Convergent import Converter
-
-
-def build_arg_parser():
-    """Reconstructs the CLI parser from Convergent.py for testing flag combinations."""
-    parser = argparse.ArgumentParser(description="Convergent: Local File Converter")
-    parser.add_argument("--from", dest="from_fmt", help="Source format")
-    parser.add_argument("--to", dest="to_fmt", help="Target format")
-    parser.add_argument("--fps", help="Frames per second")
-    parser.add_argument("--bitrate", help="Audio bitrate")
-    parser.add_argument("--md-pdf-mode", choices=["formatted", "raw"], default="formatted")
-    parser.add_argument("--path", nargs="+", help="Path to file or directory")
-    parser.add_argument("--stdin", action="store_true")
-    parser.add_argument("--stdout", action="store_true")
-    parser.add_argument("--jobs", "-j", type=int)
-    parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--skip", action="store_true")
-    parser.add_argument("--strip-metadata", action="store_true")
-    parser.add_argument("--dpi", type=int, default=None)
-    parser.add_argument("--stt", action="store_true")
-    parser.add_argument("--model", default="base", choices=["standard", "mini", "medium", "large", "tiny", "base", "small", "turbo", "large-v3-turbo"])
-    parser.add_argument("--language", default=None)
-    parser.add_argument("--hwaccel", choices=["auto", "videotoolbox", "nvenc", "qsv", "none"], default="auto")
-    parser.add_argument("--cache", action="store_true")
-    parser.add_argument("--no-cache", "--force", action="store_true", dest="no_cache")
-    parser.add_argument("--cache-ttl", type=float, default=None)
-    parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--shortcut", dest="shortcut_key")
-    parser.add_argument("--mcp", action="store_true")
-    return parser
+from Convergent import build_parser, Converter
 
 
 class TestCLIFlags(unittest.TestCase):
     def setUp(self):
-        self.parser = build_arg_parser()
+        self.parser = build_parser()
         self.conv = Converter()
 
     def test_default_flags(self):
@@ -54,6 +25,11 @@ class TestCLIFlags(unittest.TestCase):
         self.assertEqual(args.hwaccel, "auto")
         self.assertEqual(args.model, "base")
         self.assertEqual(args.md_pdf_mode, "formatted")
+        self.assertFalse(args.mcp)
+        self.assertFalse(args.resume)
+        self.assertFalse(args.stt)
+        self.assertIsNone(args.shortcut_key)
+        self.assertIsNone(args.dpi)
 
     def test_custom_flags_parsing(self):
         args = self.parser.parse_args([
@@ -77,6 +53,18 @@ class TestCLIFlags(unittest.TestCase):
         self.assertTrue(args.no_cache)
         self.assertEqual(args.cache_ttl, 14.5)
 
+    def test_force_alias_flag(self):
+        args = self.parser.parse_args(["--force"])
+        self.assertTrue(args.no_cache)
+
+    def test_mcp_flag_parsing(self):
+        args = self.parser.parse_args(["--mcp"])
+        self.assertTrue(args.mcp)
+
+    def test_resume_flag_parsing(self):
+        args = self.parser.parse_args(["--resume"])
+        self.assertTrue(args.resume)
+
     def test_stt_flags_parsing(self):
         args = self.parser.parse_args([
             "--from", "MP4",
@@ -88,6 +76,19 @@ class TestCLIFlags(unittest.TestCase):
         self.assertTrue(args.stt)
         self.assertEqual(args.model, "turbo")
         self.assertEqual(args.language, "en")
+
+    def test_invalid_choices(self):
+        with self.assertRaises(SystemExit):
+            with patch("sys.stderr"):
+                self.parser.parse_args(["--hwaccel", "invalid_accel"])
+
+        with self.assertRaises(SystemExit):
+            with patch("sys.stderr"):
+                self.parser.parse_args(["--model", "invalid_model"])
+
+        with self.assertRaises(SystemExit):
+            with patch("sys.stderr"):
+                self.parser.parse_args(["--md-pdf-mode", "invalid_mode"])
 
     def test_converter_categories_and_formats(self):
         self.assertIn("2", self.conv.categories)
@@ -108,4 +109,5 @@ class TestCLIFlags(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    from unittest.mock import patch
     unittest.main()

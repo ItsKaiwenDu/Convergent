@@ -248,9 +248,8 @@ def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
             console.print(" [dim]Invalid choice[/dim]")
             time.sleep(0.5)
 
-def main():
-    conv = Converter()
-    
+def build_parser() -> argparse.ArgumentParser:
+    """Builds and returns the top-level argument parser for Convergent CLI."""
     parser = argparse.ArgumentParser(description="Convergent: Local File Converter")
     parser.add_argument("--from", dest="from_fmt", help="Source format (e.g., JPG, MOV)")
     parser.add_argument("--to", dest="to_fmt", help="Target format (e.g., PNG, MP3)")
@@ -275,6 +274,12 @@ def main():
     parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
     parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
     parser.add_argument("--mcp", action="store_true", help="Launch local MCP (Model Context Protocol) server over stdio")
+    return parser
+
+
+def main():
+    conv = Converter()
+    parser = build_parser()
     args = parser.parse_args()
 
     if args.cache_ttl is not None:
