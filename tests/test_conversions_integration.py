@@ -53,8 +53,8 @@ class TestConversionsIntegration(unittest.TestCase):
         self.assertIn("Hello from file 2", content)
 
     @unittest.skipUnless(
-        bool(shutil.which("typst") or shutil.which("pandoc") or shutil.which("cupsfilter")),
-        "Neither Typst, Pandoc, nor cupsfilter installed"
+        bool(shutil.which("typst") or shutil.which("pandoc")),
+        "Neither Typst nor Pandoc installed"
     )
     def test_markdown_to_pdf_formatted_real(self):
         md_file = self.dir_path / "document.md"

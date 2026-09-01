@@ -142,85 +142,37 @@ class TestMCPServer(unittest.TestCase):
 
         self.assertEqual(stdout_buf.getvalue(), "", "sys.stdout must remain strictly clean for JSON-RPC messages!")
 
-    def test_mcp_stdio_subprocess_handshake_and_tools(self):
-        import subprocess
-        import json
+import asyncio
+from mcp.client.stdio import stdio_client
+from mcp.client.session import ClientSession
+from mcp import StdioServerParameters
 
-        server_script = PROJECT_ROOT / "mcp_server" / "server.py"
-        proc = subprocess.Popen(
-            [sys.executable, str(server_script)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+
+class TestMCPAsyncSession(unittest.IsolatedAsyncioTestCase):
+    async def test_mcp_client_session_stdio(self):
+        server_params = StdioServerParameters(
+            command=sys.executable,
+            args=[str(PROJECT_ROOT / "mcp_server" / "server.py")],
+            env=None
         )
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                # 1. Bounded Initialize
+                init_res = await asyncio.wait_for(session.initialize(), timeout=5.0)
+                self.assertEqual(init_res.serverInfo.name, "Convergent")
 
-        try:
-            # 1. Initialize Handshake
-            init_req = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test-suite", "version": "1.0"}
-                }
-            }
-            proc.stdin.write(json.dumps(init_req) + "\n")
-            proc.stdin.flush()
+                # 2. Bounded list_tools
+                tools_res = await asyncio.wait_for(session.list_tools(), timeout=5.0)
+                tool_names = [t.name for t in tools_res.tools]
+                self.assertIn("convergent_convert", tool_names)
+                self.assertIn("list_supported_formats", tool_names)
+                self.assertIn("pdf_to_images", tool_names)
+                self.assertIn("perform_ocr", tool_names)
+                self.assertIn("perform_stt", tool_names)
 
-            init_line = proc.stdout.readline()
-            self.assertTrue(init_line, "Expected JSON-RPC response on stdout")
-            init_resp = json.loads(init_line)
-            self.assertEqual(init_resp.get("id"), 1)
-            self.assertIn("result", init_resp)
-            self.assertEqual(init_resp["result"]["serverInfo"]["name"], "Convergent")
-
-            # 2. Initialized Notification
-            proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
-            proc.stdin.flush()
-
-            # 3. tools/list Request
-            proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}) + "\n")
-            proc.stdin.flush()
-
-            tools_line = proc.stdout.readline()
-            tools_resp = json.loads(tools_line)
-            self.assertEqual(tools_resp.get("id"), 2)
-            tool_names = [t["name"] for t in tools_resp["result"]["tools"]]
-            self.assertIn("convergent_convert", tool_names)
-            self.assertIn("list_supported_formats", tool_names)
-            self.assertIn("pdf_to_images", tool_names)
-            self.assertIn("perform_ocr", tool_names)
-            self.assertIn("perform_stt", tool_names)
-
-            # 4. tools/call Request
-            call_req = {
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "tools/call",
-                "params": {
-                    "name": "list_supported_formats",
-                    "arguments": {}
-                }
-            }
-            proc.stdin.write(json.dumps(call_req) + "\n")
-            proc.stdin.flush()
-
-            call_line = proc.stdout.readline()
-            call_resp = json.loads(call_line)
-            self.assertEqual(call_resp.get("id"), 3)
-            self.assertIn("result", call_resp)
-        finally:
-            if proc.stdin:
-                proc.stdin.close()
-            if proc.stdout:
-                proc.stdout.close()
-            if proc.stderr:
-                proc.stderr.close()
-            proc.terminate()
-            proc.wait(timeout=3)
+                # 3. Bounded call_tool
+                call_res = await asyncio.wait_for(session.call_tool("list_supported_formats", {}), timeout=5.0)
+                self.assertFalse(call_res.isError)
 
 
 if __name__ == "__main__":
