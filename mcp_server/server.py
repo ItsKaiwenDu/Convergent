@@ -21,6 +21,9 @@ if REPO_ROOT not in sys.path:
 from mcp.server.fastmcp import FastMCP
 from Convergent import Converter, clean_paths
 from customs.file_process import FORMAT_REGISTRY
+from customs.console import set_stderr_mode
+
+set_stderr_mode(True)
 
 # Initialize FastMCP Server
 mcp = FastMCP(
@@ -497,6 +500,7 @@ def list_supported_formats() -> Dict[str, Any]:
 
 def run_server():
     """Run the FastMCP server over stdio."""
+    set_stderr_mode(True)
     mcp.run(transport="stdio")
 
 

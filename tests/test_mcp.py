@@ -118,6 +118,30 @@ class TestMCPServer(unittest.TestCase):
         self.assertFalse(res2["success"])
         self.assertIn("Unsupported file type", res2["error"])
 
+    def test_console_stderr_mode_enabled(self):
+        from customs.console import console
+        self.assertEqual(console.file, sys.stderr)
+
+    def test_stdout_cleanliness_during_conversion(self):
+        import io
+        from customs.console import console
+
+        src_file = self.dir_path / "sample.txt"
+        src_file.write_text("Hello MCP")
+
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+
+        with patch("sys.stdout", stdout_buf):
+            console.print("Diagnostic test message")
+            res = convergent_convert(
+                input_path=str(src_file),
+                target_format="MD",
+                overwrite=True,
+            )
+
+        self.assertEqual(stdout_buf.getvalue(), "", "sys.stdout must remain strictly clean for JSON-RPC messages!")
+
 
 if __name__ == "__main__":
     unittest.main()

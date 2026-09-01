@@ -138,8 +138,8 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
 
     url = MODEL_URLS[normalized_name]
     display_title = MODEL_DISPLAY_NAMES.get(raw_name, MODEL_DISPLAY_NAMES.get(normalized_name, normalized_name))
-    print(f"\n[STT] Downloading Whisper '{display_title}' model ({MODEL_SIZES.get(normalized_name, '')})...")
-    print(f"      Saving to: {model_path}")
+    print(f"\n[STT] Downloading Whisper '{display_title}' model ({MODEL_SIZES.get(normalized_name, '')})...", file=sys.stderr)
+    print(f"      Saving to: {model_path}", file=sys.stderr)
 
     temp_dest = model_path.with_suffix(".tmp")
     try:
@@ -174,10 +174,10 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
                     out_file.write(chunk)
                     if totalsize > 0:
                         percent = min(100.0, downloaded * 100.0 / totalsize)
-                        sys.stdout.write(f"\r[STT] Downloading: {percent:5.1f}% ({downloaded / (1024*1024):.1f} MB / {totalsize / (1024*1024):.1f} MB)")
-                        sys.stdout.flush()
+                        sys.stderr.write(f"\r[STT] Downloading: {percent:5.1f}% ({downloaded / (1024*1024):.1f} MB / {totalsize / (1024*1024):.1f} MB)")
+                        sys.stderr.flush()
 
-        print("\n[STT] Model download complete!\n")
+        print("\n[STT] Model download complete!\n", file=sys.stderr)
         temp_dest.replace(model_path)
     except Exception as e:
         if temp_dest.exists():
