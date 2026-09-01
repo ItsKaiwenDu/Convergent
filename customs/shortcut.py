@@ -977,7 +977,7 @@ def run_shortcut(
     if operation == "ocr":
         target_fmt = sc.get("target_fmt", "TXT")
         success_map = {}
-        converted = conv.process(["JPG", "JPEG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, interactive=interactive, success_map=success_map, use_cache=use_cache)
+        converted = conv.process(["JPG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, interactive=interactive, success_map=success_map, use_cache=use_cache)
         if interactive and prompt_move_files:
             prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
         return True

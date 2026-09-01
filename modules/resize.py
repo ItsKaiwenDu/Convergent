@@ -198,7 +198,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     """
     Interactive orchestrator to resize files in the given paths.
     """
-    supported_exts = {".mp4", ".jpg", ".jpeg", ".png", ".heic"}
+    supported_exts = {".mp4", ".jpg", ".png", ".heic"}
     files = []
     
     # 1. Collect files

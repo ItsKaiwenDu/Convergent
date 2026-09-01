@@ -170,14 +170,14 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
 -   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag, interactive prompts, or saved shortcuts.
 -   **Multi-Format Support**:
     -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIFF.
-    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, JPEG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
+    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
-    -   **OCR**: Extract text from images (`JPG`/`JPEG`/`PNG`/`HEIC`) or documents (`PDF`) and save results locally to plain text (`.txt`), Markdown (`.md`), Word Document (`.docx`), or PDF format (uses macOS native Vision API or Tesseract fallback; HEIC/PDF pages are auto-rendered to PNG internally).
+    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) or documents (`PDF`) and save results locally to plain text (`.txt`), Markdown (`.md`), Word Document (`.docx`), or PDF format (uses macOS native Vision API or Tesseract fallback; HEIC/PDF pages are auto-rendered to PNG internally).
     -   **Speech-to-Text (STT) Transcription (`*`)**: Local, offline transcription of audio (`MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`) and video (`MP4`, `MOV`, `MKV`, `WEBM`) into plain text (`.txt`), timestamped subtitles (`.srt`, `.vtt`), or formatted Markdown (`.md`) using `whisper.cpp` / `whisper-cli` with Metal GPU acceleration and on-demand GGML models (`Standard`, `Mini`, `Medium`, `Large`).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout) and **combining** plain text (TXT) files (with interactive ordering and line-count preview).
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
-    -   **Resize**: Hardware-accelerated resizing or cropping for images (JPG, JPEG, PNG, HEIC) and videos (MP4) by percentage, target height, or custom dimensions, with optional center-crop to a target aspect ratio (16:9, 4:3, 1:1, 9:16).
+    -   **Resize**: Hardware-accelerated resizing or cropping for images (JPG, PNG, HEIC) and videos (MP4) by percentage, target height, or custom dimensions, with optional center-crop to a target aspect ratio (16:9, 4:3, 1:1, 9:16).
 -   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
 -   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
 -   **Premium UI**: Rich terminal interface with progress bars, status indicators, and real-time benchmarking timers.

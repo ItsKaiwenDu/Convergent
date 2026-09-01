@@ -640,7 +640,7 @@ def split_gif(
         fmt = frame_format.strip().lower() if frame_format else "png"
         if interactive:
             user_fmt = get_input("Format for frames (PNG/JPG, default: png): ").strip().lower()
-            if user_fmt in ["png", "jpg", "jpeg"]:
+            if user_fmt in ["png", "jpg"]:
                 fmt = user_fmt
             
         if interactive:

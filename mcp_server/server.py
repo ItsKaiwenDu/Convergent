@@ -215,7 +215,7 @@ def pdf_to_images(
         return {"success": False, "error": f"File not found: {pdf_path}", "images": []}
 
     target_fmt = target_format.upper().lstrip(".")
-    if target_fmt not in ("JPG", "JPEG", "PNG"):
+    if target_fmt not in ("JPG", "PNG"):
         target_fmt = "JPG"
 
     res = convergent_convert(
@@ -231,7 +231,7 @@ def pdf_to_images(
         p = Path(item)
         if p.is_dir():
             for img in sorted(p.iterdir()):
-                if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "jpeg", "png", "tiff", "tif", "bmp"):
+                if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "png", "tiff", "tif", "bmp"):
                     image_files.append(str(img))
         elif p.is_file():
             image_files.append(str(p))

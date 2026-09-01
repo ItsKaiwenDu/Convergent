@@ -65,7 +65,7 @@ def convert_ntb(source, target_ext):
                     return success, error
                     
             # 2. Fallback: Search for thumbnail/preview/page images
-            image_extensions = ('.png', '.jpg', '.jpeg')
+            image_extensions = ('.png', '.jpg')
             image_names = [
                 name for name in namelist 
                 if name.lower().endswith(image_extensions) and 

@@ -17,8 +17,8 @@ def convert_image(source, target_ext, strip_metadata=False):
     # SVG conversion with high quality density and transparency flattening settings
     if source.suffix.lower() == ".svg":
         target_upper = target_ext.upper()
-        if target_upper in ("JPG", "JPEG", "BMP"):
-            # For JPG/JPEG/BMP, since they do not support transparency, flatten on a clean white background
+        if target_upper in ("JPG", "BMP"):
+            # For JPG/BMP, since they do not support transparency, flatten on a clean white background
             cmd = ["magick", "-density", "300", "-background", "white", str(source), "-alpha", "remove", "-alpha", "off"]
             if strip_metadata:
                 cmd.append("-strip")
@@ -37,7 +37,6 @@ def convert_image(source, target_ext, strip_metadata=False):
         # sips supports: jpeg, tiff, png, gif, jp2, pict, bmp, qtif, psd, sgi, tga, pdf
         sips_targets = {
             "JPG": "jpeg",
-            "JPEG": "jpeg",
             "PNG": "png",
             "TIFF": "tiff",
             "TIF": "tiff",
