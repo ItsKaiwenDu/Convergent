@@ -89,6 +89,15 @@ def flush_stdin():
         except:
             pass
 
+def prompt_paths(action: str, allow_folders: bool = True):
+    target_type = "file or folder" if allow_folders else "file"
+    console.print(f"\n[bold yellow]Enter {target_type} path(s) to {action}:[/bold yellow]")
+    console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+    flush_stdin()
+    paths = clean_paths(get_input("Path: "))
+    flush_stdin()
+    return paths
+
 
 class Converter:
     def __init__(self):
@@ -511,11 +520,7 @@ def main():
         
         elif choice == '0':
             console.print()
-            console.print(f"\n[bold yellow]Enter folder path or multiple PDF/MP4/MP3/GIF/DOCX/PPTX/TXT files:[/bold yellow]")
-            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
+            paths = prompt_paths("combine")
             if paths:
                 pdf_files = []
                 mp4_files = []
@@ -605,11 +610,7 @@ def main():
             
         elif choice == '1':
             console.print()
-            console.print(f"\n[bold yellow]Enter file path(s) to split (PDF, MP4, MP3, GIF, DOCX, or PPTX):[/bold yellow]")
-            console.print("[dim](Tip: You can drag and drop multiple files into this window)[/dim]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
+            paths = prompt_paths("split", allow_folders=False)
             if paths:
                 split_dirs = []
                 for path in paths:
@@ -649,11 +650,7 @@ def main():
             
         elif choice == '2':
             console.print()
-            console.print(f"\n[bold yellow]Enter file or folder path(s) to resize:[/bold yellow]")
-            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
+            paths = prompt_paths("resize")
             if paths:
                 from modules import resize
                 resize.resize_media(paths, conv, console, get_char, get_input)
@@ -661,11 +658,7 @@ def main():
             
         elif choice == '7':
             console.print()
-            console.print(f"\n[bold yellow]Enter file or folder path(s) to compress:[/bold yellow]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
-            
+            paths = prompt_paths("compress")
             if not paths:
                 continue
 
@@ -738,11 +731,7 @@ def main():
             
         elif choice == '8':
             console.print()
-            console.print(f"\n[bold yellow]Enter archive file path(s) to decompress:[/bold yellow]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
-            
+            paths = prompt_paths("decompress", allow_folders=False)
             if not paths:
                 continue
                 
@@ -802,11 +791,7 @@ def main():
                 time.sleep(0.5)
                 continue
                 
-            console.print(f"\n[bold yellow]Enter image or PDF file or folder path(s) for OCR (JPG/PNG/HEIC/PDF):[/bold yellow]")
-            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
+            paths = prompt_paths("OCR")
             if paths:
                 success_map = {}
                 converted = conv.process(["JPG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=True)
@@ -857,11 +842,7 @@ def main():
                 "base"
             )
 
-            console.print(f"\n[bold yellow]Enter audio/video file or folder path(s) for STT:[/bold yellow]")
-            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
+            paths = prompt_paths("transcribe (STT)")
             if paths:
                 success_map = {}
                 converted = conv.process(
@@ -932,12 +913,7 @@ def main():
                     continue
                 strip_metadata = val
 
-            console.print(f"\n[bold yellow]Enter file or folder path(s):[/bold yellow]")
-            console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
-            flush_stdin()
-            paths = clean_paths(get_input("Path: "))
-            flush_stdin()
-            
+            paths = prompt_paths("convert")
             if not paths:
                 continue
                 

@@ -723,7 +723,20 @@ def _resolve_shortcut_paths(sc, paths, interactive, console, get_input, flush_st
             if not interactive:
                 console.print("[bold red]Error: Shortcut has no fixed path. Provide --path or select files in Finder.[/bold red]")
                 return None
-            console.print("[bold yellow]Enter file or folder path(s):[/bold yellow]")
+            op = sc.get("operation", "convert")
+            action_map = {
+                "combine": ("combine", True),
+                "split": ("split", False),
+                "resize": ("resize", True),
+                "compress": ("compress", True),
+                "decompress": ("decompress", False),
+                "ocr": ("OCR", True),
+                "stt": ("transcribe (STT)", True),
+                "convert": ("convert", True),
+            }
+            action, allow_folders = action_map.get(op, (op, True))
+            target_type = "file or folder" if allow_folders else "file"
+            console.print(f"\n[bold yellow]Enter {target_type} path(s) to {action}:[/bold yellow]")
             console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
             flush_stdin()
             paths = clean_paths(get_input("Path: "))
