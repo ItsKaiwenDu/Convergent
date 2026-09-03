@@ -9,7 +9,7 @@ def run_command(cmd, cwd=None):
     
     Args:
         cmd (list): The command to run as a list of strings.
-        cwd (str, optional): The working directory to run the command in.
+        cwd (str, optional): The working directory to run command in.
         
     Returns:
         tuple: (success (bool), error_message (str))
@@ -33,7 +33,7 @@ def send_to_trash(path):
     On Linux: uses `gio trash` or `trash-put` (trash-cli package).
     
     Args:
-        path (str or Path): The path to the file or directory to move to Trash.
+        path (str or Path): The path to file or directory to move to Trash.
         
     Returns:
         bool: True if successfully trashed, not on macOS/Linux, or did not exist. False otherwise.

@@ -7,10 +7,10 @@ from customs.run_command import run_command
 
 def convert_with_temp_files(source, output, run_conv_fn):
     """
-    Copies input files to a temp directory inside the Convergent workspace
+    Copies input files to a temp directory inside Convergent workspace
     to bypass macOS TCC / sandbox restrictions on folders like Downloads.
-    Runs the conversion function run_conv_fn(temp_source, temp_output),
-    and then copies the output back to the original destination.
+    Runs conversion function run_conv_fn(temp_source, temp_output),
+    and then copies output back to original destination.
     """
     workspace_dir = Path(__file__).parent.parent.resolve()
     tmp_dir = workspace_dir / ".convergent_tmp"
@@ -78,7 +78,7 @@ def convert_office(source, target_ext):
                 except Exception:
                     pass
 
-            # Try converting using typst as the PDF engine first, as typst is fast and clean
+            # Try converting using typst as PDF engine first, as typst is fast and clean
             success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst"])
             if success:
                 return True, ""
@@ -120,7 +120,7 @@ def convert_markdown(source, target_ext, md_pdf_mode=None):
         success, err = convert_with_temp_files(source, output, run_conv)
         if success:
             return True, ""
-        # Fallback to copy the file if pandoc fails or is missing
+        # Fallback to copy file if pandoc fails or is missing
         try:
             shutil.copy2(source, output)
             return True, ""

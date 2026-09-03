@@ -16,12 +16,12 @@
 
 ### Installation
 
-1.  **Clone Repository**: Clone the repository and navigate into the project directory:
+1.  **Clone Repository**: Clone repository and navigate into project directory:
     ```bash
     git clone https://github.com/ItsKaiwenDu/Convergent.git
     cd Convergent
     ```
-    *Ensure `Convergent.py`, `Makefile`, `modules/`, and `customs/` are all present in the same directory.*
+    *Ensure `Convergent.py`, `Makefile`, `modules/`, and `customs/` are all present in same directory.*
 2.  **Run Setup**:
     ```bash
     make setup
@@ -41,7 +41,7 @@
     ```bash
     make test
     ```
-    *Runs the automated unit test suite verifying caching, collision handling, MCP tools, and flags.*
+    *Runs automated unit test suite verifying caching, collision handling, MCP tools, and flags.*
 
 ## Usage
 
@@ -123,7 +123,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
 | `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
 | `--skip` | Skip existing output files without prompting | `--skip` |
-| `--resume` | Resume / retry the last failed batch conversion | `--resume` |
+| `--resume` | Resume / retry last failed batch conversion | `--resume` |
 
 **Example Commands:**
 ```bash
@@ -169,8 +169,8 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
 -   **Smart Input**: Handles escaped spaces, messy paths, and EXIF auto-rotation for drag-and-dropped files.
 -   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag, interactive prompts, or saved shortcuts.
 -   **Multi-Format Support**:
-    -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIFF.
-    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIFF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
+    -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIF.
+    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
     -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) or documents (`PDF`) and save results locally to plain text (`.txt`), Markdown (`.md`), Word Document (`.docx`), or PDF format (uses macOS native Vision API or Tesseract fallback; HEIC/PDF pages are auto-rendered to PNG internally).
     -   **Speech-to-Text (STT) Transcription (`*`)**: Local, offline transcription of audio (`MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`) and video (`MP4`, `MOV`, `MKV`, `WEBM`) into plain text (`.txt`), timestamped subtitles (`.srt`, `.vtt`), or formatted Markdown (`.md`) using `whisper.cpp` / `whisper-cli` with Metal GPU acceleration and on-demand GGML models (`Standard`, `Mini`, `Medium`, `Large`).
@@ -186,7 +186,7 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
 
 Convergent can run as a **100% local Model Context Protocol (MCP) server** over `stdio`. This allows local AI models, assistants, and IDE extensions (such as OpenCode, Claude Desktop, Cursor, Windsurf, Zed, etc.) to use Convergent's conversion capabilities directly.
 
-### Running the MCP Server
+### Running MCP Server
 ```bash
 # Start MCP server over stdio
 make mcp
@@ -247,11 +247,11 @@ If output files already exist, a **Collision Preview** table lists conflicts and
 
 ## Post-Conversion Actions
 
-After conversion, you can choose from the Post-Convert Options menu:
+After conversion, you can choose from Post-Convert Options menu:
 - `[d]`: Delete original (source) files (move to Trash).
 - `[m]`: Move converted files/folders to a new directory.
 - `[u]`: Undo conversion (move output files to Trash).
-- `[q]`: Quit the program.
+- `[q]`: Quit program.
 - `[Any other key]`: Continue / Return to main menu.
 
 ## Troubleshooting

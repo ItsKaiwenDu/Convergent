@@ -7,17 +7,17 @@ License: Apache License 2.0
 
 Copyright 2026 Kaiwen Du
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+Licensed under Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with License.
+You may obtain a copy of License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
+distributed under License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+See License for specific language governing permissions and
+limitations under License.
 
 Description:
     A high-performance CLI tool for batch file conversion including HEIC, 
@@ -60,7 +60,7 @@ def clean_paths(path_str):
     if path_str == "-":
         return ["-"]
     
-    # If the entire path_str exists as a single file or directory, treat it as one path.
+    # If entire path_str exists as a single file or directory, treat it as one path.
     # This prevents splitting a single path that has spaces but no quotes/escapes.
     try:
         if os.path.exists(os.path.expanduser(path_str)):
@@ -258,7 +258,7 @@ def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
             time.sleep(0.5)
 
 def build_parser() -> argparse.ArgumentParser:
-    """Builds and returns the top-level argument parser for Convergent CLI."""
+    """Builds and returns top-level argument parser for Convergent CLI."""
     parser = argparse.ArgumentParser(description="Convergent: Local File Converter")
     parser.add_argument("--from", dest="from_fmt", help="Source format (e.g., JPG, MOV)")
     parser.add_argument("--to", dest="to_fmt", help="Target format (e.g., PNG, MP3)")
@@ -280,7 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (default: enabled)")
     parser.add_argument("--no-cache", "--force", action="store_true", dest="no_cache", help="Disable cache and force re-conversion of all files")
     parser.add_argument("--cache-ttl", type=float, default=None, help="Cache Time-To-Live in days (default: 30 days, 0 to disable expiration)")
-    parser.add_argument("--resume", action="store_true", help="Resume / retry the last failed batch conversion")
+    parser.add_argument("--resume", action="store_true", help="Resume / retry last failed batch conversion")
     parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
     parser.add_argument("--mcp", action="store_true", help="Launch local MCP (Model Context Protocol) server over stdio")
     return parser
@@ -311,7 +311,7 @@ def main():
         paths = failed_run["paths"]
         existing_failed = [p for p in paths if os.path.exists(p)]
         if not existing_failed:
-            console.print("[bold yellow]None of the failed files from the last run exist anymore.[/bold yellow]")
+            console.print("[bold yellow]None of failed files from last run exist anymore.[/bold yellow]")
             clear_failed_run()
             sys.exit(0)
             
@@ -453,7 +453,7 @@ def main():
             for sym, sc in shortcuts.items():
                 console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
 
-        shortcut.print_source_menu(console, conv, "\n[bold yellow]Select source format ('From'):[/bold yellow]")
+        shortcut.print_source_menu(console, conv, "\n[bold yellow]Convert from:[/bold yellow]")
             
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
@@ -870,7 +870,7 @@ def main():
             
             sorted_targets = sorted(list(available_targets))
             
-            console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
+            console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
             for i, fmt in enumerate(sorted_targets, 1):
                 console.print(f" {i}. {fmt.lower()}")
             console.print(" [bold white]B[/bold white]. Back")

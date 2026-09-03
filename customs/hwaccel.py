@@ -12,7 +12,7 @@ _cached_capabilities = None
 
 def detect_capabilities(force_refresh=False):
     """
-    Probes FFmpeg for hardware acceleration capabilities and caches the result.
+    Probes FFmpeg for hardware acceleration capabilities and caches result.
     """
     global _cached_capabilities
 
@@ -71,7 +71,7 @@ def detect_capabilities(force_refresh=False):
 
 def get_video_encoder(target_ext, mode="auto"):
     """
-    Returns a tuple of (encoder_name, extra_flags, mode_tag) for the target format
+    Returns a tuple of (encoder_name, extra_flags, mode_tag) for target format
     based on system hardware acceleration capabilities and user mode choice.
 
     - target_ext: e.g. "MP4", "MOV", "MKV", "WEBM"

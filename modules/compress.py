@@ -33,13 +33,13 @@ def compress(paths, output_name, format_choice, password=None):
     send_to_trash(output_path)
     cwd = valid_paths[0].parent
     
-    # Use relative paths for the command to avoid absolute paths in the archive
+    # Use relative paths for command to avoid absolute paths in archive
     rel_paths = []
     for p in valid_paths:
         try:
             rel_paths.append(str(p.relative_to(cwd)))
         except ValueError:
-            # If not in the same directory tree, use absolute path (less ideal but necessary)
+            # If not in same directory tree, use absolute path (less ideal but necessary)
             rel_paths.append(str(p))
     
     sevenzip_exec = "7z"

@@ -71,18 +71,17 @@ class FormatDef:
 
 FORMAT_REGISTRY = [
     # Image Category ("2")
-    FormatDef("ARW", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("AVIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF"], "convert_image"),
-    FormatDef("BMP", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("DNG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
-    FormatDef("HEIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "AVIF"], "convert_image"),
-    FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
-    FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
-    FormatDef("SVG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("ARW", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("AVIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF"], "convert_image"),
+    FormatDef("BMP", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("DNG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("HEIC", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
+    FormatDef("HEIF", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "AVIF"], "convert_image"),
+    FormatDef("JPG", "2", ["PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
+    FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
+    FormatDef("SVG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
     FormatDef("TIF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("TIFF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
 
     # Video Category ("3")
     FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
@@ -104,26 +103,26 @@ FORMAT_REGISTRY = [
     FormatDef("DOCX", "5", ["PDF"], "convert_office"),
     FormatDef("MD", "5", ["PDF", "HTML", "TXT"], "convert_markdown"),
     FormatDef("NTB", "5", ["PDF"], "convert_ntb"),
-    FormatDef("PDF", "5", ["JPG", "PNG", "TIFF", "BMP", "TXT", "MD", "DOCX"], "convert_pdf"),
+    FormatDef("PDF", "5", ["JPG", "PNG", "TIF", "BMP", "TXT", "MD", "DOCX"], "convert_pdf"),
     FormatDef("PPTX", "5", ["PDF"], "convert_office"),
     FormatDef("RTF", "5", ["PDF"], "convert_office"),
 ]
 
 def get_expected_output_path(source_file: Path, target_format: str) -> Path:
     """
-    Returns the expected output Path (file or directory) for a given source file and target format.
+    Returns expected output Path (file or directory) for a given source file and target format.
     PDF to images (JPG/PNG/etc.) creates a directory named '{stem}_images', whereas PDF to text (OCR)
     or standard conversions create a file named '{stem}.{target_format.lower()}'.
     """
     target_upper = str(target_format).upper().lstrip(".")
-    if source_file.suffix.lower() == ".pdf" and target_upper in ("JPG", "PNG", "TIFF", "TIF", "BMP"):
+    if source_file.suffix.lower() == ".pdf" and target_upper in ("JPG", "PNG", "TIF", "BMP"):
         return source_file.parent / f"{source_file.stem}_images"
     return source_file.with_suffix(f".{target_format.lower()}")
 
 
 def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
     """
-    Processes a single file conversion using the provided Converter instance.
+    Processes a single file conversion using provided Converter instance.
     """
     start_time = time.perf_counter()
     source_fmt = f.suffix.lower()[1:].upper()
@@ -199,9 +198,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     
     if not files:
         if len(source_formats) == 1:
-            msg = f"No {source_formats[0]} files found in the provided paths."
+            msg = f"No {source_formats[0]} files found in provided paths."
         else:
-            msg = "No matching files found in the provided paths."
+            msg = "No matching files found in provided paths."
         
         if found_extensions:
             sorted_exts = sorted(list(found_extensions))
@@ -658,10 +657,10 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
 
 def prompt_move_files(console, get_char, get_input, file_paths, original_files=None):
     """
-    Prompts the user to optionally move the converted files/folders to another directory,
-    or delete the original files.
-    If the user presses 'm'/'M', they can enter a folder path to move converted files.
-    If the user presses 'd'/'D' and original files are provided, the original files are sent to Trash.
+    Prompts user to optionally move converted files/folders to another directory,
+    or delete original files.
+    If user presses 'm'/'M', they can enter a folder path to move converted files.
+    If user presses 'd'/'D' and original files are provided, original files are sent to Trash.
     Otherwise, they can press any other key to continue.
     """
     if not file_paths:
@@ -781,7 +780,7 @@ def process_stream(conv, console, source_format, target_format, input_path=None,
     Processes stream-based conversion (stdin/stdout or Unix pipe).
     Reads binary input from sys.stdin.buffer (or input file) to a temporary file,
     executes single-file conversion via conv.process_single_file,
-    and outputs the result to sys.stdout.buffer or output_path.
+    and outputs result to sys.stdout.buffer or output_path.
     """
     workspace_dir = Path(__file__).parent.parent.resolve()
     tmp_dir = workspace_dir / ".convergent_tmp"

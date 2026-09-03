@@ -102,6 +102,13 @@ class TestConversionsIntegration(unittest.TestCase):
         self.assertTrue(jpg_output.exists())
         self.assertTrue(jpg_output.stat().st_size > 50)
 
+        ok, err = self.conv.convert_image(png_file, "TIF")
+        self.assertTrue(ok, f"Image conversion to TIF failed: {err}")
+
+        tif_output = self.dir_path / "icon.tif"
+        self.assertTrue(tif_output.exists())
+        self.assertTrue(tif_output.stat().st_size > 50)
+
     @unittest.skipUnless(bool(shutil.which("ffmpeg")), "FFmpeg is not installed")
     def test_audio_conversion_ffmpeg_real(self):
         wav_file = self.dir_path / "sine.wav"

@@ -16,7 +16,7 @@ except ImportError:
 
 def get_image_dimensions(path):
     """
-    Returns the orientation-adjusted (width, height) of an image using ImageMagick identify.
+    Returns orientation-adjusted (width, height) of an image using ImageMagick identify.
     """
     try:
         cmd = ["magick", "identify", "-format", "%w %h %[orientation]", str(path)]
@@ -35,7 +35,7 @@ def get_image_dimensions(path):
 
 def get_video_dimensions(path):
     """
-    Returns the rotation-adjusted (width, height) of a video using ffprobe.
+    Returns rotation-adjusted (width, height) of a video using ffprobe.
     """
     try:
         cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "default=noprint_wrappers=1:nokey=1", str(path)]
@@ -74,7 +74,7 @@ def get_video_dimensions(path):
 
 def make_even(n):
     """
-    Returns the nearest even integer to n, ensuring video format compatibility.
+    Returns nearest even integer to n, ensuring video format compatibility.
     """
     val = int(round(n))
     if val % 2 != 0:
@@ -196,7 +196,7 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto"):
 
 def resize_media(paths, conv, console, get_char, get_input):
     """
-    Interactive orchestrator to resize files in the given paths.
+    Interactive orchestrator to resize files in given paths.
     """
     supported_exts = {".mp4", ".jpg", ".png", ".heic"}
     files = []
@@ -215,7 +215,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     files = sorted(list(set(files)))
     
     if not files:
-        console.print("[bold red]No MP4, JPG, PNG, or HEIC files found in the provided paths.[/bold red]")
+        console.print("[bold red]No MP4, JPG, PNG, or HEIC files found in provided paths.[/bold red]")
         get_char("\nPress any key to continue...")
         return
 

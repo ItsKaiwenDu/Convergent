@@ -60,7 +60,7 @@ def combine_pdfs(paths, output_path=None, interactive=True):
             pdf_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"], key=natural_sort_key)
             if not pdf_files:
                 if interactive:
-                    console.print("[bold red]No PDF files found in the directory.[/bold red]")
+                    console.print("[bold red]No PDF files found in directory.[/bold red]")
                 return None
             base_dir = path_obj
         else:
@@ -76,7 +76,7 @@ def combine_pdfs(paths, output_path=None, interactive=True):
         
         if not pdf_files:
             if interactive:
-                console.print("[bold red]No PDF files found in the provided paths.[/bold red]")
+                console.print("[bold red]No PDF files found in provided paths.[/bold red]")
             return None
         base_dir = pdf_files[0].parent
 
@@ -191,7 +191,7 @@ def combine_videos(paths, output_path=None, interactive=True):
             video_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() in video_exts], key=natural_sort_key)
             if not video_files:
                 if interactive:
-                    console.print("[bold red]No video files found in the directory.[/bold red]")
+                    console.print("[bold red]No video files found in directory.[/bold red]")
                 return None
             base_dir = path_obj
         else:
@@ -207,7 +207,7 @@ def combine_videos(paths, output_path=None, interactive=True):
         
         if not video_files:
             if interactive:
-                console.print("[bold red]No video files found in the provided paths.[/bold red]")
+                console.print("[bold red]No video files found in provided paths.[/bold red]")
             return None
         base_dir = video_files[0].parent
 
@@ -342,7 +342,7 @@ def combine_audios(paths, output_path=None, interactive=True):
             audio_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() in audio_exts], key=natural_sort_key)
             if not audio_files:
                 if interactive:
-                    console.print("[bold red]No audio files found in the directory.[/bold red]")
+                    console.print("[bold red]No audio files found in directory.[/bold red]")
                 return None
             base_dir = path_obj
         else:
@@ -358,7 +358,7 @@ def combine_audios(paths, output_path=None, interactive=True):
         
         if not audio_files:
             if interactive:
-                console.print("[bold red]No audio files found in the provided paths.[/bold red]")
+                console.print("[bold red]No audio files found in provided paths.[/bold red]")
             return None
         base_dir = audio_files[0].parent
 
@@ -487,7 +487,7 @@ def combine_gifs(paths, output_path=None, interactive=True):
             gif_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"], key=natural_sort_key)
             if not gif_files:
                 if interactive:
-                    console.print("[bold red]No GIF files found in the directory.[/bold red]")
+                    console.print("[bold red]No GIF files found in directory.[/bold red]")
                 return None
             base_dir = path_obj
         else:
@@ -503,7 +503,7 @@ def combine_gifs(paths, output_path=None, interactive=True):
         
         if not gif_files:
             if interactive:
-                console.print("[bold red]No GIF files found in the provided paths.[/bold red]")
+                console.print("[bold red]No GIF files found in provided paths.[/bold red]")
             return None
         base_dir = gif_files[0].parent
 
@@ -632,7 +632,7 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
             office_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == f".{file_type}"], key=natural_sort_key)
             if not office_files:
                 if interactive:
-                    console.print(f"[bold red]No {file_type.upper()} files found in the directory.[/bold red]")
+                    console.print(f"[bold red]No {file_type.upper()} files found in directory.[/bold red]")
                 return None
             base_dir = path_obj
         else:
@@ -648,7 +648,7 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
         
         if not office_files:
             if interactive:
-                console.print(f"[bold red]No {file_type.upper()} files found in the provided paths.[/bold red]")
+                console.print(f"[bold red]No {file_type.upper()} files found in provided paths.[/bold red]")
             return None
         base_dir = office_files[0].parent
 
@@ -825,7 +825,7 @@ def combine_txt(paths, output_path=None, interactive=True):
             txt_files = sorted([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".txt"], key=natural_sort_key)
             if not txt_files:
                 if interactive:
-                    console.print("[bold red]No TXT files found in the directory.[/bold red]")
+                    console.print("[bold red]No TXT files found in directory.[/bold red]")
                 return None
             base_dir = path_obj
         else:
@@ -841,7 +841,7 @@ def combine_txt(paths, output_path=None, interactive=True):
         
         if not txt_files:
             if interactive:
-                console.print("[bold red]No TXT files found in the provided paths.[/bold red]")
+                console.print("[bold red]No TXT files found in provided paths.[/bold red]")
             return None
         base_dir = txt_files[0].parent
 

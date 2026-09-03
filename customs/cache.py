@@ -305,7 +305,7 @@ class CacheManager:
     def prune(self, ttl_days: Optional[float] = None, max_entries: int = MAX_CACHE_ENTRIES) -> int:
         """
         Prunes expired cache entries and caps total entries via LRU.
-        Returns the number of deleted records.
+        Returns number of deleted records.
         """
         deleted = 0
         effective_ttl = self.ttl_days if ttl_days is None else float(ttl_days)

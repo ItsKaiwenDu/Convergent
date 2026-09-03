@@ -19,7 +19,7 @@ def _convert_heic_to_temp_png(source: Path) -> Path:
     """
     Converts a HEIC file to a temporary PNG for OCR processing.
     Uses sips (macOS-native) with ImageMagick as fallback.
-    Returns the Path of the temporary PNG file (caller must delete it).
+    Returns Path of temporary PNG file (caller must delete it).
     """
     tmp_png = Path(tempfile.mktemp(suffix="_ocr_tmp.png"))
     
@@ -179,7 +179,7 @@ def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
 
         combined_text = "\n\n".join(page_texts)
 
-        # 3. Write/Compile extracted text to the target format
+        # 3. Write/Compile extracted text to target format
         if target_ext in ("TXT", "MD"):
             with open(output, "w", encoding="utf-8") as f:
                 f.write(combined_text)

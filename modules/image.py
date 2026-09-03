@@ -13,7 +13,6 @@ def convert_heic(source, target_ext, strip_metadata=False):
         sips_targets = {
             "JPG": "jpeg",
             "PNG": "png",
-            "TIFF": "tiff",
             "TIF": "tiff",
             "BMP": "bmp",
             "GIF": "gif",
@@ -60,7 +59,6 @@ def convert_image(source, target_ext, strip_metadata=False):
         sips_targets = {
             "JPG": "jpeg",
             "PNG": "png",
-            "TIFF": "tiff",
             "TIF": "tiff",
             "BMP": "bmp",
             "GIF": "gif",

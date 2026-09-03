@@ -217,7 +217,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
             available_targets.update(conv.formats.get(fmt, []))
         sorted_targets = sorted(list(available_targets))
 
-        console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
+        console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
         for i, fmt in enumerate(sorted_targets, 1):
             console.print(f" {i}. {fmt.lower()}")
         console.print(" [bold white]B[/bold white]. Back")
@@ -418,7 +418,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                 available_targets.update(conv.formats.get(fmt, []))
             sorted_targets = sorted(list(available_targets))
 
-            console.print(f"\n[bold yellow]Select target format ('To') for {category['name']}:[/bold yellow]")
+            console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
             for i, fmt in enumerate(sorted_targets, 1):
                 console.print(f" {i}. {fmt.lower()}")
             console.print(" [bold white]Enter[/bold white]. Keep Current")

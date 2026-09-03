@@ -73,8 +73,8 @@ def normalize_model_name(model_name: str) -> str:
 
 def find_whisper_binary() -> Optional[str]:
     """
-    Finds the whisper binary in PATH or common Homebrew / system installation locations.
-    Returns the binary path or None if not found.
+    Finds whisper binary in PATH or common Homebrew / system installation locations.
+    Returns binary path or None if not found.
     """
     candidates = [
         "whisper-cli",
@@ -106,8 +106,8 @@ def find_whisper_binary() -> Optional[str]:
 
 def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path:
     """
-    Resolves the local path for a GGML Whisper model.
-    If the model does not exist locally and auto_download is True, downloads it to MODELS_DIR.
+    Resolves local path for a GGML Whisper model.
+    If model does not exist locally and auto_download is True, downloads it to MODELS_DIR.
     """
     raw_name = (model_name or "base").lower().strip()
     normalized_name = normalize_model_name(raw_name)

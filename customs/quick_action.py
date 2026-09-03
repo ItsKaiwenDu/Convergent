@@ -151,7 +151,7 @@ def pick_shortcut(shortcuts, key=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Install a Finder Quick Action for a Convergent shortcut.")
-    parser.add_argument("--repo", required=True, help="Absolute path to the Convergent repository")
+    parser.add_argument("--repo", required=True, help="Absolute path to Convergent repository")
     parser.add_argument("--key", help="Shortcut key symbol (e.g. S). Prompts if omitted.")
     parser.add_argument("--name", help="Quick Action menu label. Defaults to 'Convergent: <shortcut title>'.")
     args = parser.parse_args()

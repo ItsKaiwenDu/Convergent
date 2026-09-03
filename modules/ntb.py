@@ -13,13 +13,13 @@ def convert_ntb(source, target_ext):
     """
     Converts a Notability .ntb bundle file to PDF format.
     
-    If the .ntb note contains imported PDF assets, it extracts and merges them
+    If .ntb note contains imported PDF assets, it extracts and merges them
     in natural order to produce a high-fidelity multi-page background PDF.
     If no background PDF is imported, it falls back to extracting all available
     thumbnail/preview/page images and combining them into a single multi-page PDF.
     
     Args:
-        source (Path): The path to the source .ntb file.
+        source (Path): The path to source .ntb file.
         target_ext (str): The target format extension (must be 'PDF').
         
     Returns:
@@ -35,11 +35,11 @@ def convert_ntb(source, target_ext):
         with zipfile.ZipFile(source, 'r') as zip_ref:
             namelist = zip_ref.namelist()
             
-            # 1. Search for PDF assets in the ZIP archive
+            # 1. Search for PDF assets in ZIP archive
             pdf_names = [name for name in namelist if name.lower().endswith('.pdf')]
             
             if pdf_names:
-                # Prefer PDFs under the 'assets/' folder as they are the primary background documents
+                # Prefer PDFs under 'assets/' folder as they are primary background documents
                 pdf_assets = [name for name in pdf_names if 'assets/' in name.lower()]
                 selected_pdfs = pdf_assets if pdf_assets else pdf_names
                 
@@ -59,7 +59,7 @@ def convert_ntb(source, target_ext):
                         with zip_ref.open(pdf_name) as s_file, open(temp_pdf, 'wb') as t_file:
                             t_file.write(s_file.read())
                             
-                    # Run Ghostscript to merge all temporary PDFs into the output PDF
+                    # Run Ghostscript to merge all temporary PDFs into output PDF
                     cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={output}", "-dBATCH"] + [str(f) for f in temp_files]
                     success, error = run_command(cmd)
                     return success, error
@@ -73,7 +73,7 @@ def convert_ntb(source, target_ext):
             ]
             
             if image_names:
-                # Sort images naturally to preserve the page order (e.g. thumbnail_1, thumbnail_2...)
+                # Sort images naturally to preserve page order (e.g. thumbnail_1, thumbnail_2...)
                 image_names = sorted(image_names, key=natural_sort_key)
                 
                 if len(image_names) == 1:
@@ -99,14 +99,14 @@ def convert_ntb(source, target_ext):
                     success, error = run_command(cmd)
                     return success, error
                     
-            return False, "No background PDF asset or preview thumbnail found inside the .ntb file."
+            return False, "No background PDF asset or preview thumbnail found inside .ntb file."
             
     except zipfile.BadZipFile:
         return False, "Invalid or corrupted .ntb file (not a valid ZIP archive)."
     except Exception as e:
         return False, str(e)
     finally:
-        # Clean up any temporary files created during the process
+        # Clean up any temporary files created during process
         for f in temp_files:
             if f.exists():
                 try:

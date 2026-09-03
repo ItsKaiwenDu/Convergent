@@ -231,7 +231,7 @@ def pdf_to_images(
         p = Path(item)
         if p.is_dir():
             for img in sorted(p.iterdir()):
-                if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "png", "tiff", "tif", "bmp"):
+                if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "png", "tif", "bmp"):
                     image_files.append(str(img))
         elif p.is_file():
             image_files.append(str(p))
@@ -376,7 +376,7 @@ def combine_files(
         output_path: Optional destination file or directory path.
 
     Returns:
-        Dictionary with status and path to the combined output file.
+        Dictionary with status and path to combined output file.
     """
     expanded_paths = [os.path.expanduser(p) for p in file_paths if os.path.exists(os.path.expanduser(p))]
     if not expanded_paths:
@@ -431,7 +431,7 @@ def split_file(
     Split a PDF, video, audio, GIF, or document into individual pages, segments, frames, or parts non-interactively.
 
     Args:
-        file_path: Path to the file to split.
+        file_path: Path to file to split.
         mode: Split mode. Options:
               - For PDF / DOCX / PPTX: 'pages' (default, 1 page per file), 'ranges' (e.g. ranges='1-5,6-10'), 'parts' (num_parts=N)
               - For Video / Audio: 'interval' (default, e.g. interval=60), 'ranges' (e.g. ranges='0-10,60-120'), 'parts' (num_parts=N)
@@ -440,7 +440,7 @@ def split_file(
         ranges: Page or time ranges string (e.g. '1-3,4-8' for PDF, '00:00:00-00:01:00,00:02:00-00:03:00' for video).
         num_parts: Total number of parts to split into equally.
         frame_format: Image format for GIF frame extraction ('png', 'jpg'). Default 'png'.
-        output_dir: Optional target directory path to save the split files.
+        output_dir: Optional target directory path to save split files.
 
     Returns:
         Dictionary with status, output directory, and list of generated files.
@@ -499,7 +499,7 @@ def list_supported_formats() -> Dict[str, Any]:
 
 
 def run_server():
-    """Run the FastMCP server over stdio."""
+    """Run FastMCP server over stdio."""
     set_stderr_mode(True)
     mcp.run(transport="stdio")
 

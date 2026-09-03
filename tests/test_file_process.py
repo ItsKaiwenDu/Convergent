@@ -63,12 +63,16 @@ class TestFileProcess(unittest.TestCase):
             self.assertGreater(len(fd.targets), 0, f"Targets should not be empty for {fd.name}")
             self.assertNotEqual(fd.name, "JPEG", "JPEG should not exist as a registered format")
             self.assertNotIn("JPEG", fd.targets, f"JPEG should not be in targets for {fd.name}")
+            self.assertNotEqual(fd.name, "TIFF", "TIFF should not exist as a registered format")
+            self.assertNotIn("TIFF", fd.targets, f"TIFF should not be in targets for {fd.name}")
             # Ensure handler method exists on Converter
             self.assertTrue(
                 hasattr(conv, fd.handler_method),
                 f"Converter is missing handler method '{fd.handler_method}' for {fd.name}"
             )
         self.assertNotIn("JPEG", conv.formats)
+        self.assertNotIn("TIFF", conv.formats)
+        self.assertIn("TIF", conv.formats)
 
     def test_expected_output_path_resolution(self):
         pdf_file = self.dir_path / "report.pdf"
@@ -81,6 +85,10 @@ class TestFileProcess(unittest.TestCase):
         )
         self.assertEqual(
             get_expected_output_path(pdf_file, "PNG"),
+            self.dir_path / "report_images"
+        )
+        self.assertEqual(
+            get_expected_output_path(pdf_file, "TIF"),
             self.dir_path / "report_images"
         )
 

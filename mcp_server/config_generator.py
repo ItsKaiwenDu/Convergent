@@ -27,7 +27,7 @@ def generate_configs():
     print("==================================================================")
     print("        Convergent Local MCP Server Configuration Helper          ")
     print("==================================================================")
-    print("\nCopy & paste the following JSON snippet into your client configuration:\n")
+    print("\nCopy & paste following JSON snippet into your client configuration:\n")
     print(json.dumps(config, indent=2))
     print("\n------------------------------------------------------------------")
     print("Client Config Locations:")
