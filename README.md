@@ -111,7 +111,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--fps` | Target frames per second (for GIF output) | `--fps 30` |
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
 | `--stt` | Perform Speech-to-Text transcription on audio/video input | `--stt` |
-| `--model` | Whisper model size for STT (`standard`, `mini`, `medium`, `large` / `base`, `tiny`, `small`, `turbo`) | `--model large` |
+| `--model` | Whisper model size for STT (`base` ~142MB, `tiny` ~75MB, `small` ~466MB, `turbo` ~809MB, `large-v3-turbo` ~1.5GB; default: `base`) | `--model turbo` |
 | `--language` | Language code for STT transcription (e.g., `en`, `es`, `zh`, `auto`) | `--language en` |
 | `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) | `--hwaccel auto` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
@@ -173,7 +173,7 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
     -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
     -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) or documents (`PDF`) and save results locally to plain text (`.txt`), Markdown (`.md`), or Word Document (`.docx`) (uses macOS native Vision API or Tesseract fallback; HEIC/PDF pages are auto-rendered to PNG internally).
-    -   **Speech-to-Text (STT) Transcription (`*`)**: Local, offline transcription of audio (`MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`) and video (`MP4`, `MOV`, `MKV`, `WEBM`) into plain text (`.txt`), timestamped subtitles (`.srt`, `.vtt`), or formatted Markdown (`.md`) using `whisper.cpp` / `whisper-cli` with Metal GPU acceleration and on-demand GGML models (`Standard`, `Mini`, `Medium`, `Large`).
+    -   **Speech-to-Text (STT) Transcription (`*`)**: Local, offline transcription of audio (`MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`) and video (`MP4`, `MOV`, `MKV`, `WEBM`) into plain text (`.txt`), timestamped subtitles (`.srt`, `.vtt`), or formatted Markdown (`.md`) using `whisper.cpp` / `whisper-cli` with Metal GPU acceleration and on-demand GGML models (`base`, `tiny`, `small`, `turbo`, `large-v3-turbo`).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout) and **combining** plain text (TXT) files (with interactive ordering and line-count preview).
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
@@ -208,7 +208,8 @@ make mcp-config
     "convergent": {
       "command": "python3",
       "args": [
-        "/path/to/Convergent/mcp_server/server.py"
+        "/path/to/Convergent/Convergent.py",
+        "--mcp"
       ]
     }
   }
@@ -316,6 +317,7 @@ Convergent/
     ├── check_deps.py    # CLI dependency validator
     ├── console.py       # Terminal UI and rich-text helper
     ├── file_process.py  # Queue manager, collision handler, and cache skip
+    ├── hwaccel.py       # FFmpeg hardware acceleration detection and encoder selection
     ├── run_command.py   # Subprocess shell command runner
     ├── shortcut.py      # Custom workflow CRUD manager
     └── quick_action.py  # macOS Finder Quick Action installer

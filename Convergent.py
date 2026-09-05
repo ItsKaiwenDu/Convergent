@@ -535,10 +535,10 @@ def handle_stt(conv, paths, console, get_char, get_input, time):
         return False
 
     console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
-    console.print(" 1. Standard (~142MB)")
-    console.print(" 2. Mini (~75MB)")
-    console.print(" 3. Medium (~466MB)")
-    console.print(" 4. Large (~1.5GB)")
+    console.print(" 1. base (~142MB)")
+    console.print(" 2. tiny (~75MB)")
+    console.print(" 3. small (~466MB)")
+    console.print(" 4. turbo (~809MB)")
     console.print(" [bold white]B[/bold white]. Back")
     model_choice = get_char("\nSelect Option: ")
 
