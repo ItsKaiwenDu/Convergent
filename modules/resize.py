@@ -239,11 +239,11 @@ def resize_media(paths, conv, console, get_char, get_input):
     
     method = get_char("\nSelect Option: ")
     if method.lower() == 'b':
-        return
+        return False
     if method not in ('1', '2', '3', '4'):
         console.print(" [dim]Invalid choice[/dim]")
         time.sleep(0.5)
-        return
+        return False
         
     scale_val = None
     if method == '1':
@@ -255,7 +255,7 @@ def resize_media(paths, conv, console, get_char, get_input):
         except ValueError:
             console.print("[bold red]Invalid percentage.[/bold red]")
             get_char("\nPress any key to continue...")
-            return
+            return False
     elif method == '2':
         h_str = get_input("\nEnter target height in pixels (e.g. 720): ")
         try:
@@ -265,7 +265,7 @@ def resize_media(paths, conv, console, get_char, get_input):
         except ValueError:
             console.print("[bold red]Invalid height.[/bold red]")
             get_char("\nPress any key to continue...")
-            return
+            return False
     elif method == '3':
         dims_str = get_input("\nEnter target width and height (e.g. 800x600): ")
         try:
@@ -281,7 +281,7 @@ def resize_media(paths, conv, console, get_char, get_input):
         except ValueError:
             console.print("[bold red]Invalid width and height format. Use e.g. 800x600 or 800 600.[/bold red]")
             get_char("\nPress any key to continue...")
-            return
+            return False
 
     # 4. Select Aspect Ratio
     console.print("\n[bold yellow]Select Target Aspect Ratio:[/bold yellow]")
@@ -294,16 +294,16 @@ def resize_media(paths, conv, console, get_char, get_input):
     
     target_aspect = get_char("\nSelect Option: ")
     if target_aspect.lower() == 'b':
-        return
+        return False
     if target_aspect not in ('1', '2', '3', '4', '5'):
         console.print(" [dim]Invalid choice[/dim]")
         time.sleep(0.5)
-        return
+        return False
 
     if method == '4' and target_aspect == '1':
         console.print("\n[yellow]No changes selected (No Change & Keep Original aspect ratio).[/yellow]")
         get_char("\nPress any key to continue...")
-        return
+        return False
 
     # 5. Confirm
     console.print(f"\n[bold yellow]Confirm resizing of {len(files)} file(s)? (y/n):[/bold yellow] ", end="")
@@ -312,7 +312,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     if confirm.lower() != 'y':
         console.print("[yellow]Operation cancelled.[/yellow]")
         get_char("\nPress any key to continue...")
-        return
+        return False
 
     num_files = len(files)
     if num_files > 50:
@@ -320,7 +320,7 @@ def resize_media(paths, conv, console, get_char, get_input):
         if get_char("   Choice: ").lower() != 'y':
             console.print("[yellow]Operation cancelled.[/yellow]")
             get_char("\nPress any key to continue...")
-            return
+            return False
 
     # 6. Execute Batch
     success_count = 0
@@ -384,5 +384,7 @@ def resize_media(paths, conv, console, get_char, get_input):
 
     if converted_files:
         prompt_move_files(console, get_char, get_input, converted_files, original_files=original_resized_files)
+        return True
     else:
         get_char("\nPress any key to continue...")
+        return False

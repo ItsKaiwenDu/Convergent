@@ -130,12 +130,16 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     if target_format not in conv.formats.get(source_fmt, []):
         duration = time.perf_counter() - start_time
         if source_fmt == target_format:
-            return f.name, True, "Skipped (Same format)", duration
-        return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
+            if strip_metadata and source_fmt in ("JPG", "JPEG", "PNG", "WEBP", "TIF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"):
+                pass
+            else:
+                return f.name, True, "Skipped (Same format)", duration
+        else:
+            return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
     # Move existing single output file to Trash if it exists
     output_file = get_expected_output_path(f, target_format)
-    if output_file.is_file():
+    if output_file.is_file() and output_file.resolve() != f.resolve():
         send_to_trash(output_file)
 
     success = False
@@ -238,7 +242,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     cached_skipped_files.append((f, out_path, reason))
                     # Keep success_map in sync for move/undo flows – treat cached outputs as "converted" for post-actions
                     if isinstance(success_map, dict):
-                        success_map[out_path] = f
+                        if out_path.resolve() != f.resolve():
+                            success_map[out_path] = f
                     try:
                         console.print(f" [dim]↷ {f.name} → cached ({reason})[/dim]")
                     except Exception:
@@ -284,7 +289,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     conflicts = []
     for f in files:
         output = get_expected_output_path(f, target_format)
-        if output.exists():
+        if output.exists() and output.resolve() != f.resolve():
             conflicts.append((f, output))
 
     keep_all = False
@@ -344,7 +349,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
 
         for f in files:
             output = get_expected_output_path(f, target_format)
-            if output.exists() and not overwrite and not skip and not keep_all:
+            if output.exists() and output.resolve() != f.resolve() and not overwrite and not skip and not keep_all:
                 console.print(f"\n[bold yellow]⚠  File already exists: {output.name}[/bold yellow]")
                 console.print("   [bold]\\[o][/bold] Overwrite   [bold]\\[s][/bold] Skip   [bold]\\[k][/bold] Keep both   [bold]\\[c][/bold] Cancel")
                 console.print("   [dim](Or hold SHIFT for all: \\[O] Overwrite All  \\[S] Skip All  \\[K] Keep All)[/dim]")
@@ -507,7 +512,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                 out_path = get_expected_output_path(orig_file, target_format)
                                 converted_files.append(out_path)
                                 if isinstance(success_map, dict):
-                                    success_map[out_path] = orig_file
+                                    if out_path.resolve() != orig_file.resolve():
+                                        success_map[out_path] = orig_file
                                 # Cache: save successful conversion
                                 if use_cache and cache_mgr:
                                     try:
@@ -557,7 +563,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     out_path = get_expected_output_path(f, target_format)
                     converted_files.append(out_path)
                     if isinstance(success_map, dict):
-                        success_map[out_path] = f
+                        if out_path.resolve() != f.resolve():
+                            success_map[out_path] = f
                     if use_cache and cache_mgr:
                         try:
                             # Ensure params_for_cache exists (may not if cache init failed earlier)

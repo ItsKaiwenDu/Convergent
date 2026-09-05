@@ -66,6 +66,126 @@ def print_source_menu(console, conv, title):
             f"{entry['label'].ljust(MENU_LABEL_WIDTH)} {entry['exts']}"
         )
 
+def inspect_paths(paths):
+    """
+    Analyzes input paths and returns (has_file, has_dir, extensions).
+    Extensions are lowercase without leading dots.
+    """
+    has_file = False
+    has_dir = False
+    extensions = set()
+    archive_suffixes = [".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tbz2", ".txz"]
+
+    for p in paths:
+        path_obj = Path(os.path.expanduser(p))
+        if path_obj.is_file():
+            has_file = True
+            name_lower = path_obj.name.lower()
+            matched_archive = False
+            for a_suf in archive_suffixes:
+                if name_lower.endswith(a_suf):
+                    extensions.add(a_suf.lstrip("."))
+                    matched_archive = True
+                    break
+            if not matched_archive:
+                ext = path_obj.suffix.lower().lstrip(".")
+                if ext:
+                    extensions.add(ext)
+        elif path_obj.is_dir():
+            has_dir = True
+            count = 0
+            try:
+                for item in path_obj.rglob("*"):
+                    if item.is_file():
+                        name_lower = item.name.lower()
+                        matched_archive = False
+                        for a_suf in archive_suffixes:
+                            if name_lower.endswith(a_suf):
+                                extensions.add(a_suf.lstrip("."))
+                                matched_archive = True
+                                break
+                        if not matched_archive:
+                            ext = item.suffix.lower().lstrip(".")
+                            if ext:
+                                extensions.add(ext)
+                        count += 1
+                        if count >= 200:
+                            break
+            except Exception:
+                pass
+
+    return has_file, has_dir, extensions
+
+def get_applicable_menu_entries(conv, paths):
+    """
+    Filters menu entries based on submitted paths.
+    - Split and Decompress are file-only (hidden for folders).
+    - Image, Video, Audio, Document, Combine, Resize, OCR, STT match relevant extensions.
+    - Compress is always available.
+    - Re-indexes keys consecutively starting from '0'.
+    """
+    if not paths:
+        return []
+
+    has_file, has_dir, extensions = inspect_paths(paths)
+    all_entries = get_menu_entries(conv)
+
+    combine_exts = {"docx", "gif", "mp3", "mp4", "pdf", "pptx", "txt"}
+    split_exts = {"docx", "gif", "mp3", "mp4", "pdf", "pptx"}
+    resize_exts = {"mp4", "jpg", "png", "heic"}
+    archive_exts = {"7z", "rar", "tar.bz2", "tar.gz", "tar.xz", "zip", "tar", "tgz", "tbz2", "txz"}
+    ocr_exts = {"jpg", "png", "heic", "pdf"}
+    stt_exts = {"mp3", "wav", "m4a", "flac", "aac", "ogg", "mp4", "mov", "mkv", "webm", "avi"}
+
+    image_exts = {ext.lower() for ext in conv.categories["2"]["extensions"]}
+    video_exts = {ext.lower() for ext in conv.categories["3"]["extensions"]}
+    audio_exts = {ext.lower() for ext in conv.categories["4"]["extensions"]}
+    doc_exts = {ext.lower() for ext in conv.categories["5"]["extensions"]}
+
+    matched = []
+    for entry in all_entries:
+        op = entry["operation"]
+        is_applicable = False
+
+        if op == "combine":
+            if extensions & combine_exts:
+                is_applicable = True
+        elif op == "split":
+            if not has_dir and has_file and (extensions & split_exts):
+                is_applicable = True
+        elif op == "resize":
+            if extensions & resize_exts:
+                is_applicable = True
+        elif op == "convert":
+            cat_id = entry.get("category_id")
+            if cat_id == "2" and (extensions & image_exts):
+                is_applicable = True
+            elif cat_id == "3" and (extensions & video_exts):
+                is_applicable = True
+            elif cat_id == "4" and (extensions & audio_exts):
+                is_applicable = True
+            elif cat_id == "5" and (extensions & doc_exts):
+                is_applicable = True
+        elif op == "compress":
+            is_applicable = True
+        elif op == "decompress":
+            if not has_dir and has_file and (extensions & archive_exts):
+                is_applicable = True
+        elif op == "ocr":
+            if extensions & ocr_exts:
+                is_applicable = True
+        elif op == "stt":
+            if extensions & stt_exts:
+                is_applicable = True
+
+        if is_applicable:
+            matched.append(entry.copy())
+
+    for idx, item in enumerate(matched):
+        item["key"] = str(idx)
+
+    return matched
+
 def get_operation_label(sc, conv):
     operation = sc.get("operation", "convert")
     if operation == "convert":

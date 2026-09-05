@@ -286,6 +286,403 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def handle_combine(conv, paths, console, get_char, get_choice, get_input):
+    pdf_files = []
+    mp4_files = []
+    mp3_files = []
+    gif_files = []
+    docx_files = []
+    pptx_files = []
+    txt_files = []
+    for p in paths:
+        path_obj = Path(os.path.expanduser(p))
+        if path_obj.is_file():
+            suffix = path_obj.suffix.lower()
+            if suffix == ".pdf":
+                pdf_files.append(path_obj)
+            elif suffix == ".mp4":
+                mp4_files.append(path_obj)
+            elif suffix == ".mp3":
+                mp3_files.append(path_obj)
+            elif suffix == ".gif":
+                gif_files.append(path_obj)
+            elif suffix == ".docx":
+                docx_files.append(path_obj)
+            elif suffix == ".pptx":
+                pptx_files.append(path_obj)
+            elif suffix == ".txt":
+                txt_files.append(path_obj)
+        elif path_obj.is_dir():
+            pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
+            mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
+            mp3_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp3"])
+            gif_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"])
+            docx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".docx"])
+            pptx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pptx"])
+            txt_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".txt"])
+    
+    combine_type = None
+    available_types = []
+    if pdf_files: available_types.append(('pdf', 'PDF files'))
+    if mp4_files: available_types.append(('mp4', 'MP4 files'))
+    if mp3_files: available_types.append(('mp3', 'MP3 files'))
+    if gif_files: available_types.append(('gif', 'GIF files'))
+    if docx_files: available_types.append(('docx', 'DOCX files'))
+    if pptx_files: available_types.append(('pptx', 'PPTX files'))
+    if txt_files: available_types.append(('txt', 'TXT files'))
+    
+    if len(available_types) > 1:
+        console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
+        for i, (t_code, t_name) in enumerate(available_types, 1):
+            console.print(f" {i}. {t_name}")
+        console.print(" [bold white]B[/bold white]. Back")
+        c_choice = get_choice("\nSelect Option: ", choices=available_types)
+        if c_choice.lower() == 'b':
+            return False
+        try:
+            c_idx = int(c_choice) - 1
+            if 0 <= c_idx < len(available_types):
+                combine_type = available_types[c_idx][0]
+        except ValueError:
+            pass
+        if not combine_type:
+            return False
+    elif len(available_types) == 1:
+        combine_type = available_types[0][0]
+    else:
+        console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, PPTX, or TXT files found to combine.[/bold red]")
+        get_char("\nPress any key to continue...")
+        return False
+    
+    out_path = None
+    if combine_type == 'pdf':
+        out_path = conv.combine_pdfs(paths)
+    elif combine_type == 'mp4':
+        out_path = conv.combine_videos(paths)
+    elif combine_type == 'mp3':
+        out_path = conv.combine_audios(paths)
+    elif combine_type == 'gif':
+        out_path = conv.combine_gifs(paths)
+    elif combine_type == 'docx':
+        out_path = conv.combine_docx(paths)
+    elif combine_type == 'pptx':
+        out_path = conv.combine_pptx(paths)
+    elif combine_type == 'txt':
+        out_path = conv.combine_txt(paths)
+    
+    if out_path:
+        prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
+        return True
+    else:
+        get_char("\nPress any key to continue...")
+        return False
+
+def handle_split(conv, paths, console, get_char, get_input):
+    split_dirs = []
+    for path in paths:
+        p = Path(path)
+        if p.is_dir():
+            continue
+        if p.suffix.lower() == ".pdf":
+            out_dir = conv.split_pdf(path)
+            if out_dir:
+                split_dirs.append(out_dir)
+        elif p.suffix.lower() == ".mp4":
+            out_dir = conv.split_video(path)
+            if out_dir:
+                split_dirs.append(out_dir)
+        elif p.suffix.lower() == ".mp3":
+            out_dir = conv.split_audio(path)
+            if out_dir:
+                split_dirs.append(out_dir)
+        elif p.suffix.lower() == ".gif":
+            out_dir = conv.split_gif(path)
+            if out_dir:
+                split_dirs.append(out_dir)
+        elif p.suffix.lower() == ".docx":
+            out_dir = conv.split_docx(path)
+            if out_dir:
+                split_dirs.append(out_dir)
+        elif p.suffix.lower() == ".pptx":
+            out_dir = conv.split_pptx(path)
+            if out_dir:
+                split_dirs.append(out_dir)
+        else:
+            console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, MP3, GIF, DOCX, and PPTX are supported for splitting.[/bold red]")
+    
+    if split_dirs:
+        prompt_move_files(console, get_char, get_input, split_dirs, original_files=paths)
+        return True
+    else:
+        get_char("\nPress any key to continue...")
+        return False
+
+def handle_resize(conv, paths, console, get_char, get_input):
+    from modules import resize
+    return resize.resize_media(paths, conv, console, get_char, get_input)
+
+def handle_compress(conv, paths, console, get_char, get_input, time):
+    total_files = 0
+    for p in paths:
+        path_obj = Path(os.path.expanduser(p))
+        if path_obj.is_file():
+            total_files += 1
+        elif path_obj.is_dir():
+            for _ in path_obj.rglob('*'):
+                if _.is_file():
+                    total_files += 1
+    
+    if total_files > 50:
+        console.print(f"\n[bold yellow]Found {total_files} files to compress. Proceed? (y/n)[/bold yellow]")
+        if get_char("   Choice: ").lower() != 'y':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            get_char("\nPress any key to continue...")
+            return False
+        
+    console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
+    console.print(" 1. 7z")
+    console.print(" 2. rar")
+    console.print(" 3. tar.bz2")
+    console.print(" 4. tar.gz")
+    console.print(" 5. tar.xz")
+    console.print(" 6. zip")
+    console.print(" [bold white]B[/bold white]. Back")
+    fmt_choice = get_char("\nSelect Option: ")
+    
+    if fmt_choice.lower() == 'b':
+        return False
+        
+    target_fmt = (
+        "7Z" if fmt_choice == '1' else
+        "RAR" if fmt_choice == '2' else
+        "TAR.BZ2" if fmt_choice == '3' else
+        "TAR.GZ" if fmt_choice == '4' else
+        "TAR.XZ" if fmt_choice == '5' else
+        "ZIP" if fmt_choice == '6' else
+        None
+    )
+    if not target_fmt:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return False
+    
+    console.print()
+        
+    password = None
+    if target_fmt in ["ZIP", "7Z", "RAR"]:
+        console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
+        pwd_yn = get_char("")
+        if pwd_yn.lower() == 'y':
+            password = get_input("\nEnter password: ")
+    
+    output_name = get_input(f"\nEnter name for archive (default: compressed.{target_fmt.lower()}): ")
+    if not output_name:
+        output_name = f"compressed.{target_fmt.lower()}"
+        
+    success, error, out_path = conv.compress(paths, output_name, target_fmt, password)
+    if success:
+        console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
+        prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
+        return True
+    else:
+        console.print(f"\n[bold red]FAILED to compress:[/bold red]")
+        console.print(f"   [dim]{error.strip()}[/dim]")
+        get_char("\nPress any key to continue...")
+        return False
+
+def handle_decompress(conv, paths, console, get_char, get_input, flush_stdin, clean_paths):
+    console.print(f"\n[bold yellow]Enter output directory (leave blank for default):[/bold yellow]")
+    flush_stdin()
+    out_dirs = clean_paths(get_input("Dir: "))
+    out_dir = out_dirs[0] if out_dirs else None
+    flush_stdin()
+        
+    num_archives = len(paths)
+    if num_archives > 50:
+        console.print(f"\n[bold yellow]Found {num_archives} archives to decompress. Proceed? (y/n)[/bold yellow]")
+        if get_char("   Choice: ").lower() != 'y':
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            get_char("\nPress any key to continue...")
+            return False
+
+    decompressed_dirs = []
+    for path in paths:
+        success, error, actual_out_dir = conv.decompress(path, out_dir)
+        if success:
+            console.print(f"\n[bold green]Successfully decompressed {Path(path).name}.[/bold green]")
+            decompressed_dirs.append(actual_out_dir)
+        else:
+            console.print(f"\n[bold red]FAILED to decompress {Path(path).name}:[/bold red]")
+            console.print(f"   [dim]{error.strip()}[/dim]")
+    
+    if decompressed_dirs:
+        prompt_move_files(console, get_char, get_input, decompressed_dirs, original_files=paths)
+        return True
+    else:
+        get_char("\nPress any key to continue...")
+        return False
+
+def handle_ocr(conv, paths, console, get_char, get_input, time):
+    console.print(f"\n[bold yellow]Select target format for OCR text:[/bold yellow]")
+    console.print(" 1. txt")
+    console.print(" 2. md")
+    console.print(" 3. docx")
+    console.print(" 4. pdf")
+    console.print(" [bold white]B[/bold white]. Back")
+    fmt_choice = get_char("\nSelect Option: ")
+    
+    if fmt_choice.lower() == 'b':
+        return False
+    
+    target_fmt = (
+        "TXT" if fmt_choice == '1' else
+        "MD" if fmt_choice == '2' else
+        "DOCX" if fmt_choice == '3' else
+        "PDF" if fmt_choice == '4' else
+        None
+    )
+    
+    if not target_fmt:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return False
+        
+    success_map = {}
+    converted = conv.process(["JPG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=True)
+    if converted:
+        prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+        return True
+    else:
+        get_char("\nPress any key to continue...")
+        return False
+
+def handle_stt(conv, paths, console, get_char, get_input, time):
+    console.print(f"\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
+    console.print(" 1. txt")
+    console.print(" 2. srt")
+    console.print(" 3. vtt")
+    console.print(" 4. md")
+    console.print(" [bold white]B[/bold white]. Back")
+    fmt_choice = get_char("\nSelect Option: ")
+
+    if fmt_choice.lower() == 'b':
+        return False
+
+    target_fmt = (
+        "TXT" if fmt_choice == '1' else
+        "SRT" if fmt_choice == '2' else
+        "VTT" if fmt_choice == '3' else
+        "MD" if fmt_choice == '4' else
+        None
+    )
+
+    if not target_fmt:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return False
+
+    console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
+    console.print(" 1. Standard (~142MB)")
+    console.print(" 2. Mini (~75MB)")
+    console.print(" 3. Medium (~466MB)")
+    console.print(" 4. Large (~1.5GB)")
+    console.print(" [bold white]B[/bold white]. Back")
+    model_choice = get_char("\nSelect Option: ")
+
+    if model_choice.lower() == 'b':
+        return False
+
+    model = (
+        "tiny" if model_choice == '2' else
+        "small" if model_choice == '3' else
+        "turbo" if model_choice == '4' else
+        "base"
+    )
+
+    success_map = {}
+    converted = conv.process(
+        ["MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"],
+        target_fmt,
+        paths,
+        stt=True,
+        model=model,
+        success_map=success_map,
+        use_cache=True
+    )
+    if converted:
+        prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+        return True
+    else:
+        get_char("\nPress any key to continue...")
+        return False
+
+def handle_convert(conv, cat_id, paths, console, get_char, get_choice, get_input, prompt_fps, prompt_bitrate, prompt_strip_metadata, check_and_prompt_md_pdf, time):
+    category = conv.categories[cat_id]
+    source_fmts = category["extensions"]
+    
+    available_targets = set()
+    for fmt in source_fmts:
+        available_targets.update(conv.formats.get(fmt, []))
+    
+    sorted_targets = sorted(list(available_targets))
+    
+    console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
+    for i, fmt in enumerate(sorted_targets, 1):
+        console.print(f" {i}. {fmt.lower()}")
+    console.print(" [bold white]B[/bold white]. Back")
+    
+    target_choice = get_choice("\nSelect Option: ", choices=sorted_targets)
+    if target_choice.lower() == 'b':
+        console.print()
+        return False
+        
+    try:
+        to_idx = int(target_choice) - 1
+        if to_idx < 0 or to_idx >= len(sorted_targets):
+            raise ValueError
+        target_fmt = sorted_targets[to_idx]
+    except ValueError:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return False
+    
+    console.print()
+        
+    fps = None
+    if target_fmt == "GIF":
+        status, val = prompt_fps()
+        if status in ("back", "invalid"):
+            return False
+        fps = val
+        
+    bitrate = None
+    if target_fmt == "MP3":
+        status, val = prompt_bitrate()
+        if status in ("back", "invalid"):
+            return False
+        bitrate = val
+
+    strip_metadata = False
+    if cat_id == '2':
+        status, val = prompt_strip_metadata()
+        if status in ("back", "invalid"):
+            return False
+        strip_metadata = val
+
+    md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
+    if md_pdf_mode == "back":
+        return False
+
+    success_map = {}
+    converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map, use_cache=True)
+    if converted:
+        prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+        return True
+    else:
+        get_char("\nPress any key to continue...")
+        return False
+
+
 def main():
     conv = Converter()
     parser = build_parser()
@@ -446,15 +843,14 @@ def main():
         shortcuts = shortcut.load_shortcuts()
         
         clear_screen()
-        console.rule("File Converter Machine")
+        console.rule("Convergent")
         
         if shortcuts:
             console.print("\n[bold yellow]Your Shortcuts:[/bold yellow]")
             for sym, sc in shortcuts.items():
                 console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
+            console.print()
 
-        shortcut.print_source_menu(console, conv, "\n[bold yellow]Convert from:[/bold yellow]")
-            
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:
             console.print(" [bold white]-.[/bold white] Remove Shortcut")
@@ -473,12 +869,34 @@ def main():
                 
         console.print(" [bold white]Q.[/bold white] Quit")
         
-        choice = get_char("\nSelect Option: ")
-        if choice.lower() == 'q':
+        console.print("\n[bold yellow]Enter file or folder path(s) to continue:[/bold yellow]")
+        console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+        flush_stdin()
+        raw_input = get_input("Path: ")
+        flush_stdin()
+
+        if not raw_input or not raw_input.strip():
+            continue
+
+        trimmed = raw_input.strip()
+
+        if trimmed.lower() == 'q':
             console.print()
             break
-            
-        elif choice.lower() == 'r' and failed_run and existing_failed:
+
+        if trimmed == '+':
+            shortcut.add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths)
+            continue
+
+        if trimmed == '-' and shortcuts:
+            shortcut.remove_shortcut(shortcuts, console, get_input, get_char)
+            continue
+
+        if trimmed == '=' and shortcuts:
+            shortcut.edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths)
+            continue
+
+        if trimmed.lower() == 'r' and failed_run and existing_failed:
             console.print()
             paths = failed_run["paths"]
             source_fmts = failed_run["source_formats"]
@@ -492,441 +910,97 @@ def main():
             converted = conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map)
             prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
-            
-        elif choice == '+':
-            shortcut.add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths)
-            continue
 
-        elif choice == '-' and shortcuts:
-            shortcut.remove_shortcut(shortcuts, console, get_input, get_char)
-            continue
-
-        elif choice == '=' and shortcuts:
-            shortcut.edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths)
-            continue
-            
-        elif choice.upper() in shortcuts:
+        if trimmed.upper() in shortcuts:
             console.print()
             shortcut.run_shortcut(
                 conv, console, get_char, get_input, flush_stdin, clean_paths,
                 check_and_prompt_md_pdf, prompt_move_files,
-                choice.upper(),
+                trimmed.upper(),
                 interactive=True,
                 prompt_fps=prompt_fps,
                 prompt_bitrate=prompt_bitrate,
                 prompt_strip_metadata=prompt_strip_metadata,
             )
             continue
-        
-        elif choice == '0':
-            console.print()
-            paths = prompt_paths("combine")
-            if paths:
-                pdf_files = []
-                mp4_files = []
-                mp3_files = []
-                gif_files = []
-                docx_files = []
-                pptx_files = []
-                txt_files = []
-                for p in paths:
-                    path_obj = Path(os.path.expanduser(p))
-                    if path_obj.is_file():
-                        suffix = path_obj.suffix.lower()
-                        if suffix == ".pdf":
-                            pdf_files.append(path_obj)
-                        elif suffix == ".mp4":
-                            mp4_files.append(path_obj)
-                        elif suffix == ".mp3":
-                            mp3_files.append(path_obj)
-                        elif suffix == ".gif":
-                            gif_files.append(path_obj)
-                        elif suffix == ".docx":
-                            docx_files.append(path_obj)
-                        elif suffix == ".pptx":
-                            pptx_files.append(path_obj)
-                        elif suffix == ".txt":
-                            txt_files.append(path_obj)
-                    elif path_obj.is_dir():
-                        pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
-                        mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
-                        mp3_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp3"])
-                        gif_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"])
-                        docx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".docx"])
-                        pptx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pptx"])
-                        txt_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".txt"])
-                
-                combine_type = None
-                available_types = []
-                if pdf_files: available_types.append(('pdf', 'PDF files'))
-                if mp4_files: available_types.append(('mp4', 'MP4 files'))
-                if mp3_files: available_types.append(('mp3', 'MP3 files'))
-                if gif_files: available_types.append(('gif', 'GIF files'))
-                if docx_files: available_types.append(('docx', 'DOCX files'))
-                if pptx_files: available_types.append(('pptx', 'PPTX files'))
-                if txt_files: available_types.append(('txt', 'TXT files'))
-                
-                if len(available_types) > 1:
-                    console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
-                    for i, (t_code, t_name) in enumerate(available_types, 1):
-                        console.print(f" {i}. {t_name}")
-                    console.print(" [bold white]B[/bold white]. Back")
-                    c_choice = get_choice("\nSelect Option: ", choices=available_types)
-                    try:
-                        c_idx = int(c_choice) - 1
-                        if 0 <= c_idx < len(available_types):
-                            combine_type = available_types[c_idx][0]
-                    except ValueError:
-                        pass
-                    if not combine_type:
-                        continue
-                elif len(available_types) == 1:
-                    combine_type = available_types[0][0]
-                else:
-                    console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, PPTX, or TXT files found to combine.[/bold red]")
-                    get_char("\nPress any key to continue...")
-                    continue
-                
-                if combine_type == 'pdf':
-                    out_path = conv.combine_pdfs(paths)
-                elif combine_type == 'mp4':
-                    out_path = conv.combine_videos(paths)
-                elif combine_type == 'mp3':
-                    out_path = conv.combine_audios(paths)
-                elif combine_type == 'gif':
-                    out_path = conv.combine_gifs(paths)
-                elif combine_type == 'docx':
-                    out_path = conv.combine_docx(paths)
-                elif combine_type == 'pptx':
-                    out_path = conv.combine_pptx(paths)
-                elif combine_type == 'txt':
-                    out_path = conv.combine_txt(paths)
-                
-                if out_path:
-                    prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
-                else:
-                    get_char("\nPress any key to continue...")
-            continue
-            
-        elif choice == '1':
-            console.print()
-            paths = prompt_paths("split", allow_folders=False)
-            if paths:
-                split_dirs = []
-                for path in paths:
-                    p = Path(path)
-                    if p.suffix.lower() == ".pdf":
-                        out_dir = conv.split_pdf(path)
-                        if out_dir:
-                            split_dirs.append(out_dir)
-                    elif p.suffix.lower() == ".mp4":
-                        out_dir = conv.split_video(path)
-                        if out_dir:
-                            split_dirs.append(out_dir)
-                    elif p.suffix.lower() == ".mp3":
-                        out_dir = conv.split_audio(path)
-                        if out_dir:
-                            split_dirs.append(out_dir)
-                    elif p.suffix.lower() == ".gif":
-                        out_dir = conv.split_gif(path)
-                        if out_dir:
-                            split_dirs.append(out_dir)
-                    elif p.suffix.lower() == ".docx":
-                        out_dir = conv.split_docx(path)
-                        if out_dir:
-                            split_dirs.append(out_dir)
-                    elif p.suffix.lower() == ".pptx":
-                        out_dir = conv.split_pptx(path)
-                        if out_dir:
-                            split_dirs.append(out_dir)
-                    else:
-                        console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, MP3, GIF, DOCX, and PPTX are supported for splitting.[/bold red]")
-                
-                if split_dirs:
-                    prompt_move_files(console, get_char, get_input, split_dirs, original_files=paths)
-                else:
-                    get_char("\nPress any key to continue...")
-            continue
-            
-        elif choice == '2':
-            console.print()
-            paths = prompt_paths("resize")
-            if paths:
-                from modules import resize
-                resize.resize_media(paths, conv, console, get_char, get_input)
-            continue
-            
-        elif choice == '7':
-            console.print()
-            paths = prompt_paths("compress")
-            if not paths:
-                continue
 
-            total_files = 0
-            for p in paths:
-                path_obj = Path(os.path.expanduser(p))
-                if path_obj.is_file():
-                    total_files += 1
-                elif path_obj.is_dir():
-                    for _ in path_obj.rglob('*'):
-                        if _.is_file():
-                            total_files += 1
-            
-            if total_files > 50:
-                console.print(f"\n[bold yellow]Found {total_files} files to compress. Proceed? (y/n)[/bold yellow]")
-                if get_char("   Choice: ").lower() != 'y':
-                    console.print("[yellow]Operation cancelled.[/yellow]")
-                    get_char("\nPress any key to continue...")
-                    continue
-                
-            console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
-            console.print(" 1. 7z")
-            console.print(" 2. rar")
-            console.print(" 3. tar.bz2")
-            console.print(" 4. tar.gz")
-            console.print(" 5. tar.xz")
-            console.print(" 6. zip")
-            console.print(" [bold white]B[/bold white]. Back")
-            fmt_choice = get_char("\nSelect Option: ")
-            
-            if fmt_choice.lower() == 'b':
-                continue
-                
-            target_fmt = (
-                "7Z" if fmt_choice == '1' else
-                "RAR" if fmt_choice == '2' else
-                "TAR.BZ2" if fmt_choice == '3' else
-                "TAR.GZ" if fmt_choice == '4' else
-                "TAR.XZ" if fmt_choice == '5' else
-                "ZIP" if fmt_choice == '6' else
-                None
-            )
-            if not target_fmt:
-                console.print(" [dim]Invalid choice[/dim]")
-                time.sleep(0.5)
-                continue
-            
-            console.print()
-                
-            password = None
-            if target_fmt in ["ZIP", "7Z", "RAR"]:
-                console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
-                pwd_yn = get_char("")
-                if pwd_yn.lower() == 'y':
-                    password = get_input("\nEnter password: ")
-            
-            output_name = get_input(f"\nEnter name for archive (default: compressed.{target_fmt.lower()}): ")
-            if not output_name:
-                output_name = f"compressed.{target_fmt.lower()}"
-                
-            success, error, out_path = conv.compress(paths, output_name, target_fmt, password)
-            if success:
-                console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
-                prompt_move_files(console, get_char, get_input, [out_path], original_files=paths)
+        paths = clean_paths(raw_input)
+        if not paths:
+            continue
+
+        valid_paths = [p for p in paths if os.path.exists(os.path.expanduser(p))]
+        if not valid_paths:
+            console.print(f"[bold red]Error: Specified file or folder path does not exist.[/bold red]")
+            get_char("\nPress any key to continue...")
+            continue
+
+        # Screen 2: Context-Aware "Convert from:" Menu
+        while True:
+            clear_screen()
+            console.rule("Convergent")
+
+            if len(valid_paths) == 1:
+                p_obj = Path(os.path.expanduser(valid_paths[0]))
+                desc = f"{p_obj.name}/" if p_obj.is_dir() else p_obj.name
+                console.print(f"\n[bold]Detected:[/bold] [cyan]{desc}[/cyan]")
             else:
-                console.print(f"\n[bold red]FAILED to compress:[/bold red]")
-                console.print(f"   [dim]{error.strip()}[/dim]")
+                console.print(f"\n[bold]Detected:[/bold] [cyan]{len(valid_paths)} items[/cyan]")
+
+            matched_entries = shortcut.get_applicable_menu_entries(conv, valid_paths)
+            if not matched_entries:
+                console.print("[bold red]No supported operations found for the provided path(s).[/bold red]")
                 get_char("\nPress any key to continue...")
-            continue
-            
-        elif choice == '8':
-            console.print()
-            paths = prompt_paths("decompress", allow_folders=False)
-            if not paths:
-                continue
-                
-            console.print(f"\n[bold yellow]Enter output directory (leave blank for default):[/bold yellow]")
-            flush_stdin()
-            out_dirs = clean_paths(get_input("Dir: "))
-            out_dir = out_dirs[0] if out_dirs else None
-            flush_stdin()
-                
-            num_archives = len(paths)
-            if num_archives > 50:
-                console.print(f"\n[bold yellow]Found {num_archives} archives to decompress. Proceed? (y/n)[/bold yellow]")
-                if get_char("   Choice: ").lower() != 'y':
-                    console.print("[yellow]Operation cancelled.[/yellow]")
-                    get_char("\nPress any key to continue...")
-                    continue
+                break
 
-            decompressed_dirs = []
-            for path in paths:
-                success, error, actual_out_dir = conv.decompress(path, out_dir)
-                if success:
-                    console.print(f"\n[bold green]Successfully decompressed {Path(path).name}.[/bold green]")
-                    decompressed_dirs.append(actual_out_dir)
-                else:
-                    console.print(f"\n[bold red]FAILED to decompress {Path(path).name}:[/bold red]")
-                    console.print(f"   [dim]{error.strip()}[/dim]")
-            
-            if decompressed_dirs:
-                prompt_move_files(console, get_char, get_input, decompressed_dirs, original_files=paths)
-            else:
-                get_char("\nPress any key to continue...")
-            continue
-            
-        elif choice == '9':
-            console.print()
-            console.print(f"\n[bold yellow]Select target format for OCR text:[/bold yellow]")
-            console.print(" 1. txt")
-            console.print(" 2. md")
-            console.print(" 3. docx")
-            console.print(" 4. pdf")
-            console.print(" [bold white]B[/bold white]. Back")
-            fmt_choice = get_char("\nSelect Option: ")
-            
-            if fmt_choice.lower() == 'b':
-                continue
-            
-            target_fmt = (
-                "TXT" if fmt_choice == '1' else
-                "MD" if fmt_choice == '2' else
-                "DOCX" if fmt_choice == '3' else
-                "PDF" if fmt_choice == '4' else
-                None
-            )
-            
-            if not target_fmt:
-                console.print(" [dim]Invalid choice[/dim]")
-                time.sleep(0.5)
-                continue
-                
-            paths = prompt_paths("OCR")
-            if paths:
-                success_map = {}
-                converted = conv.process(["JPG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=True)
-                prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
-            continue
-
-        elif choice == '*':
-            console.print()
-            console.print(f"\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
-            console.print(" 1. txt")
-            console.print(" 2. srt")
-            console.print(" 3. vtt")
-            console.print(" 4. md")
-            console.print(" [bold white]B[/bold white]. Back")
-            fmt_choice = get_char("\nSelect Option: ")
-
-            if fmt_choice.lower() == 'b':
-                continue
-
-            target_fmt = (
-                "TXT" if fmt_choice == '1' else
-                "SRT" if fmt_choice == '2' else
-                "VTT" if fmt_choice == '3' else
-                "MD" if fmt_choice == '4' else
-                None
-            )
-
-            if not target_fmt:
-                console.print(" [dim]Invalid choice[/dim]")
-                time.sleep(0.5)
-                continue
-
-            console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
-            console.print(" 1. Standard (~142MB)")
-            console.print(" 2. Mini (~75MB)")
-            console.print(" 3. Medium (~466MB)")
-            console.print(" 4. Large (~1.5GB)")
-            console.print(" [bold white]B[/bold white]. Back")
-            model_choice = get_char("\nSelect Option: ")
-
-            if model_choice.lower() == 'b':
-                continue
-
-            model = (
-                "tiny" if model_choice == '2' else
-                "small" if model_choice == '3' else
-                "turbo" if model_choice == '4' else
-                "base"
-            )
-
-            paths = prompt_paths("transcribe (STT)")
-            if paths:
-                success_map = {}
-                converted = conv.process(
-                    ["MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"],
-                    target_fmt,
-                    paths,
-                    stt=True,
-                    model=model,
-                    success_map=success_map,
-                    use_cache=True
+            console.print("\n[bold yellow]Convert from:[/bold yellow]")
+            for entry in matched_entries:
+                console.print(
+                    f" [bold cyan]{entry['key']}.[/bold cyan] "
+                    f"{entry['label'].ljust(shortcut.MENU_LABEL_WIDTH)} {entry['exts']}"
                 )
-                prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
-            continue
-            
-        elif choice in ["3", "4", "5", "6"]:
-            console.print()
-            
-            cat_id = {"3": "2", "4": "3", "5": "4", "6": "5"}[choice]
-            category = conv.categories[cat_id]
-            source_fmts = category["extensions"]
-            
-            available_targets = set()
-            for fmt in source_fmts:
-                available_targets.update(conv.formats.get(fmt, []))
-            
-            sorted_targets = sorted(list(available_targets))
-            
-            console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
-            for i, fmt in enumerate(sorted_targets, 1):
-                console.print(f" {i}. {fmt.lower()}")
-            console.print(" [bold white]B[/bold white]. Back")
-            
-            target_choice = get_choice("\nSelect Option: ", choices=sorted_targets)
-            if target_choice.lower() == 'b':
+            console.print(" [bold white]B.[/bold white] Back")
+            console.print(" [bold white]Q.[/bold white] Quit")
+            console.print("\n[dim](Other choices are hidden based on detected file format)[/dim]")
+
+            choice = get_char("\nSelect Option: ")
+            if choice.lower() == 'b':
+                break
+            if choice.lower() == 'q':
                 console.print()
-                continue
-                
-            try:
-                to_idx = int(target_choice) - 1
-                if to_idx < 0 or to_idx >= len(sorted_targets):
-                    raise ValueError
-                target_fmt = sorted_targets[to_idx]
-            except ValueError:
+                sys.exit(0)
+
+            selected_entry = next((e for e in matched_entries if e["key"] == choice), None)
+            if not selected_entry:
                 console.print(" [dim]Invalid choice[/dim]")
                 time.sleep(0.5)
                 continue
-            
-            console.print()
-                
-            fps = None
-            if target_fmt == "GIF":
-                status, val = prompt_fps()
-                if status in ("back", "invalid"):
-                    continue
-                fps = val
-                
-            bitrate = None
-            if target_fmt == "MP3":
-                status, val = prompt_bitrate()
-                if status in ("back", "invalid"):
-                    continue
-                bitrate = val
 
-            strip_metadata = False
-            if cat_id == '2':
-                status, val = prompt_strip_metadata()
-                if status in ("back", "invalid"):
-                    continue
-                strip_metadata = val
+            op = selected_entry["operation"]
+            op_completed = False
 
-            paths = prompt_paths("convert")
-            if not paths:
-                continue
-                
-            md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
-            if md_pdf_mode == "back":
-                continue
-            success_map = {}
-            converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map, use_cache=True)
-            prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
+            if op == "combine":
+                op_completed = handle_combine(conv, valid_paths, console, get_char, get_choice, get_input)
+            elif op == "split":
+                op_completed = handle_split(conv, valid_paths, console, get_char, get_input)
+            elif op == "resize":
+                op_completed = handle_resize(conv, valid_paths, console, get_char, get_input)
+            elif op == "convert":
+                cat_id = selected_entry["category_id"]
+                op_completed = handle_convert(
+                    conv, cat_id, valid_paths, console, get_char, get_choice, get_input,
+                    prompt_fps, prompt_bitrate, prompt_strip_metadata, check_and_prompt_md_pdf, time
+                )
+            elif op == "compress":
+                op_completed = handle_compress(conv, valid_paths, console, get_char, get_input, time)
+            elif op == "decompress":
+                op_completed = handle_decompress(conv, valid_paths, console, get_char, get_input, flush_stdin, clean_paths)
+            elif op == "ocr":
+                op_completed = handle_ocr(conv, valid_paths, console, get_char, get_input, time)
+            elif op == "stt":
+                op_completed = handle_stt(conv, valid_paths, console, get_char, get_input, time)
 
-        else:
-            console.print(" [dim]Invalid choice[/dim]")
-            time.sleep(0.5)
+            if op_completed:
+                break
 
 if __name__ == "__main__":
     try:
