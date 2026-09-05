@@ -36,58 +36,14 @@ from modules import pdf_manip, image, video, audio, doc, compress, decompress, n
 from customs import shortcut, file_process
 from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run, process_stream
 from customs.run_command import run_command
-from customs.console import console, set_stderr_mode, get_input, get_char, get_choice, prompt_fps, prompt_bitrate, prompt_strip_metadata
-
-try:
-    import termios
-except ImportError:
-    termios = None
+from customs.console import (
+    console, set_stderr_mode, get_input, get_char, get_choice,
+    prompt_fps, prompt_bitrate, prompt_strip_metadata,
+    clean_paths, flush_stdin, prompt_paths
+)
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
-
-def clean_paths(path_str):
-    if not path_str:
-        return []
-    if isinstance(path_str, list):
-        resolved = []
-        for item in path_str:
-            resolved.extend(clean_paths(item))
-        return resolved
-    
-    path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
-    
-    if path_str == "-":
-        return ["-"]
-    
-    # If entire path_str exists as a single file or directory, treat it as one path.
-    # This prevents splitting a single path that has spaces but no quotes/escapes.
-    try:
-        if os.path.exists(os.path.expanduser(path_str)):
-            return [path_str]
-    except:
-        pass
-        
-    try:
-        # Handle shell-escaped paths, quoted paths, and multiple paths separated by spaces
-        # shlex.split correctly handles cases like 'History\ \&\ Practice.pdf'
-        # or multiple paths like '/path/1' '/path/2' or '/path/1 /path/2'
-        if " " in path_str or "\\" in path_str or "'" in path_str or '"' in path_str:
-            parts = shlex.split(path_str)
-            if parts:
-                return [p.strip() for p in parts if p.strip()]
-    except:
-        pass
-    
-    # Fallback to manual stripping of quotes if shlex fails or no special chars
-    return [path_str.strip("'").strip('"').strip()]
-
-def flush_stdin():
-    if termios is not None:
-        try:
-            termios.tcflush(sys.stdin, termios.TCIFLUSH)
-        except:
-            pass
 
 def prompt_paths(action: str, allow_folders: bool = True):
     target_type = "file or folder" if allow_folders else "file"
@@ -294,13 +250,14 @@ def handle_combine(conv, paths, console, get_char, get_choice, get_input):
     docx_files = []
     pptx_files = []
     txt_files = []
+    video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
         if path_obj.is_file():
             suffix = path_obj.suffix.lower()
             if suffix == ".pdf":
                 pdf_files.append(path_obj)
-            elif suffix == ".mp4":
+            elif suffix in video_exts:
                 mp4_files.append(path_obj)
             elif suffix == ".mp3":
                 mp3_files.append(path_obj)
@@ -314,7 +271,7 @@ def handle_combine(conv, paths, console, get_char, get_choice, get_input):
                 txt_files.append(path_obj)
         elif path_obj.is_dir():
             pdf_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"])
-            mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp4"])
+            mp4_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() in video_exts])
             mp3_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".mp3"])
             gif_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".gif"])
             docx_files.extend([f for f in path_obj.iterdir() if f.is_file() and f.suffix.lower() == ".docx"])
@@ -324,7 +281,7 @@ def handle_combine(conv, paths, console, get_char, get_choice, get_input):
     combine_type = None
     available_types = []
     if pdf_files: available_types.append(('pdf', 'PDF files'))
-    if mp4_files: available_types.append(('mp4', 'MP4 files'))
+    if mp4_files: available_types.append(('mp4', 'Video files'))
     if mp3_files: available_types.append(('mp3', 'MP3 files'))
     if gif_files: available_types.append(('gif', 'GIF files'))
     if docx_files: available_types.append(('docx', 'DOCX files'))
@@ -845,7 +802,6 @@ def main():
             console.print("\n[bold yellow]Your Shortcuts:[/bold yellow]")
             for sym, sc in shortcuts.items():
                 console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
-            console.print()
 
         console.print(" [bold white]+.[/bold white] Add Shortcut")
         if shortcuts:

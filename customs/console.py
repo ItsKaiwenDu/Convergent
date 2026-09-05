@@ -1,4 +1,6 @@
 import sys
+import os
+import shlex
 
 try:
     import tty
@@ -176,4 +178,59 @@ def prompt_strip_metadata():
         console.print(" [dim]Invalid choice[/dim]")
         time.sleep(0.5)
         return "invalid", False
+
+
+def clean_paths(path_str):
+    if not path_str:
+        return []
+    if isinstance(path_str, list):
+        resolved = []
+        for item in path_str:
+            resolved.extend(clean_paths(item))
+        return resolved
+    
+    path_str = path_str.replace("\n", "").replace("\r", "").replace("\t", "").strip()
+    
+    if path_str == "-":
+        return ["-"]
+    
+    # If entire path_str exists as a single file or directory, treat it as one path.
+    # This prevents splitting a single path that has spaces but no quotes/escapes.
+    try:
+        if os.path.exists(os.path.expanduser(path_str)):
+            return [path_str]
+    except:
+        pass
+        
+    try:
+        # Handle shell-escaped paths, quoted paths, and multiple paths separated by spaces
+        # shlex.split correctly handles cases like 'History\ \&\ Practice.pdf'
+        # or multiple paths like '/path/1' '/path/2' or '/path/1 /path/2'
+        if " " in path_str or "\\" in path_str or "'" in path_str or '"' in path_str:
+            parts = shlex.split(path_str)
+            if parts:
+                return [p.strip() for p in parts if p.strip()]
+    except:
+        pass
+    
+    # Fallback to manual stripping of quotes if shlex fails or no special chars
+    return [path_str.strip("'").strip('"').strip()]
+
+
+def flush_stdin():
+    if termios is not None:
+        try:
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+        except:
+            pass
+
+
+def prompt_paths(action: str, allow_folders: bool = True):
+    target_type = "file or folder" if allow_folders else "file"
+    console.print(f"\n[bold yellow]Enter {target_type} path(s) to {action}:[/bold yellow]")
+    console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
+    flush_stdin()
+    paths = clean_paths(get_input("Path: "))
+    flush_stdin()
+    return paths
 

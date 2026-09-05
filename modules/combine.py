@@ -3,7 +3,7 @@ import re
 import uuid
 import subprocess
 from pathlib import Path
-from customs.console import console, get_input, get_char
+from customs.console import console, get_input, get_char, prompt_paths, clean_paths
 from customs.run_command import run_command, send_to_trash
 
 def natural_sort_key(path):
@@ -91,7 +91,7 @@ def combine_pdfs(paths, output_path=None, interactive=True):
                 return None
 
         # Fetch page counts first
-        console.print("[dim]Reading PDF metadata...[/dim]")
+        console.print("\n[dim]Reading PDF metadata...[/dim]")
         pdf_details = []
         for f in pdf_files:
             pages = get_pdf_page_count(str(f))
@@ -104,6 +104,7 @@ def combine_pdfs(paths, output_path=None, interactive=True):
                 console.print(f" [bold cyan]{idx}.[/bold cyan] {item['path'].name} [dim]{pages_str}[/dim]")
             
             console.print("\n[bold yellow]Commands:[/bold yellow]")
+            console.print(" [bold white]A[/bold white].                Add more files")
             console.print(" [bold white]C[/bold white].                Confirm & Merge")
             console.print(" [bold white]M[/bold white] [bold cyan]<num> <pos>[/bold cyan].    Move file")
             console.print(" [bold white]R[/bold white].                Reverse order")
@@ -120,6 +121,35 @@ def combine_pdfs(paths, output_path=None, interactive=True):
             elif cmd_lower == 'q':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
+            elif cmd_lower == 'a':
+                add_paths = prompt_paths("add", allow_folders=True)
+                if not add_paths:
+                    continue
+                new_files = []
+                for p in add_paths:
+                    p_obj = Path(os.path.expanduser(p))
+                    if p_obj.is_dir():
+                        found = sorted([f for f in p_obj.iterdir() if f.is_file() and f.suffix.lower() == ".pdf"], key=natural_sort_key)
+                        if not found:
+                            console.print(f"[yellow]No PDF files found in {p_obj.name}/[/yellow]")
+                        else:
+                            new_files.extend(found)
+                    elif p_obj.is_file():
+                        if p_obj.suffix.lower() == ".pdf":
+                            new_files.append(p_obj)
+                        else:
+                            console.print(f"[yellow]Skipping non-PDF file: {p_obj.name}[/yellow]")
+                    else:
+                        console.print(f"[bold red]Path not found: {p}[/bold red]")
+                
+                if new_files:
+                    console.print("\n[dim]Reading PDF metadata...[/dim]")
+                    for f in new_files:
+                        pages = get_pdf_page_count(str(f))
+                        pdf_details.append({"path": f, "pages": pages})
+                    console.print(f"[bold green]✓ Added {len(new_files)} file(s).[/bold green]")
+                else:
+                    console.print("[bold red]No PDF files found to add.[/bold red]")
             elif cmd_lower == 'r':
                 pdf_details.reverse()
                 console.print("[bold green]✓ Reversed file order.[/bold green]")
@@ -224,7 +254,7 @@ def combine_videos(paths, output_path=None, interactive=True):
                 return None
 
         # Fetch durations first
-        console.print("[dim]Reading video metadata...[/dim]")
+        console.print("\n[dim]Reading video metadata...[/dim]")
         video_details = []
         for f in video_files:
             duration = get_media_duration(str(f))
@@ -237,6 +267,7 @@ def combine_videos(paths, output_path=None, interactive=True):
                 console.print(f" [bold cyan]{idx}.[/bold cyan] {item['path'].name} [dim]{duration_str}[/dim]")
             
             console.print("\n[bold yellow]Commands:[/bold yellow]")
+            console.print(" [bold white]A[/bold white].                Add more files")
             console.print(" [bold white]C[/bold white].                Confirm & Merge")
             console.print(" [bold white]M[/bold white] [bold cyan]<num> <pos>[/bold cyan].    Move file")
             console.print(" [bold white]R[/bold white].                Reverse order")
@@ -253,6 +284,35 @@ def combine_videos(paths, output_path=None, interactive=True):
             elif cmd_lower == 'q':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
+            elif cmd_lower == 'a':
+                add_paths = prompt_paths("add", allow_folders=True)
+                if not add_paths:
+                    continue
+                new_files = []
+                for p in add_paths:
+                    p_obj = Path(os.path.expanduser(p))
+                    if p_obj.is_dir():
+                        found = sorted([f for f in p_obj.iterdir() if f.is_file() and f.suffix.lower() in video_exts], key=natural_sort_key)
+                        if not found:
+                            console.print(f"[yellow]No video files found in {p_obj.name}/[/yellow]")
+                        else:
+                            new_files.extend(found)
+                    elif p_obj.is_file():
+                        if p_obj.suffix.lower() in video_exts:
+                            new_files.append(p_obj)
+                        else:
+                            console.print(f"[yellow]Skipping non-video file: {p_obj.name}[/yellow]")
+                    else:
+                        console.print(f"[bold red]Path not found: {p}[/bold red]")
+                
+                if new_files:
+                    console.print("\n[dim]Reading video metadata...[/dim]")
+                    for f in new_files:
+                        duration = get_media_duration(str(f))
+                        video_details.append({"path": f, "duration": duration})
+                    console.print(f"[bold green]✓ Added {len(new_files)} file(s).[/bold green]")
+                else:
+                    console.print("[bold red]No video files found to add.[/bold red]")
             elif cmd_lower == 'r':
                 video_details.reverse()
                 console.print("[bold green]✓ Reversed file order.[/bold green]")
@@ -311,6 +371,10 @@ def combine_videos(paths, output_path=None, interactive=True):
     try:
         cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
         success, error = run_command(cmd)
+        if not success:
+            # Fallback to re-encoding if stream copy fails (e.g., mixed formats like mov and mp4, or differing codecs)
+            cmd_reencode = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
+            success, error = run_command(cmd_reencode)
     finally:
         if temp_txt_path.exists():
             try:
@@ -375,7 +439,7 @@ def combine_audios(paths, output_path=None, interactive=True):
                 return None
 
         # Fetch durations first
-        console.print("[dim]Reading audio metadata...[/dim]")
+        console.print("\n[dim]Reading audio metadata...[/dim]")
         audio_details = []
         for f in audio_files:
             duration = get_media_duration(str(f))
@@ -518,7 +582,7 @@ def combine_gifs(paths, output_path=None, interactive=True):
                 return None
 
         # Fetch durations first
-        console.print("[dim]Reading GIF metadata...[/dim]")
+        console.print("\n[dim]Reading GIF metadata...[/dim]")
         gif_details = []
         for f in gif_files:
             duration = get_media_duration(str(f))
@@ -856,7 +920,7 @@ def combine_txt(paths, output_path=None, interactive=True):
                 return None
 
         # Fetch line counts first
-        console.print("[dim]Reading TXT metadata...[/dim]")
+        console.print("\n[dim]Reading TXT metadata...[/dim]")
         txt_details = []
         for f in txt_files:
             lines = get_txt_line_count(str(f))
