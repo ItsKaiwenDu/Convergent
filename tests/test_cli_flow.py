@@ -135,11 +135,129 @@ class TestCLIFlow(unittest.TestCase):
         f = self.test_dir / "data.xyz"
         f.touch()
         entries = shortcut.get_applicable_menu_entries(self.conv, [str(f)])
-        operations = [e["operation"] for e in entries]
+        # Unknown/unsupported formats should return no applicable entries
+        self.assertEqual(entries, [])
 
-        # Compress is always available
-        self.assertEqual(operations, ["compress"])
-        self.assertEqual(entries[0]["key"], "0")
+    def test_unsupported_format_guardrail(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        f = self.test_dir / "unknown.xyz"
+        f.touch()
+
+        # Input unsupported file -> guardrail prompts retry -> enter 'q' to exit
+        input_responses = [str(f), "q"]
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.clear_screen"), \
+             patch("Convergent.flush_stdin"), \
+             patch("Convergent.get_input", side_effect=input_responses), \
+             patch("Convergent.get_char"), \
+             patch("customs.shortcut.load_shortcuts", return_value={}), \
+             patch("Convergent.load_failed_run", return_value=None), \
+             patch("sys.argv", ["Convergent.py"]):
+            Convergent.main()
+
+        output = out_io.getvalue()
+        self.assertIn("Oops sorry! This file format (.xyz) is not supported.", output)
+        self.assertIn("Try another file (or Q to Quit):", output)
+        self.assertIn("Exiting...", output)
+
+    def test_empty_folder_guardrail(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        empty_d = self.test_dir / "empty_dir"
+        empty_d.mkdir()
+
+        input_responses = [str(empty_d), "q"]
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.clear_screen"), \
+             patch("Convergent.flush_stdin"), \
+             patch("Convergent.get_input", side_effect=input_responses), \
+             patch("Convergent.get_char"), \
+             patch("customs.shortcut.load_shortcuts", return_value={}), \
+             patch("Convergent.load_failed_run", return_value=None), \
+             patch("sys.argv", ["Convergent.py"]):
+            Convergent.main()
+
+        output = out_io.getvalue()
+        self.assertIn("Oops sorry! This folder is empty.", output)
+        self.assertIn("Try another file (or Q to Quit):", output)
+        self.assertIn("Exiting...", output)
+
+    def test_folder_with_no_supported_formats_guardrail(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        folder = self.test_dir / "folder_xyz"
+        folder.mkdir()
+        (folder / "file.xyz").touch()
+
+        input_responses = [str(folder), "q"]
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.clear_screen"), \
+             patch("Convergent.flush_stdin"), \
+             patch("Convergent.get_input", side_effect=input_responses), \
+             patch("Convergent.get_char"), \
+             patch("customs.shortcut.load_shortcuts", return_value={}), \
+             patch("Convergent.load_failed_run", return_value=None), \
+             patch("sys.argv", ["Convergent.py"]):
+            Convergent.main()
+
+        output = out_io.getvalue()
+        self.assertIn("Oops sorry! No supported files found in this folder (.xyz).", output)
+        self.assertIn("Try another file (or Q to Quit):", output)
+        self.assertIn("Exiting...", output)
+
+    def test_guardrail_retry_with_valid_file(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        bad_file = self.test_dir / "bad.xyz"
+        bad_file.touch()
+        good_file = self.test_dir / "good.mp4"
+        good_file.touch()
+
+        # Enter bad file -> at retry prompt enter good file -> on Screen 2 hit 'b' -> on Screen 1 hit 'q'
+        input_responses = [str(bad_file), str(good_file), "q"]
+        char_responses = ["b"]
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.clear_screen"), \
+             patch("Convergent.flush_stdin"), \
+             patch("Convergent.get_input", side_effect=input_responses), \
+             patch("Convergent.get_char", side_effect=char_responses), \
+             patch("customs.shortcut.load_shortcuts", return_value={}), \
+             patch("Convergent.load_failed_run", return_value=None), \
+             patch("sys.argv", ["Convergent.py"]):
+            Convergent.main()
+
+        output = out_io.getvalue()
+        self.assertIn("Oops sorry! This file format (.xyz) is not supported.", output)
+        self.assertIn("Detected: good.mp4", output)
 
     def test_interactive_main_flow(self):
         from unittest.mock import patch

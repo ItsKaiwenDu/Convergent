@@ -350,8 +350,6 @@ def handle_combine(conv, paths, console, get_char, get_choice, get_input):
     elif len(available_types) == 1:
         combine_type = available_types[0][0]
     else:
-        console.print("[bold red]No PDF, MP4, MP3, GIF, DOCX, PPTX, or TXT files found to combine.[/bold red]")
-        get_char("\nPress any key to continue...")
         return False
     
     out_path = None
@@ -407,8 +405,6 @@ def handle_split(conv, paths, console, get_char, get_input):
             out_dir = conv.split_pptx(path)
             if out_dir:
                 split_dirs.append(out_dir)
-        else:
-            console.print(f"[bold red]Error: Unsupported file type '{p.suffix}' for {p.name}. Only PDF, MP4, MP3, GIF, DOCX, and PPTX are supported for splitting.[/bold red]")
     
     if split_dirs:
         prompt_move_files(console, get_char, get_input, split_dirs, original_files=paths)
@@ -924,14 +920,67 @@ def main():
             )
             continue
 
-        paths = clean_paths(raw_input)
-        if not paths:
-            continue
+        input_to_process = raw_input
+        valid_paths = []
+        while True:
+            paths = clean_paths(input_to_process)
+            if not paths:
+                break
 
-        valid_paths = [p for p in paths if os.path.exists(os.path.expanduser(p))]
+            cur_valid = [p for p in paths if os.path.exists(os.path.expanduser(p))]
+            if not cur_valid:
+                console.print(f"\n[bold red]Error: Specified file or folder path does not exist.[/bold red]")
+                console.print("[bold yellow]Try another file (or Q to Quit):[/bold yellow] ", end="")
+                retry_in = get_input("").strip()
+                if retry_in.lower() == 'q':
+                    console.print("Exiting...")
+                    return
+                elif retry_in:
+                    input_to_process = retry_in
+                    continue
+                else:
+                    break
+
+            has_file, has_dir, exts = shortcut.inspect_paths(cur_valid)
+            if not (exts & shortcut.ALL_SUPPORTED_EXTENSIONS):
+                if has_dir and not has_file:
+                    is_empty = all(
+                        Path(os.path.expanduser(p)).is_dir()
+                        and not any(f.is_file() for f in Path(os.path.expanduser(p)).rglob("*"))
+                        for p in cur_valid
+                    )
+                    if is_empty:
+                        msg = "\n[bold red]Oops sorry! This folder is empty.[/bold red]"
+                    elif exts:
+                        ext_str = f" ({', '.join(f'.{e}' for e in sorted(exts))})"
+                        msg = f"\n[bold red]Oops sorry! No supported files found in this folder{ext_str}.[/bold red]"
+                    else:
+                        msg = "\n[bold red]Oops sorry! No supported files found in this folder.[/bold red]"
+                elif not exts:
+                    msg = "\n[bold red]Oops sorry! No supported files found in the provided path.[/bold red]"
+                else:
+                    ext_str = f" ({', '.join(f'.{e}' for e in sorted(exts))})"
+                    if len(exts) > 1:
+                        msg = f"\n[bold red]Oops sorry! These file formats{ext_str} are not supported.[/bold red]"
+                    else:
+                        msg = f"\n[bold red]Oops sorry! This file format{ext_str} is not supported.[/bold red]"
+
+                console.print(msg)
+                console.print("[bold yellow]Try another file (or Q to Quit):[/bold yellow] ", end="")
+                retry_in = get_input("").strip()
+                if retry_in.lower() == 'q':
+                    console.print("Exiting...")
+                    return
+                elif retry_in:
+                    input_to_process = retry_in
+                    continue
+                else:
+                    break
+            else:
+                valid_paths = cur_valid
+                break
+
         if not valid_paths:
-            console.print(f"[bold red]Error: Specified file or folder path does not exist.[/bold red]")
-            get_char("\nPress any key to continue...")
             continue
 
         # Screen 2: Context-Aware "Convert from:" Menu

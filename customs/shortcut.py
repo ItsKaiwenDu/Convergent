@@ -66,6 +66,19 @@ def print_source_menu(console, conv, title):
             f"{entry['label'].ljust(MENU_LABEL_WIDTH)} {entry['exts']}"
         )
 
+ALL_SUPPORTED_EXTENSIONS = {
+    # Images
+    "arw", "avif", "bmp", "dng", "heic", "heif", "jpg", "png", "svg", "tif", "webp",
+    # Videos
+    "avi", "gif", "mkv", "mov", "mp4", "webm",
+    # Audio
+    "aac", "flac", "m4a", "mp3", "ogg", "wav",
+    # Documents
+    "docx", "md", "ntb", "pdf", "pptx", "rtf", "txt",
+    # Archives
+    "7z", "rar", "tar", "tar.gz", "tgz", "tar.bz2", "tbz2", "tar.xz", "txz", "zip"
+}
+
 def inspect_paths(paths):
     """
     Analyzes input paths and returns (has_file, has_dir, extensions).
@@ -89,6 +102,10 @@ def inspect_paths(paths):
                     break
             if not matched_archive:
                 ext = path_obj.suffix.lower().lstrip(".")
+                if ext == "jpeg":
+                    ext = "jpg"
+                elif ext == "tiff":
+                    ext = "tif"
                 if ext:
                     extensions.add(ext)
         elif path_obj.is_dir():
@@ -106,6 +123,10 @@ def inspect_paths(paths):
                                 break
                         if not matched_archive:
                             ext = item.suffix.lower().lstrip(".")
+                            if ext == "jpeg":
+                                ext = "jpg"
+                            elif ext == "tiff":
+                                ext = "tif"
                             if ext:
                                 extensions.add(ext)
                         count += 1
@@ -121,13 +142,16 @@ def get_applicable_menu_entries(conv, paths):
     Filters menu entries based on submitted paths.
     - Split and Decompress are file-only (hidden for folders).
     - Image, Video, Audio, Document, Combine, Resize, OCR, STT match relevant extensions.
-    - Compress is always available.
+    - Compress is available when supported files are present.
     - Re-indexes keys consecutively starting from '0'.
     """
     if not paths:
         return []
 
     has_file, has_dir, extensions = inspect_paths(paths)
+    if not (extensions & ALL_SUPPORTED_EXTENSIONS):
+        return []
+
     all_entries = get_menu_entries(conv)
 
     combine_exts = {"docx", "gif", "mp3", "mp4", "pdf", "pptx", "txt"}
