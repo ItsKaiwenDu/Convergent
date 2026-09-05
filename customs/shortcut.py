@@ -457,10 +457,10 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
 
         console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
-        console.print(" 1. Standard (~142MB)")
-        console.print(" 2. Mini (~75MB)")
-        console.print(" 3. Medium (~466MB)")
-        console.print(" 4. Large (~1.5GB)")
+        console.print(" 1. base (~142MB, daily use)")
+        console.print(" 2. tiny (~75MB, fastest speed)")
+        console.print(" 3. small (~466MB, better accuracy)")
+        console.print(" 4. turbo (~1.5GB, best accuracy)")
         m_choice = get_char("\nSelect Option: ")
         model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
 
@@ -630,10 +630,10 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             new_target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
 
             console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
-            console.print(" 1. Standard (~142MB)")
-            console.print(" 2. Mini (~75MB)")
-            console.print(" 3. Medium (~466MB)")
-            console.print(" 4. Large (~1.5GB)")
+            console.print(" 1. base (~142MB, daily use)")
+            console.print(" 2. tiny (~75MB, fastest speed)")
+            console.print(" 3. small (~466MB, better accuracy)")
+            console.print(" 4. turbo (~1.5GB, best accuracy)")
             m_choice = get_char("\nSelect Option: ")
             new_model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
 

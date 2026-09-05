@@ -46,15 +46,15 @@ MODEL_SIZES = {
 
 # User-friendly display names for STT models
 MODEL_DISPLAY_NAMES = {
-    "base": "Standard (~142MB)",
-    "standard": "Standard (~142MB)",
-    "tiny": "Mini (~75MB)",
-    "mini": "Mini (~75MB)",
-    "small": "Medium (~466MB)",
-    "medium": "Medium (~466MB)",
-    "turbo": "Large (~1.5GB)",
-    "large": "Large (~1.5GB)",
-    "large-v3-turbo": "Large (~1.5GB)",
+    "base": "base (~142MB, daily use)",
+    "standard": "base (~142MB, daily use)",
+    "tiny": "tiny (~75MB, fastest speed)",
+    "mini": "tiny (~75MB, fastest speed)",
+    "small": "small (~466MB, better accuracy)",
+    "medium": "small (~466MB, better accuracy)",
+    "turbo": "turbo (~1.5GB, best accuracy)",
+    "large": "turbo (~1.5GB, best accuracy)",
+    "large-v3-turbo": "turbo (~1.5GB, best accuracy)",
 }
 
 

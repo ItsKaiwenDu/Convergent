@@ -230,7 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--strip-metadata", action="store_true", help="Remove EXIF/IPTC/metadata from images for privacy")
     parser.add_argument("--dpi", type=int, default=None, help="Resolution DPI for PDF to image conversion (default: 300)")
     parser.add_argument("--stt", action="store_true", help="Perform Speech-to-Text transcription on audio/video input")
-    parser.add_argument("--model", default="base", choices=["standard", "mini", "medium", "large", "tiny", "base", "small", "turbo", "large-v3-turbo"], help="Whisper model size for STT: standard (~142MB), mini (~75MB), medium (~466MB), large (~1.5GB); default: standard")
+    parser.add_argument("--model", default="base", choices=["standard", "mini", "medium", "large", "tiny", "base", "small", "turbo", "large-v3-turbo"], help="Whisper model size for STT: base (~142MB, daily use), tiny (~75MB, fastest speed), small (~466MB, better accuracy), turbo (~1.5GB, best accuracy); default: base")
     parser.add_argument("--language", default=None, help="Language code for STT transcription (e.g. en, es, zh, auto)")
     parser.add_argument("--hwaccel", choices=["auto", "videotoolbox", "nvenc", "qsv", "none"], default="auto", help="Hardware acceleration mode for video encoding (default: auto)")
     parser.add_argument("--cache", action="store_true", help="Enable content-addressable cache to skip unchanged files (default: enabled)")
@@ -535,10 +535,10 @@ def handle_stt(conv, paths, console, get_char, get_input, time):
         return False
 
     console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
-    console.print(" 1. base (~142MB)")
-    console.print(" 2. tiny (~75MB)")
-    console.print(" 3. small (~466MB)")
-    console.print(" 4. turbo (~809MB)")
+    console.print(" 1. base (~142MB, daily use)")
+    console.print(" 2. tiny (~75MB, fastest speed)")
+    console.print(" 3. small (~466MB, better accuracy)")
+    console.print(" 4. turbo (~1.5GB, best accuracy)")
     console.print(" [bold white]B[/bold white]. Back")
     model_choice = get_char("\nSelect Option: ")
 

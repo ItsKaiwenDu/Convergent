@@ -111,7 +111,7 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 | `--fps` | Target frames per second (for GIF output) | `--fps 30` |
 | `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
 | `--stt` | Perform Speech-to-Text transcription on audio/video input | `--stt` |
-| `--model` | Whisper model size for STT (`base` ~142MB, `tiny` ~75MB, `small` ~466MB, `turbo` ~809MB, `large-v3-turbo` ~1.5GB; default: `base`) | `--model turbo` |
+| `--model` | Whisper model size for STT (`base` ~142MB, `tiny` ~75MB, `small` ~466MB, `turbo` / `large-v3-turbo` ~1.5GB; default: `base`) | `--model turbo` |
 | `--language` | Language code for STT transcription (e.g., `en`, `es`, `zh`, `auto`) | `--language en` |
 | `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) | `--hwaccel auto` |
 | `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
