@@ -26,7 +26,7 @@
     ```bash
     make setup
     ```
-    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `pandoc`, `ghostscript`, `typst`, `7-zip`, `unrar`, `rar`, `libreoffice`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
+    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `pandoc`, `ghostscript`, `typst`, `7-zip`, `unrar`, `rar`, `tesseract`, `whisper-cpp`, `libreoffice`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
 3.  **Check Dependencies**:
     ```bash
     make check
@@ -56,6 +56,7 @@ Simply run following command and follow on-screen prompts:
 ```bash
 make start
 ```
+*Features a unified launcher with saved shortcuts, drag-and-drop path input, context-aware operations, and single-key navigation.*
 
 ### Desktop Shortcut
 Create a clickable terminal script to launch Convergent from anywhere (e.g., your Desktop) without manual navigation:
@@ -127,11 +128,11 @@ For automated workflows, you can pass arguments directly using `ARGS` variable.
 
 **Example Commands:**
 ```bash
-# Transcribe MP3 audio to plain text using local Whisper engine (Standard model)
+# Transcribe MP3 audio to plain text using local Whisper engine (base model)
 make start ARGS="--from MP3 --to TXT --path ~/Desktop/recording.mp3"
 
-# Generate timestamped SRT subtitles from an MP4 video using Whisper Large model
-make start ARGS="--from MP4 --to SRT --path ./meeting.mp4 --model large"
+# Generate timestamped SRT subtitles from an MP4 video using Whisper Turbo model
+make start ARGS="--from MP4 --to SRT --path ./meeting.mp4 --model turbo"
 
 # Convert HEIC images to JPG using 4 parallel jobs and strip EXIF metadata
 make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4 --strip-metadata"
@@ -163,21 +164,21 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
 
 ## Features
 
--   **Interactive & CLI**: Numeric menu for manual runs, or direct command-line arguments for automated pipelines.
+-   **Interactive & CLI**: Context-aware operations menu with single-key navigation for manual runs, or direct CLI arguments for automated pipelines.
 -   **Unix Pipe Composition & Streaming**: Direct `stdin`/`stdout` piping via `--stdin` and `--stdout` (or `-` paths). Allows seamless integration with macOS clipboard (`pbpaste`/`pbcopy`), `curl`, `ffmpeg`, and custom shell scripts with zero disk file clutter.
 -   **High Performance**: Multi-core parallel batch processing for high-speed conversions, with **Hardware-Accelerated Transcode Auto-Detection & Fallback** (`h264_videotoolbox`, `hevc_videotoolbox`, `nvenc`, `qsv`) yielding 4x–8x faster video encoding on Apple Silicon and discrete GPUs.
 -   **Smart Input**: Handles escaped spaces, messy paths, and EXIF auto-rotation for drag-and-dropped files.
--   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag, interactive prompts, or saved shortcuts.
+-   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag (`--strip-metadata`), interactive prompts, or saved shortcuts. Supports safe in-place stripping (e.g., JPG to JPG).
 -   **Multi-Format Support**:
-    -   **PDF**: Merge (with interactive page-order preview and reordering), split, or export pages to JPG/PNG/TIF.
-    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW formats (Sony ARW, Adobe DNG).
-    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A; split MP4/MP3/GIF by segment/interval/range/frames, or merge/combine MP4/MP3/GIF (with interactive preview and reordering).
-    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) or documents (`PDF`) and save results locally to plain text (`.txt`), Markdown (`.md`), or Word Document (`.docx`) (uses macOS native Vision API or Tesseract fallback; HEIC/PDF pages are auto-rendered to PNG internally).
-    -   **Speech-to-Text (STT) Transcription (`*`)**: Local, offline transcription of audio (`MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`) and video (`MP4`, `MOV`, `MKV`, `WEBM`) into plain text (`.txt`), timestamped subtitles (`.srt`, `.vtt`), or formatted Markdown (`.md`) using `whisper.cpp` / `whisper-cli` with Metal GPU acceleration and on-demand GGML models (`base`, `tiny`, `small`, `turbo`, `large-v3-turbo`).
-    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to PDF (with options for typeset human-friendly or raw text), HTML, or TXT. Supports **splitting** and **combining** DOCX/PPTX files (output is generated in PDF format to preserve formatting and slide layout) and **combining** plain text (TXT) files (with interactive ordering and line-count preview).
-    -   **Notability (Beta)**: Convert `.ntb` note packages to standard PDF. Supports natural-order extraction and merging of multi-page imported PDF backgrounds, or compiles all available page preview thumbnails for native drawing notes.
+    -   **PDF**: Merge (with interactive page reordering), split, or export pages to JPG, PNG, TIF, or BMP.
+    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW (Sony ARW, Adobe DNG) with native macOS `sips` acceleration and ImageMagick fallback.
+    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A, AAC, OGG; split by segment/interval/range; or merge clips with mixed-format support and interactive reordering.
+    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) or documents (`PDF`) to `.txt`, `.md`, or `.docx` (via Apple Vision or Tesseract).
+    -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
+    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to typeset/raw PDF, HTML, or TXT. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
+    -   **Notability (Beta)**: Convert `.ntb` note packages to standard vector PDF.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
-    -   **Resize**: Hardware-accelerated resizing or cropping for images (JPG, PNG, HEIC) and videos (MP4) by percentage, target height, or custom dimensions, with optional center-crop to a target aspect ratio (16:9, 4:3, 1:1, 9:16).
+    -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), and privacy metadata stripping for images (JPG, PNG, HEIC) and video (MP4).
 -   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
 -   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
 -   **Premium UI**: Rich terminal interface with progress bars, status indicators, and real-time benchmarking timers.
@@ -234,6 +235,7 @@ Save frequent workflows as persistent shortcuts for instant access.
   - `[+]` Create
   - `[=]` Edit
   - `[-]` Delete
+- **Instant Run**: Trigger any shortcut directly from the initial prompt or via `--shortcut KEY`.
 - **Skip Prompts**: Save a fixed file or folder path in any shortcut to completely skip input path prompt.
 - **Persistence**: Saved automatically to `~/.convergent_shortcuts.json` and loaded into main menu on startup.
 
@@ -271,7 +273,7 @@ After conversion, you can choose from Post-Convert Options menu:
 | **OS** | macOS | 14+ (Sonoma) |
 | **Language** | [Python 3](https://www.python.org/) | 3.10+ |
 | **Processing Engine** | [FFmpeg](https://ffmpeg.org/) | 6+ |
-| **Image Engine** | [ImageMagick](https://imagemagick.org/) | 7+ |
+| **Image Engine** | [ImageMagick](https://imagemagick.org/) 7+ + macOS `sips` | 7+ / Native |
 | **PDF Engine** | [Ghostscript](https://ghostscript.com/) | 10+ |
 | **Document Engine** | [Pandoc](https://pandoc.org/) + [Typst](https://typst.app/) + [LibreOffice](https://www.libreoffice.org/) | 3+ / 0.14+ / 24+ |
 | **OCR Engine** | Apple Vision (macOS native) + [Tesseract](https://github.com/tesseract-ocr/tesseract) | - / 5+ |
