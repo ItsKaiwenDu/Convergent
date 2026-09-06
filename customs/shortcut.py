@@ -7,6 +7,12 @@ from customs.console import get_choice
 SHORTCUTS_FILE = Path.home() / ".convergent_shortcuts.json"
 MENU_LABEL_WIDTH = 14
 CONVERT_MENU_KEYS = [("3", "2"), ("4", "3"), ("5", "4"), ("6", "5")]
+TARGET_KEYS = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
+    "-", "=", "_", "+", "[", "]", "{", "}", ";", ":",
+    ",", ".", "<", ">", "/", "?", "~", "`"
+]
 COMPRESS_FORMATS = [
     ("1", "7Z"),
     ("2", "RAR"),
@@ -236,7 +242,7 @@ def _prompt_shortcut_identity(console, get_input, get_char):
         console.print(f"\n[bold red][!] '{sym}' is a reserved key. Please choose a letter not in: {' '.join(reserved_keys)}[/bold red]")
         get_char("\nPress any key to continue...")
         return None, None
-    title = get_input("Input a label title (e.g., 'Quick JPG Convert'): ").strip()
+    title = get_input("Input a label title (e.g., 'Audio -> MP3'): ").strip()
     if not sym or not title:
         return None, None
     return sym, title
@@ -330,7 +336,7 @@ def _build_shortcut_data(entry, target_fmt=None, fixed_path="", bitrate="ask", s
 
 def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths):
     console.print()
-    console.print("\n\n[bold yellow]--- Add New Shortcut ---[/bold yellow]")
+    console.print("\n\n[bold yellow]Add New Shortcut[/bold yellow]")
     print_source_menu(console, conv, "Select source category:")
     console.print(" [bold white]C[/bold white]. Cancel")
     cat_choice = get_char("\nSelect Option: ")
@@ -362,21 +368,20 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
         sorted_targets = sorted(list(available_targets))
 
         console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
-        for i, fmt in enumerate(sorted_targets, 1):
-            console.print(f" {i}. {fmt.lower()}")
+        key_to_fmt = {}
+        for i, fmt in enumerate(sorted_targets):
+            key = TARGET_KEYS[i] if i < len(TARGET_KEYS) else str(i)
+            key_to_fmt[key] = fmt
+            console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
         console.print(" [bold white]B[/bold white]. Back")
 
-        target_choice = get_choice("\nPick target #: ", choices=sorted_targets)
+        target_choice = get_choice("\nPick target #: ", choices=key_to_fmt)
         if target_choice.lower() == 'b':
             console.print()
             return
 
-        try:
-            to_idx = int(target_choice) - 1
-            if to_idx < 0 or to_idx >= len(sorted_targets):
-                raise ValueError
-            target_fmt = sorted_targets[to_idx]
-        except ValueError:
+        target_fmt = key_to_fmt.get(target_choice)
+        if not target_fmt:
             console.print(" [dim]Invalid choice[/dim]")
             time.sleep(0.5)
             return
@@ -490,7 +495,7 @@ def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, cle
 
 def remove_shortcut(shortcuts, console, get_input, get_char):
     console.print()
-    console.print("\n\n[bold yellow]--- Remove Shortcut ---[/bold yellow]")
+    console.print("\n\n[bold yellow]Remove Shortcut[/bold yellow]")
     console.print("Existing shortcuts:")
     for sym, sc in shortcuts.items():
         console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
@@ -513,7 +518,7 @@ def remove_shortcut(shortcuts, console, get_input, get_char):
 
 def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
     console.print()
-    console.print("\n\n[bold yellow]--- Edit Shortcut ---[/bold yellow]")
+    console.print("\n\n[bold yellow]Edit Shortcut[/bold yellow]")
     console.print("Existing shortcuts:")
     for sym, sc in shortcuts.items():
         console.print(f" [bold cyan]{sym}.[/bold cyan] {sc['title']}")
@@ -563,18 +568,24 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             sorted_targets = sorted(list(available_targets))
 
             console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
-            for i, fmt in enumerate(sorted_targets, 1):
-                console.print(f" {i}. {fmt.lower()}")
+            key_to_fmt = {}
+            for i, fmt in enumerate(sorted_targets):
+                key = TARGET_KEYS[i] if i < len(TARGET_KEYS) else str(i)
+                key_to_fmt[key] = fmt
+                console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
             console.print(" [bold white]Enter[/bold white]. Keep Current")
 
             target_choice = get_input("Pick target # (or Enter): ")
             if target_choice:
-                try:
-                    to_idx = int(target_choice) - 1
-                    if 0 <= to_idx < len(sorted_targets):
-                        new_target_fmt = sorted_targets[to_idx]
-                except ValueError:
-                    pass
+                if target_choice in key_to_fmt:
+                    new_target_fmt = key_to_fmt[target_choice]
+                else:
+                    try:
+                        to_idx = int(target_choice)
+                        if 0 <= to_idx < len(sorted_targets):
+                            new_target_fmt = sorted_targets[to_idx]
+                    except ValueError:
+                        pass
         elif operation == "combine":
             console.print("\n[bold yellow]Combine type:[/bold yellow]")
             console.print(" 1. Auto-detect")
@@ -662,18 +673,24 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             for fmt in source_fmts:
                 available_targets.update(conv.formats.get(fmt, []))
             sorted_targets = sorted(list(available_targets))
-            for i, fmt in enumerate(sorted_targets, 1):
-                console.print(f" {i}. {fmt.lower()}")
+            key_to_fmt = {}
+            for i, fmt in enumerate(sorted_targets):
+                key = TARGET_KEYS[i] if i < len(TARGET_KEYS) else str(i)
+                key_to_fmt[key] = fmt
+                console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
             console.print(" [bold white]Enter[/bold white]. Keep Current")
 
             target_choice = get_input("Pick target # (or Enter): ")
             if target_choice:
-                try:
-                    to_idx = int(target_choice) - 1
-                    if 0 <= to_idx < len(sorted_targets):
-                        sc_data["target_fmt"] = sorted_targets[to_idx]
-                except ValueError:
-                    pass
+                if target_choice in key_to_fmt:
+                    sc_data["target_fmt"] = key_to_fmt[target_choice]
+                else:
+                    try:
+                        to_idx = int(target_choice)
+                        if 0 <= to_idx < len(sorted_targets):
+                            sc_data["target_fmt"] = sorted_targets[to_idx]
+                    except ValueError:
+                        pass
 
             new_target_fmt = sc_data["target_fmt"]
             if new_target_fmt == "MP3":

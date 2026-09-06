@@ -1,6 +1,6 @@
 """
 Speech-to-Text (STT) Module for Convergent
--------------------------------------------
+
 High-performance, local-first audio/video transcription utility.
 Uses whisper.cpp / whisper-cli with local GGML model caching and FFmpeg audio preprocessing.
 Zero heavy runtime dependencies (no PyTorch required).

@@ -287,18 +287,93 @@ class TestCLIFlow(unittest.TestCase):
 
         output = out_io.getvalue()
         self.assertIn("Convergent", output)
-        self.assertIn("Enter file or folder path(s) to continue:", output)
+        self.assertIn("Enter shortcut or file/folder path(s) to continue:", output)
         self.assertIn("Detected: sample.mp4", output)
-        self.assertIn("Convert from:", output)
+        self.assertIn("Operations:", output)
+        self.assertNotIn("Convert from:", output)
         self.assertIn("(Other choices are hidden based on detected file format)", output)
-        self.assertIn("0. Combine:", output)
-        self.assertIn("1. Split:", output)
-        self.assertIn("2. Resize:", output)
-        self.assertIn("3. Video:", output)
-        self.assertIn("4. Compress:", output)
-        self.assertIn("5. STT:", output)
-        self.assertNotIn("Decompress:", output)
-        self.assertNotIn("OCR:", output)
+        self.assertIn("0. Combine", output)
+        self.assertIn("1. Split", output)
+        self.assertIn("2. Resize", output)
+        self.assertIn("3. Convert", output)
+        self.assertNotIn("3. Video", output)
+        self.assertIn("4. Compress", output)
+        self.assertIn("5. STT", output)
+        self.assertNotIn("Decompress", output)
+        self.assertNotIn("OCR", output)
+        self.assertNotIn("docx, gif, mp3, mp4, pdf, pptx, txt", output)
+
+    def test_interactive_png_operations_menu(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        f = self.test_dir / "Banner.png"
+        f.touch()
+
+        input_responses = [str(f), "q"]
+        char_responses = ["b"]
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.clear_screen"), \
+             patch("Convergent.flush_stdin"), \
+             patch("Convergent.get_input", side_effect=input_responses), \
+             patch("Convergent.get_char", side_effect=char_responses), \
+             patch("customs.shortcut.load_shortcuts", return_value={}), \
+             patch("Convergent.load_failed_run", return_value=None), \
+             patch("sys.argv", ["Convergent.py"]):
+            Convergent.main()
+
+        output = out_io.getvalue()
+        self.assertIn("Detected: Banner.png", output)
+        self.assertIn("Operations:", output)
+        self.assertIn("0. Resize", output)
+        self.assertIn("1. Convert", output)
+        self.assertNotIn("1. Image", output)
+        self.assertIn("2. Compress", output)
+        self.assertIn("3. OCR", output)
+
+    def test_handle_convert_target_keys_and_selection(self):
+        from unittest.mock import patch, MagicMock
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        img_file = self.test_dir / "test.png"
+        img_file.touch()
+
+        # Test selecting '!' which corresponds to index 10 (TXT for Image)
+        with patch.object(self.conv, "process", return_value=["test.txt"]) as mock_proc, \
+             patch("Convergent.prompt_move_files"):
+            status = Convergent.handle_convert(
+                self.conv, "2", [str(img_file)], test_console,
+                get_char=lambda prompt: "!",
+                get_choice=lambda prompt, choices=None: "!",
+                get_input=lambda prompt: "",
+                prompt_fps=lambda: ("success", None),
+                prompt_bitrate=lambda: ("success", None),
+                prompt_strip_metadata=lambda: ("success", False),
+                check_and_prompt_md_pdf=lambda *args, **kwargs: None,
+                time=MagicMock()
+            )
+            self.assertTrue(status)
+            mock_proc.assert_called_once()
+            # Verify target format was TXT
+            self.assertEqual(mock_proc.call_args[0][1], "TXT")
+
+        output = out_io.getvalue()
+        self.assertIn("Convert to:", output)
+        self.assertIn("0. avif", output)
+        self.assertIn("9. tif", output)
+        self.assertIn("!. txt", output)
+        self.assertIn("@. webp", output)
 
     def test_same_format_strip_metadata(self):
         from unittest.mock import patch
@@ -323,6 +398,45 @@ class TestCLIFlow(unittest.TestCase):
                 img_file, "JPG", fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=True,
                 ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None
             )
+
+    def test_resize_media_strip_metadata_prompt(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        from modules import resize
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        img_file = self.test_dir / "photo.png"
+        img_file.touch()
+
+        # Responses:
+        # method: '1' (Scale by Percentage)
+        # scale_val: '50'
+        # aspect: '1' (Keep original aspect ratio)
+        # strip_metadata prompt: '1' (Yes)
+        char_inputs = ["1", "1", "1"]
+        text_inputs = ["50"]
+
+        with patch.object(resize, "get_image_dimensions", return_value=(800, 600)), \
+             patch.object(resize, "resize_single_file", return_value=("photo.png", True, "", 0.1)) as mock_resize, \
+             patch("customs.console.console", test_console), \
+             patch("customs.console.get_char", return_value="1"), \
+             patch("modules.resize.prompt_move_files"):
+            char_inputs = ["1", "1"]
+            text_inputs = ["50"]
+            resize.resize_media([str(img_file)], self.conv, test_console,
+                                get_char=lambda p: char_inputs.pop(0),
+                                get_input=lambda p: text_inputs.pop(0))
+
+            mock_resize.assert_called_once()
+            # Verify strip_metadata was passed as True
+            self.assertTrue(mock_resize.call_args[1].get("strip_metadata"))
+
+        output = out_io.getvalue()
+        self.assertIn("Strip metadata (EXIF/IPTC) for privacy?", output)
+        self.assertNotIn("Confirm resizing of", output)
 
 
 if __name__ == "__main__":

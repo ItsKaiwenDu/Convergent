@@ -95,7 +95,10 @@ def get_choice(prompt, choices=None, max_option=None):
                     break
         elif hasattr(choices, '__len__'):
             if len(choices) >= 10:
-                use_input = True
+                if hasattr(choices, '__iter__') and all(isinstance(c, str) and len(c) == 1 for c in choices):
+                    use_input = False
+                else:
+                    use_input = True
 
     if use_input:
         return get_input(prompt)
@@ -168,10 +171,10 @@ def prompt_strip_metadata():
     if choice.lower() == 'b':
         console.print()
         return "back", False
-    elif choice == '1':
+    elif choice.lower() in ('1', 'y'):
         console.print()
         return "success", True
-    elif choice == '2':
+    elif choice.lower() in ('2', 'n'):
         console.print()
         return "success", False
     else:

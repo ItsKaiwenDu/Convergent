@@ -6,6 +6,7 @@ import concurrent.futures
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 from customs.file_process import prompt_move_files
+from customs.console import prompt_strip_metadata
 from customs.hwaccel import get_video_encoder
 
 try:
@@ -129,7 +130,7 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
 
     return w_crop, h_crop, w_final, h_final
 
-def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto"):
+def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", strip_metadata=False):
     """
     Resizes/crops a single file (image or video) and saves it with a '_resized' suffix.
     """
@@ -173,6 +174,8 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto"):
         cmd = ["ffmpeg", "-i", str(f)]
         if filters:
             cmd += ["-vf", ",".join(filters)]
+        if strip_metadata:
+            cmd += ["-map_metadata", "-1"]
         cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "copy", "-y", "-loglevel", "error", str(output)]
         success, error = run_command(cmd)
 
@@ -180,6 +183,8 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto"):
             fallback_cmd = ["ffmpeg", "-i", str(f)]
             if filters:
                 fallback_cmd += ["-vf", ",".join(filters)]
+            if strip_metadata:
+                fallback_cmd += ["-map_metadata", "-1"]
             fallback_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(output)]
             success, error = run_command(fallback_cmd)
     else:
@@ -188,6 +193,8 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto"):
             cmd += ["-gravity", "center", "-crop", f"{w_crop}x{h_crop}+0+0", "+repage"]
         if scale_needed:
             cmd += ["-resize", f"{w_final}x{h_final}!"]
+        if strip_metadata:
+            cmd.append("-strip")
         cmd.append(str(output))
         success, error = run_command(cmd)
         
@@ -305,13 +312,9 @@ def resize_media(paths, conv, console, get_char, get_input):
         get_char("\nPress any key to continue...")
         return False
 
-    # 5. Confirm
-    console.print(f"\n[bold yellow]Confirm resizing of {len(files)} file(s)? (y/n):[/bold yellow] ", end="")
-    confirm = get_char("")
-    console.print()
-    if confirm.lower() != 'y':
-        console.print("[yellow]Operation cancelled.[/yellow]")
-        get_char("\nPress any key to continue...")
+    # 5. Metadata Stripping (Privacy)
+    status, strip_metadata = prompt_strip_metadata()
+    if status in ("back", "invalid"):
         return False
 
     num_files = len(files)
@@ -344,7 +347,7 @@ def resize_media(paths, conv, console, get_char, get_input):
             task = progress.add_task("Resizing...", total=len(files))
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                futures = {executor.submit(resize_single_file, f, method, scale_val, target_aspect): f for f in files}
+                futures = {executor.submit(resize_single_file, f, method, scale_val, target_aspect, strip_metadata=strip_metadata): f for f in files}
                 
                 for future in concurrent.futures.as_completed(futures):
                     name, success, error, duration = future.result()
@@ -361,7 +364,7 @@ def resize_media(paths, conv, console, get_char, get_input):
                     progress.update(task, advance=1)
     else:
         for f in files:
-            name, success, error, duration = resize_single_file(f, method, scale_val, target_aspect)
+            name, success, error, duration = resize_single_file(f, method, scale_val, target_aspect, strip_metadata=strip_metadata)
             if success:
                 success_count += 1
                 console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")

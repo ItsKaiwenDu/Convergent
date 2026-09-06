@@ -125,7 +125,7 @@ class TestCombineCLI(unittest.TestCase):
             "V": {"title": "Video to Audio", "operation": "convert"}
         }
 
-        # Emulate the main menu block for shortcuts
+        # Emulate main menu block for shortcuts
         if shortcuts:
             test_console.print("\n[bold yellow]Your Shortcuts:[/bold yellow]")
             for sym, sc in shortcuts.items():

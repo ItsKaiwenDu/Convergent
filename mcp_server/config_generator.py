@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Convergent MCP Configuration Generator
---------------------------------------
+
 Generates copy-paste JSON configuration snippets for integrating Convergent
 into local AI clients like OpenCode, Claude Desktop, Cursor, and Zed.
 """
@@ -23,20 +23,18 @@ def generate_configs():
             }
         }
     }
-    
-    print("==================================================================")
-    print("        Convergent Local MCP Server Configuration Helper          ")
-    print("==================================================================")
+
+    print("Convergent Local MCP Server Configuration Helper")
     print("\nCopy & paste following JSON snippet into your client configuration:\n")
     print(json.dumps(config, indent=2))
-    print("\n------------------------------------------------------------------")
+    print("\n")
     print("Client Config Locations:")
     print(" • Claude Desktop (macOS): ~/Library/Application Support/Claude/claude_desktop_config.json")
     print(" • Claude Desktop (Windows): %APPDATA%\\Claude\\claude_desktop_config.json")
     print(" • Cursor / OpenCode: Add under MCP settings -> Add custom stdio MCP server")
     print("   Command: " + PYTHON_EXEC)
     print("   Args: " + SERVER_PATH)
-    print("==================================================================\n")
+    print("\n")
 
 if __name__ == "__main__":
     generate_configs()

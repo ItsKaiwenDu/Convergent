@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Convergent Local MCP (Model Context Protocol) Server
----------------------------------------------------
+
 Exposes Convergent file conversion capabilities as an MCP server over stdio.
 Enables local AI models (OpenCode, Claude Desktop, Cursor, etc.) to convert,
 extract, process, combine, split, and OCR local files.

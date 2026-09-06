@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Convergent: Private, Local File Converter Utility
--------------------------------------------
+
 Owner: Kaiwen Du
 License: Apache License 2.0
 
@@ -580,21 +580,20 @@ def handle_convert(conv, cat_id, paths, console, get_char, get_choice, get_input
     sorted_targets = sorted(list(available_targets))
     
     console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
-    for i, fmt in enumerate(sorted_targets, 1):
-        console.print(f" {i}. {fmt.lower()}")
+    key_to_fmt = {}
+    for i, fmt in enumerate(sorted_targets):
+        key = shortcut.TARGET_KEYS[i] if i < len(shortcut.TARGET_KEYS) else str(i)
+        key_to_fmt[key] = fmt
+        console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
     console.print(" [bold white]B[/bold white]. Back")
     
-    target_choice = get_choice("\nSelect Option: ", choices=sorted_targets)
+    target_choice = get_choice("\nSelect Option: ", choices=key_to_fmt)
     if target_choice.lower() == 'b':
         console.print()
         return False
         
-    try:
-        to_idx = int(target_choice) - 1
-        if to_idx < 0 or to_idx >= len(sorted_targets):
-            raise ValueError
-        target_fmt = sorted_targets[to_idx]
-    except ValueError:
+    target_fmt = key_to_fmt.get(target_choice)
+    if not target_fmt:
         console.print(" [dim]Invalid choice[/dim]")
         time.sleep(0.5)
         return False
@@ -821,10 +820,10 @@ def main():
                 
         console.print(" [bold white]Q.[/bold white] Quit")
         
-        console.print("\n[bold yellow]Enter file or folder path(s) to continue:[/bold yellow]")
+        console.print("\n[bold yellow]Enter shortcut or file/folder path(s) to continue:[/bold yellow]")
         console.print("[dim](Tip: You can either paste or drag and drop here)[/dim]")
         flush_stdin()
-        raw_input = get_input("Path: ")
+        raw_input = get_input("CMD/Path: ")
         flush_stdin()
 
         if not raw_input or not raw_input.strip():
@@ -913,7 +912,7 @@ def main():
                     else:
                         msg = "\n[bold red]Oops sorry! No supported files found in this folder.[/bold red]"
                 elif not exts:
-                    msg = "\n[bold red]Oops sorry! No supported files found in the provided path.[/bold red]"
+                    msg = "\n[bold red]Oops sorry! No supported files found in provided path.[/bold red]"
                 else:
                     ext_str = f" ({', '.join(f'.{e}' for e in sorted(exts))})"
                     if len(exts) > 1:
@@ -939,7 +938,7 @@ def main():
         if not valid_paths:
             continue
 
-        # Screen 2: Context-Aware "Convert from:" Menu
+        # Screen 2: Context-Aware "Operations:" Menu
         while True:
             clear_screen()
             console.rule("Convergent")
@@ -953,15 +952,19 @@ def main():
 
             matched_entries = shortcut.get_applicable_menu_entries(conv, valid_paths)
             if not matched_entries:
-                console.print("[bold red]No supported operations found for the provided path(s).[/bold red]")
+                console.print("[bold red]No supported operations found for provided path(s).[/bold red]")
                 get_char("\nPress any key to continue...")
                 break
 
-            console.print("\n[bold yellow]Convert from:[/bold yellow]")
+            console.print("\n[bold yellow]Operations:[/bold yellow]")
+            num_convert = sum(1 for e in matched_entries if e.get("operation") == "convert")
             for entry in matched_entries:
+                if entry["operation"] == "convert":
+                    label = f"Convert ({entry['label'].rstrip(':')})" if num_convert > 1 else "Convert"
+                else:
+                    label = entry['label'].rstrip(':')
                 console.print(
-                    f" [bold cyan]{entry['key']}.[/bold cyan] "
-                    f"{entry['label'].ljust(shortcut.MENU_LABEL_WIDTH)} {entry['exts']}"
+                    f" [bold cyan]{entry['key']}.[/bold cyan] {label}"
                 )
             console.print(" [bold white]B.[/bold white] Back")
             console.print(" [bold white]Q.[/bold white] Quit")
