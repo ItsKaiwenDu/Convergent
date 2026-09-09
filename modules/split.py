@@ -131,9 +131,9 @@ def split_pdf(
     if interactive:
         name_to_show = display_name or path_obj.name
         console.print(f"\n[bold yellow]Split Options for '{name_to_show}' ({total_pages} pages):[/bold yellow]")
-        console.print(" 1. Individual Pages (every page becomes its own PDF)")
-        console.print(" 2. Custom Split (e.g., 1-5, 6-10...)")
-        console.print(" 3. Split into N parts")
+        console.print(" [bold cyan]1.[/bold cyan] Individual Pages (every page becomes its own PDF)")
+        console.print(" [bold cyan]2.[/bold cyan] Custom Split (e.g., 1-5, 6-10...)")
+        console.print(" [bold cyan]3.[/bold cyan] Split into N parts")
         console.print(" [bold white]B[/bold white]. Back")
         user_choice = get_char("\nSelect Option: ")
         console.print()
@@ -271,9 +271,9 @@ def split_video(
 
     if interactive:
         console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({format_seconds(duration)}):[/bold yellow]")
-        console.print(" 1. Fixed Segments (e.g., every 60 seconds)")
-        console.print(" 2. Custom Range (e.g., 00:00:00-00:01:00)")
-        console.print(" 3. Split into N parts")
+        console.print(" [bold cyan]1.[/bold cyan] Fixed Segments (e.g., every 60 seconds)")
+        console.print(" [bold cyan]2.[/bold cyan] Custom Range (e.g., 00:00:00-00:01:00)")
+        console.print(" [bold cyan]3.[/bold cyan] Split into N parts")
         console.print(" [bold white]B[/bold white]. Back")
         
         user_choice = get_char("\nSelect Option: ")
@@ -448,9 +448,9 @@ def split_audio(
 
     if interactive:
         console.print(f"\n[bold yellow]Split Options for '{path_obj.name}' ({format_seconds(duration)}):[/bold yellow]")
-        console.print(" 1. Fixed Segments (e.g., every 60 seconds)")
-        console.print(" 2. Custom Range (e.g., 00:00:00-00:01:00)")
-        console.print(" 3. Split into N parts")
+        console.print(" [bold cyan]1.[/bold cyan] Fixed Segments (e.g., every 60 seconds)")
+        console.print(" [bold cyan]2.[/bold cyan] Custom Range (e.g., 00:00:00-00:01:00)")
+        console.print(" [bold cyan]3.[/bold cyan] Split into N parts")
         console.print(" [bold white]B[/bold white]. Back")
         
         user_choice = get_char("\nSelect Option: ")
@@ -618,19 +618,44 @@ def split_gif(
     chosen_mode = str(mode).lower() if mode else "frames"
 
     if interactive:
-        console.print(f"\n[bold yellow]Split Options for '{path_obj.name}':[/bold yellow]")
-        console.print(" 1. Extract Frames (every frame becomes an individual image)")
-        console.print(" 2. Split into GIF Segments (fixed intervals, custom ranges, or N parts)")
-        console.print(" [bold white]B[/bold white]. Back")
-        
-        user_choice = get_char("\nSelect Option: ")
-        console.print()
-        if user_choice.lower() == 'b':
-            return None
-        if user_choice == '1':
-            chosen_mode = "frames"
-        elif user_choice == '2':
-            chosen_mode = "segments_prompt"
+        while True:
+            console.print(f"\n[bold yellow]Split Options for '{path_obj.name}':[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] Extract Frames (every frame becomes an individual image)")
+            console.print(" [bold cyan]2.[/bold cyan] Split into GIF Segments (fixed intervals, custom ranges, or N parts)")
+            console.print(" [bold white]B[/bold white]. Back")
+            
+            user_choice = get_char("\nSelect Option: ")
+            console.print()
+            if user_choice.lower() == 'b':
+                return None
+            if user_choice == '1':
+                chosen_mode = "frames"
+                break
+            elif user_choice == '2':
+                if duration == 0:
+                    console.print("[bold red]Error: Could not determine GIF duration or file is empty.[/bold red]")
+                    return None
+                console.print(f"\n[bold yellow]GIF Segment Split Options ({format_seconds(duration)}):[/bold yellow]")
+                console.print(" [bold cyan]1.[/bold cyan] Fixed Segments (e.g., every 5 seconds)")
+                console.print(" [bold cyan]2.[/bold cyan] Custom Range (e.g., 00:00:00-00:01:00)")
+                console.print(" [bold cyan]3.[/bold cyan] Split into N parts")
+                console.print(" [bold white]B[/bold white]. Back")
+                
+                sub_choice = get_char("\nSelect Option: ")
+                console.print()
+                if sub_choice.lower() == 'b':
+                    continue
+                if sub_choice not in ('1', '2', '3'):
+                    console.print(" [dim]Invalid choice[/dim]")
+                    time.sleep(0.5)
+                    continue
+                chosen_mode = sub_choice
+                sub_mode = sub_choice
+                break
+            else:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
         
     out_directory = Path(os.path.expanduser(str(output_dir))) if output_dir else (path_obj.parent / f"{path_obj.stem}_split")
     send_to_trash(out_directory)
@@ -659,25 +684,13 @@ def split_gif(
                     console.print(f"   [dim]{error.strip()}[/dim]")
             return None
             
-    elif chosen_mode in ('2', 'segments_prompt', 'interval', 'ranges', 'parts'):
+    elif chosen_mode in ('2', '3', 'segments_prompt', 'interval', 'ranges', 'parts', '1'):
         if duration == 0:
             if interactive:
                 console.print("[bold red]Error: Could not determine GIF duration or file is empty.[/bold red]")
             return None
             
         sub_mode = chosen_mode
-        if interactive and chosen_mode == "segments_prompt":
-            console.print(f"\n[bold yellow]GIF Segment Split Options ({format_seconds(duration)}):[/bold yellow]")
-            console.print(" 1. Fixed Segments (e.g., every 5 seconds)")
-            console.print(" 2. Custom Range (e.g., 00:00:00-00:01:00)")
-            console.print(" 3. Split into N parts")
-            console.print(" [bold white]B[/bold white]. Back")
-            
-            sub_choice = get_char("\nSelect Option: ")
-            console.print()
-            if sub_choice.lower() == 'b':
-                return None
-            sub_mode = sub_choice
             
         if sub_mode in ('1', 'interval', 'fixed', 'segments_prompt', 'segments'):
             if interactive:

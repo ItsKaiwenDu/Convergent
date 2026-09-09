@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -424,7 +425,7 @@ class TestCLIFlow(unittest.TestCase):
              patch("customs.console.console", test_console), \
              patch("customs.console.get_char", return_value="1"), \
              patch("modules.resize.prompt_move_files"):
-            char_inputs = ["1", "1"]
+            char_inputs = ["1", "5"]
             text_inputs = ["50"]
             resize.resize_media([str(img_file)], self.conv, test_console,
                                 get_char=lambda p: char_inputs.pop(0),
@@ -438,6 +439,161 @@ class TestCLIFlow(unittest.TestCase):
         self.assertIn("Strip metadata (EXIF/IPTC) for privacy?", output)
         self.assertNotIn("Confirm resizing of", output)
 
+    def test_resize_media_dimensions_skips_aspect_ratio(self):
+        from unittest.mock import patch
+        from io import StringIO
+        from rich.console import Console
+        from modules import resize
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+
+        img_file = self.test_dir / "photo2.png"
+        img_file.touch()
+
+        # Responses:
+        # method: '3' (By Dimensions) -> only 1 char input! Aspect ratio is auto-skipped.
+        char_inputs = ["3"]
+        text_inputs = ["800x600"]
+
+        with patch.object(resize, "get_image_dimensions", return_value=(1920, 1080)), \
+             patch.object(resize, "resize_single_file", return_value=("photo2.png", True, "", 0.1)) as mock_resize, \
+             patch("customs.console.console", test_console), \
+             patch("customs.console.get_char", return_value="1"), \
+             patch("modules.resize.prompt_move_files"):
+            resize.resize_media([str(img_file)], self.conv, test_console,
+                                get_char=lambda p: char_inputs.pop(0),
+                                get_input=lambda p: text_inputs.pop(0))
+
+            mock_resize.assert_called_once()
+            # Verify target_aspect was automatically set to '5' (Skip)
+            self.assertEqual(mock_resize.call_args[0][3], "5")
+
+        output = out_io.getvalue()
+        self.assertNotIn("Select Target Aspect Ratio:", output)
+
+
+    def test_print_source_menu_no_auto_highlight(self):
+        from io import StringIO
+        from rich.console import Console
+
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=True, color_system="truecolor")
+        shortcut.print_source_menu(test_console, self.conv, "Select source category:")
+        output = out_io.getvalue()
+
+        # Keys should be styled bold cyan
+        self.assertIn("\x1b[1;36m7.", output)
+        # tar. should NOT be highlighted with repr.call magenta/purple (\x1b[1;35m)
+        self.assertNotIn("\x1b[1;35mtar.", output)
+        # Parentheses should NOT be highlighted with repr.brace bold (\x1b[1m()
+        self.assertNotIn("\x1b[1m(", output)
+        self.assertIn("tar.(gz/bz2/xz)", output)
+
+
+    def test_resize_back_navigation(self):
+        from io import StringIO
+        from rich.console import Console
+        from modules import resize
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+        img_file = self.test_dir / "back_test.png"
+        img_file.touch()
+
+        # Step 1: select '1' (By Percentage)
+        # prompt percentage: '50'
+        # Step 2: hit 'B' (should return to Step 1!)
+        # Step 1: select '4' (Skip scaling)
+        # Step 2: select '1' (16:9)
+        # Step 3: hit 'B' (should return to Step 2!)
+        # Step 2: select '2' (4:3)
+        # Step 3: hit '1' (Strip metadata: Yes)
+        char_inputs = ["1", "b", "4", "1", "b", "2", "1"]
+        text_inputs = ["50"]
+
+        with patch.object(resize, "get_image_dimensions", return_value=(1920, 1080)), \
+             patch.object(resize, "resize_single_file", return_value=("back_test.png", True, "", 0.1)) as mock_resize, \
+             patch("customs.console.get_char", side_effect=lambda p="": char_inputs.pop(0)), \
+             patch("modules.resize.prompt_move_files"):
+            resize.resize_media(
+                [str(img_file)], self.conv, test_console,
+                get_char=lambda p: char_inputs.pop(0),
+                get_input=lambda p: text_inputs.pop(0)
+            )
+            mock_resize.assert_called_once()
+            # Verified that final chosen aspect was '2' (4:3)
+            self.assertEqual(mock_resize.call_args[0][3], "2")
+
+    def test_stt_back_navigation(self):
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+        audio_file = self.test_dir / "speech.mp3"
+        audio_file.touch()
+
+        # Screen 1: select '1' (TXT)
+        # Screen 2: hit 'b' -> should return to Screen 1
+        # Screen 1: select '2' (SRT)
+        # Screen 2: select '1' (base)
+        char_inputs = ["1", "b", "2", "1"]
+
+        with patch.object(self.conv, "process", return_value=["speech.srt"]) as mock_process, \
+             patch("Convergent.prompt_move_files"):
+            res = Convergent.handle_stt(
+                self.conv, [str(audio_file)], test_console,
+                get_char=lambda p: char_inputs.pop(0),
+                get_input=lambda p: "",
+                time=unittest.mock.MagicMock()
+            )
+            self.assertTrue(res)
+            # Verify target format was SRT (after going back)
+            self.assertEqual(mock_process.call_args[0][1], "SRT")
+
+    def test_convert_multi_step_back_navigation(self):
+        from io import StringIO
+        from rich.console import Console
+        import Convergent
+        out_io = StringIO()
+        test_console = Console(file=out_io, force_terminal=False)
+        vid_file = self.test_dir / "clip.mp4"
+        vid_file.touch()
+
+        # Video category '3' has GIF and MP3 as available targets.
+        # First attempt: pick GIF -> prompt_fps returns ("back", None)
+        # -> handle_convert loops back to "Convert to:" menu!
+        # Second attempt: pick MP3 -> prompt_bitrate returns ("success", "192k")
+        # -> handle_convert completes!
+        chosen_targets = ["GIF", "MP3"]
+        def mock_get_choice(prompt, choices):
+            target = chosen_targets.pop(0)
+            return next(k for k, v in choices.items() if v == target)
+
+        mock_fps = unittest.mock.MagicMock(return_value=("back", None))
+        mock_bitrate = unittest.mock.MagicMock(return_value=("success", "192k"))
+
+        with patch.object(self.conv, "process", return_value=["clip.mp3"]) as mock_process, \
+             patch("Convergent.prompt_move_files"):
+            res = Convergent.handle_convert(
+                self.conv, "3", [str(vid_file)], test_console,
+                get_char=lambda p: "",
+                get_choice=mock_get_choice,
+                get_input=lambda p: "",
+                prompt_fps=mock_fps,
+                prompt_bitrate=mock_bitrate,
+                prompt_strip_metadata=Convergent.prompt_strip_metadata,
+                check_and_prompt_md_pdf=Convergent.check_and_prompt_md_pdf,
+                time=unittest.mock.MagicMock()
+            )
+            self.assertTrue(res)
+            # Verify mock_fps was called once, user backed out, then mock_bitrate was called
+            mock_fps.assert_called_once()
+            mock_bitrate.assert_called_once()
+            self.assertEqual(mock_process.call_args[0][1], "MP3")
+            self.assertEqual(mock_process.call_args[1]["bitrate"], "192k")
+
 
 if __name__ == "__main__":
     unittest.main()
+

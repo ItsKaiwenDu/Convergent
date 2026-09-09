@@ -31,7 +31,7 @@ class MockConsole:
 
 try:
     from rich.console import Console
-    console = Console()
+    console = Console(highlight=False)
 except ImportError:
     console = MockConsole()
 
@@ -105,14 +105,15 @@ def get_choice(prompt, choices=None, max_option=None):
     else:
         return get_char(prompt)
 
-def prompt_fps():
+def prompt_fps(get_char_func=None):
+    gc = get_char_func or get_char
     import time
     console.print("\n[bold yellow]Select FPS for GIF:[/bold yellow]")
-    console.print(" 1. Original FPS")
-    console.print(" 2. 30 FPS")
-    console.print(" 3. 60 FPS")
+    console.print(" [bold cyan]1.[/bold cyan] Original FPS")
+    console.print(" [bold cyan]2.[/bold cyan] 30 FPS")
+    console.print(" [bold cyan]3.[/bold cyan] 60 FPS")
     console.print(" [bold white]B[/bold white]. Back")
-    fps_choice = get_char("\nSelect Option: ")
+    fps_choice = gc("\nSelect Option: ")
     if fps_choice.lower() == 'b':
         console.print()
         return "back", None
@@ -131,15 +132,16 @@ def prompt_fps():
         return "invalid", None
 
 
-def prompt_bitrate():
+def prompt_bitrate(get_char_func=None):
+    gc = get_char_func or get_char
     import time
     console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
-    console.print(" 1. Default")
-    console.print(" 2. 128k")
-    console.print(" 3. 192k")
-    console.print(" 4. 320k")
+    console.print(" [bold cyan]1.[/bold cyan] Default")
+    console.print(" [bold cyan]2.[/bold cyan] 128k")
+    console.print(" [bold cyan]3.[/bold cyan] 192k")
+    console.print(" [bold cyan]4.[/bold cyan] 320k")
     console.print(" [bold white]B[/bold white]. Back")
-    bitrate_choice = get_char("\nSelect Option: ")
+    bitrate_choice = gc("\nSelect Option: ")
     if bitrate_choice.lower() == 'b':
         console.print()
         return "back", None
@@ -161,13 +163,14 @@ def prompt_bitrate():
         return "invalid", None
 
 
-def prompt_strip_metadata():
+def prompt_strip_metadata(get_char_func=None):
+    gc = get_char_func or get_char
     import time
     console.print("\n[bold yellow]Strip metadata (EXIF/IPTC) for privacy?[/bold yellow]")
-    console.print(" 1. Yes")
-    console.print(" 2. No")
+    console.print(" [bold cyan]1.[/bold cyan] Yes")
+    console.print(" [bold cyan]2.[/bold cyan] No")
     console.print(" [bold white]B[/bold white]. Back")
-    choice = get_char("\nSelect Option: ")
+    choice = gc("\nSelect Option: ")
     if choice.lower() == 'b':
         console.print()
         return "back", False

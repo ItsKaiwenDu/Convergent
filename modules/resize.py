@@ -88,10 +88,10 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
     returns (w_crop, h_crop, w_final, h_final).
     """
     aspect_map = {
-        '2': 16/9,
-        '3': 4/3,
-        '4': 1/1,
-        '5': 9/16
+        '1': 16/9,
+        '2': 4/3,
+        '3': 1/1,
+        '4': 9/16,
     }
     
     # 1. Target Aspect Ratio Cropping Dimensions
@@ -234,88 +234,110 @@ def resize_media(paths, conv, console, get_char, get_input):
         else:
             w, h = get_image_dimensions(f)
         dim_str = f"({w}x{h})" if w and h else "(unknown dimensions)"
-        console.print(f" {idx}. {f.name} [dim]{dim_str}[/dim]")
+        console.print(f" [bold cyan]{idx}.[/bold cyan] {f.name} [dim]{dim_str}[/dim]")
 
-    # 3. Select Resize Method
-    console.print("\n[bold yellow]Select Resize Method:[/bold yellow]")
-    console.print(" 1. Scale by Percentage (e.g., 50%)")
-    console.print(" 2. Set Target Height (maintain aspect ratio, e.g., 720px)")
-    console.print(" 3. Set Custom Width & Height (e.g., 800x600)")
-    console.print(" 4. No Change (Keep original resolution)")
-    console.print(" [bold white]B[/bold white]. Back")
-    
-    method = get_char("\nSelect Option: ")
-    if method.lower() == 'b':
-        return False
-    if method not in ('1', '2', '3', '4'):
-        console.print(" [dim]Invalid choice[/dim]")
-        time.sleep(0.5)
-        return False
-        
+    # 3. Interactive resize options
+    step = 1
+    method = None
     scale_val = None
-    if method == '1':
-        pct_str = get_input("\nEnter percentage (e.g. 50): ")
-        try:
-            scale_val = float(pct_str)
-            if scale_val <= 0:
-                raise ValueError
-        except ValueError:
-            console.print("[bold red]Invalid percentage.[/bold red]")
-            get_char("\nPress any key to continue...")
-            return False
-    elif method == '2':
-        h_str = get_input("\nEnter target height in pixels (e.g. 720): ")
-        try:
-            scale_val = int(h_str)
-            if scale_val <= 0:
-                raise ValueError
-        except ValueError:
-            console.print("[bold red]Invalid height.[/bold red]")
-            get_char("\nPress any key to continue...")
-            return False
-    elif method == '3':
-        dims_str = get_input("\nEnter target width and height (e.g. 800x600): ")
-        try:
-            if 'x' in dims_str:
-                w_str, h_str = dims_str.split('x', 1)
+    target_aspect = '5'
+    strip_metadata = False
+
+    while True:
+        if step == 1:
+            console.print("\n[bold yellow]Select Resize Method:[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] By Percentage (e.g., 50%)")
+            console.print(" [bold cyan]2.[/bold cyan] By Target Height (e.g., 720px)")
+            console.print(" [bold cyan]3.[/bold cyan] By Dimensions (e.g., 800x600)")
+            console.print(" [bold cyan]4.[/bold cyan] Skip")
+            console.print(" [bold white]B[/bold white]. Back")
+            
+            method = get_char("\nSelect Option: ")
+            if method.lower() == 'b':
+                return False
+            if method not in ('1', '2', '3', '4'):
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
+                
+            scale_val = None
+            if method == '1':
+                pct_str = get_input("\nEnter percentage (e.g. 50): ")
+                try:
+                    scale_val = float(pct_str)
+                    if scale_val <= 0:
+                        raise ValueError
+                except ValueError:
+                    console.print("[bold red]Invalid percentage.[/bold red]")
+                    get_char("\nPress any key to continue...")
+                    continue
+            elif method == '2':
+                h_str = get_input("\nEnter target height in pixels (e.g. 720): ")
+                try:
+                    scale_val = int(h_str)
+                    if scale_val <= 0:
+                        raise ValueError
+                except ValueError:
+                    console.print("[bold red]Invalid height.[/bold red]")
+                    get_char("\nPress any key to continue...")
+                    continue
+            elif method == '3':
+                dims_str = get_input("\nEnter target width and height (e.g. 800x600): ")
+                try:
+                    if 'x' in dims_str:
+                        w_str, h_str = dims_str.split('x', 1)
+                    else:
+                        w_str, h_str = dims_str.split(None, 1)
+                    w_val = int(w_str.strip())
+                    h_val = int(h_str.strip())
+                    if w_val <= 0 or h_val <= 0:
+                        raise ValueError
+                    scale_val = (w_val, h_val)
+                except ValueError:
+                    console.print("[bold red]Invalid width and height format. Use e.g. 800x600 or 800 600.[/bold red]")
+                    get_char("\nPress any key to continue...")
+                    continue
+
+            if method == '3':
+                target_aspect = '5'
+                step = 3
             else:
-                w_str, h_str = dims_str.split(None, 1)
-            w_val = int(w_str.strip())
-            h_val = int(h_str.strip())
-            if w_val <= 0 or h_val <= 0:
-                raise ValueError
-            scale_val = (w_val, h_val)
-        except ValueError:
-            console.print("[bold red]Invalid width and height format. Use e.g. 800x600 or 800 600.[/bold red]")
-            get_char("\nPress any key to continue...")
-            return False
+                step = 2
 
-    # 4. Select Aspect Ratio
-    console.print("\n[bold yellow]Select Target Aspect Ratio:[/bold yellow]")
-    console.print(" 1. Keep Original Aspect Ratio")
-    console.print(" 2. 16:9 (Widescreen)")
-    console.print(" 3. 4:3 (Standard)")
-    console.print(" 4. 1:1 (Square)")
-    console.print(" 5. 9:16 (Vertical)")
-    console.print(" [bold white]B[/bold white]. Back")
-    
-    target_aspect = get_char("\nSelect Option: ")
-    if target_aspect.lower() == 'b':
-        return False
-    if target_aspect not in ('1', '2', '3', '4', '5'):
-        console.print(" [dim]Invalid choice[/dim]")
-        time.sleep(0.5)
-        return False
+        elif step == 2:
+            console.print("\n[bold yellow]Select Target Aspect Ratio:[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] 16:9 (Widescreen)")
+            console.print(" [bold cyan]2.[/bold cyan] 4:3 (Standard)")
+            console.print(" [bold cyan]3.[/bold cyan] 1:1 (Square)")
+            console.print(" [bold cyan]4.[/bold cyan] 9:16 (Vertical)")
+            console.print(" [bold cyan]5.[/bold cyan] Skip")
+            console.print(" [bold white]B[/bold white]. Back")
+            
+            target_aspect = get_char("\nSelect Option: ")
+            if target_aspect.lower() == 'b':
+                step = 1
+                continue
+            if target_aspect not in ('1', '2', '3', '4', '5'):
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
 
-    if method == '4' and target_aspect == '1':
-        console.print("\n[yellow]No changes selected (No Change & Keep Original aspect ratio).[/yellow]")
-        get_char("\nPress any key to continue...")
-        return False
+            if method == '4' and target_aspect == '5':
+                console.print("\n[yellow]No changes selected (both scaling and aspect ratio skipped).[/yellow]")
+                get_char("\nPress any key to continue...")
+                step = 1
+                continue
 
-    # 5. Metadata Stripping (Privacy)
-    status, strip_metadata = prompt_strip_metadata()
-    if status in ("back", "invalid"):
-        return False
+            step = 3
+
+        elif step == 3:
+            status, strip_metadata = prompt_strip_metadata()
+            if status == "back":
+                step = 1 if method == '3' else 2
+                continue
+            if status == "invalid":
+                continue
+            break
 
     num_files = len(files)
     if num_files > 50:

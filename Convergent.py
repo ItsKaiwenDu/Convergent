@@ -196,8 +196,8 @@ def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
         
     while True:
         console.print("\n[bold yellow]Markdown (.md) files detected! Select rendering mode for PDF:[/bold yellow]")
-        console.print(" 1. Human-friendly PDF (renders bold, tables, lists, etc. correctly)")
-        console.print(" 2. Raw PDF (displays raw Markdown text and symbols)")
+        console.print(" [bold cyan]1.[/bold cyan] Human-friendly PDF (renders bold, tables, lists, etc. correctly)")
+        console.print(" [bold cyan]2.[/bold cyan] Raw PDF (displays raw Markdown text and symbols)")
         console.print(" [bold white]B[/bold white]. Back")
         md_choice = get_char("\nSelect Option: ")
         if md_choice.lower() == 'b':
@@ -291,7 +291,7 @@ def handle_combine(conv, paths, console, get_char, get_choice, get_input):
     if len(available_types) > 1:
         console.print("\n[bold yellow]Found multiple file types. What do you want to combine?[/bold yellow]")
         for i, (t_code, t_name) in enumerate(available_types, 1):
-            console.print(f" {i}. {t_name}")
+            console.print(f" [bold cyan]{i}.[/bold cyan] {t_name}")
         console.print(" [bold white]B[/bold white]. Back")
         c_choice = get_choice("\nSelect Option: ", choices=available_types)
         if c_choice.lower() == 'b':
@@ -393,12 +393,12 @@ def handle_compress(conv, paths, console, get_char, get_input, time):
             return False
         
     console.print(f"\n[bold yellow]Select target format:[/bold yellow]")
-    console.print(" 1. 7z")
-    console.print(" 2. rar")
-    console.print(" 3. tar.bz2")
-    console.print(" 4. tar.gz")
-    console.print(" 5. tar.xz")
-    console.print(" 6. zip")
+    console.print(" [bold cyan]1.[/bold cyan] 7z")
+    console.print(" [bold cyan]2.[/bold cyan] rar")
+    console.print(" [bold cyan]3.[/bold cyan] tar.bz2")
+    console.print(" [bold cyan]4.[/bold cyan] tar.gz")
+    console.print(" [bold cyan]5.[/bold cyan] tar.xz")
+    console.print(" [bold cyan]6.[/bold cyan] zip")
     console.print(" [bold white]B[/bold white]. Back")
     fmt_choice = get_char("\nSelect Option: ")
     
@@ -477,10 +477,10 @@ def handle_decompress(conv, paths, console, get_char, get_input, flush_stdin, cl
 
 def handle_ocr(conv, paths, console, get_char, get_input, time):
     console.print(f"\n[bold yellow]Select target format for OCR text:[/bold yellow]")
-    console.print(" 1. txt")
-    console.print(" 2. md")
-    console.print(" 3. docx")
-    console.print(" 4. pdf")
+    console.print(" [bold cyan]1.[/bold cyan] txt")
+    console.print(" [bold cyan]2.[/bold cyan] md")
+    console.print(" [bold cyan]3.[/bold cyan] docx")
+    console.print(" [bold cyan]4.[/bold cyan] pdf")
     console.print(" [bold white]B[/bold white]. Back")
     fmt_choice = get_char("\nSelect Option: ")
     
@@ -510,47 +510,63 @@ def handle_ocr(conv, paths, console, get_char, get_input, time):
         return False
 
 def handle_stt(conv, paths, console, get_char, get_input, time):
-    console.print(f"\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
-    console.print(" 1. txt")
-    console.print(" 2. srt")
-    console.print(" 3. vtt")
-    console.print(" 4. md")
-    console.print(" [bold white]B[/bold white]. Back")
-    fmt_choice = get_char("\nSelect Option: ")
+    step = 1
+    target_fmt = None
+    model = "base"
 
-    if fmt_choice.lower() == 'b':
-        return False
+    while True:
+        if step == 1:
+            console.print(f"\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] txt")
+            console.print(" [bold cyan]2.[/bold cyan] srt")
+            console.print(" [bold cyan]3.[/bold cyan] vtt")
+            console.print(" [bold cyan]4.[/bold cyan] md")
+            console.print(" [bold white]B[/bold white]. Back")
+            fmt_choice = get_char("\nSelect Option: ")
 
-    target_fmt = (
-        "TXT" if fmt_choice == '1' else
-        "SRT" if fmt_choice == '2' else
-        "VTT" if fmt_choice == '3' else
-        "MD" if fmt_choice == '4' else
-        None
-    )
+            if fmt_choice.lower() == 'b':
+                return False
 
-    if not target_fmt:
-        console.print(" [dim]Invalid choice[/dim]")
-        time.sleep(0.5)
-        return False
+            target_fmt = (
+                "TXT" if fmt_choice == '1' else
+                "SRT" if fmt_choice == '2' else
+                "VTT" if fmt_choice == '3' else
+                "MD" if fmt_choice == '4' else
+                None
+            )
 
-    console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
-    console.print(" 1. base (~142MB, daily use)")
-    console.print(" 2. tiny (~75MB, fastest speed)")
-    console.print(" 3. small (~466MB, better accuracy)")
-    console.print(" 4. turbo (~1.5GB, best accuracy)")
-    console.print(" [bold white]B[/bold white]. Back")
-    model_choice = get_char("\nSelect Option: ")
+            if not target_fmt:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
 
-    if model_choice.lower() == 'b':
-        return False
+            step = 2
 
-    model = (
-        "tiny" if model_choice == '2' else
-        "small" if model_choice == '3' else
-        "turbo" if model_choice == '4' else
-        "base"
-    )
+        elif step == 2:
+            console.print(f"\n[bold yellow]Select STT model size:[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] base (~142MB, daily use)")
+            console.print(" [bold cyan]2.[/bold cyan] tiny (~75MB, fastest speed)")
+            console.print(" [bold cyan]3.[/bold cyan] small (~466MB, better accuracy)")
+            console.print(" [bold cyan]4.[/bold cyan] turbo (~1.5GB, best accuracy)")
+            console.print(" [bold white]B[/bold white]. Back")
+            model_choice = get_char("\nSelect Option: ")
+
+            if model_choice.lower() == 'b':
+                step = 1
+                continue
+
+            if model_choice not in ('1', '2', '3', '4'):
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
+
+            model = (
+                "tiny" if model_choice == '2' else
+                "small" if model_choice == '3' else
+                "turbo" if model_choice == '4' else
+                "base"
+            )
+            break
 
     success_map = {}
     converted = conv.process(
@@ -579,51 +595,85 @@ def handle_convert(conv, cat_id, paths, console, get_char, get_choice, get_input
     
     sorted_targets = sorted(list(available_targets))
     
-    console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
-    key_to_fmt = {}
-    for i, fmt in enumerate(sorted_targets):
-        key = shortcut.TARGET_KEYS[i] if i < len(shortcut.TARGET_KEYS) else str(i)
-        key_to_fmt[key] = fmt
-        console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
-    console.print(" [bold white]B[/bold white]. Back")
-    
-    target_choice = get_choice("\nSelect Option: ", choices=key_to_fmt)
-    if target_choice.lower() == 'b':
+    while True:
+        console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
+        key_to_fmt = {}
+        for i, fmt in enumerate(sorted_targets):
+            key = shortcut.TARGET_KEYS[i] if i < len(shortcut.TARGET_KEYS) else str(i)
+            key_to_fmt[key] = fmt
+            console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
+        console.print(" [bold white]B[/bold white]. Back")
+        
+        target_choice = get_choice("\nSelect Option: ", choices=key_to_fmt)
+        if target_choice.lower() == 'b':
+            console.print()
+            return False
+            
+        target_fmt = key_to_fmt.get(target_choice)
+        if not target_fmt:
+            console.print(" [dim]Invalid choice[/dim]")
+            time.sleep(0.5)
+            continue
+        
         console.print()
-        return False
-        
-    target_fmt = key_to_fmt.get(target_choice)
-    if not target_fmt:
-        console.print(" [dim]Invalid choice[/dim]")
-        time.sleep(0.5)
-        return False
-    
-    console.print()
-        
-    fps = None
-    if target_fmt == "GIF":
-        status, val = prompt_fps()
-        if status in ("back", "invalid"):
-            return False
-        fps = val
-        
-    bitrate = None
-    if target_fmt == "MP3":
-        status, val = prompt_bitrate()
-        if status in ("back", "invalid"):
-            return False
-        bitrate = val
 
-    strip_metadata = False
-    if cat_id == '2':
-        status, val = prompt_strip_metadata()
-        if status in ("back", "invalid"):
-            return False
-        strip_metadata = val
+        sub_steps = []
+        if target_fmt == "GIF":
+            sub_steps.append("fps")
+        if target_fmt == "MP3":
+            sub_steps.append("bitrate")
+        if cat_id == '2':
+            sub_steps.append("strip_metadata")
+        if target_fmt == "PDF":
+            sub_steps.append("md_pdf")
 
-    md_pdf_mode = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
-    if md_pdf_mode == "back":
-        return False
+        fps = None
+        bitrate = None
+        strip_metadata = False
+        md_pdf_mode = None
+
+        sub_idx = 0
+        while 0 <= sub_idx < len(sub_steps):
+            step_name = sub_steps[sub_idx]
+            if step_name == "fps":
+                status, val = prompt_fps()
+                if status == "back":
+                    sub_idx -= 1
+                    continue
+                if status == "invalid":
+                    continue
+                fps = val
+                sub_idx += 1
+            elif step_name == "bitrate":
+                status, val = prompt_bitrate()
+                if status == "back":
+                    sub_idx -= 1
+                    continue
+                if status == "invalid":
+                    continue
+                bitrate = val
+                sub_idx += 1
+            elif step_name == "strip_metadata":
+                status, val = prompt_strip_metadata()
+                if status == "back":
+                    sub_idx -= 1
+                    continue
+                if status == "invalid":
+                    continue
+                strip_metadata = val
+                sub_idx += 1
+            elif step_name == "md_pdf":
+                res = check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time)
+                if res == "back":
+                    sub_idx -= 1
+                    continue
+                md_pdf_mode = res
+                sub_idx += 1
+
+        if sub_idx < 0:
+            continue
+
+        break
 
     success_map = {}
     converted = conv.process(source_fmts, target_fmt, paths, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map, use_cache=True)

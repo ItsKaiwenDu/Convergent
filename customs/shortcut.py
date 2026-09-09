@@ -69,7 +69,8 @@ def print_source_menu(console, conv, title):
     for entry in get_menu_entries(conv):
         console.print(
             f" [bold cyan]{entry['key']}.[/bold cyan] "
-            f"{entry['label'].ljust(MENU_LABEL_WIDTH)} {entry['exts']}"
+            f"{entry['label'].ljust(MENU_LABEL_WIDTH)} {entry['exts']}",
+            highlight=False
         )
 
 ALL_SUPPORTED_EXTENSIONS = {
@@ -225,7 +226,7 @@ def get_operation_label(sc, conv):
 def prompt_compress_format(console, get_char):
     console.print("\n[bold yellow]Select target format:[/bold yellow]")
     for key, fmt in COMPRESS_FORMATS:
-        console.print(f" {key}. {fmt.lower()}")
+        console.print(f" [bold cyan]{key}.[/bold cyan] {fmt.lower()}")
     console.print(" [bold white]B[/bold white]. Back")
     fmt_choice = get_char("\nSelect Option: ")
     if fmt_choice.lower() == 'b':
@@ -262,11 +263,11 @@ def _collect_convert_options(console, get_char, category_id, target_fmt):
     bitrate = "ask"
     if target_fmt == "MP3":
         console.print("\n[bold yellow]Select Audio Bitrate for MP3:[/bold yellow]")
-        console.print(" 1. Ask every time")
-        console.print(" 2. Default")
-        console.print(" 3. 128k")
-        console.print(" 4. 192k")
-        console.print(" 5. 320k")
+        console.print(" [bold cyan]1.[/bold cyan] Ask every time")
+        console.print(" [bold cyan]2.[/bold cyan] Default")
+        console.print(" [bold cyan]3.[/bold cyan] 128k")
+        console.print(" [bold cyan]4.[/bold cyan] 192k")
+        console.print(" [bold cyan]5.[/bold cyan] 320k")
         bitrate_choice = get_char("\nSelect Option: ")
         if bitrate_choice == '1':
             bitrate = "ask"
@@ -287,9 +288,9 @@ def _collect_convert_options(console, get_char, category_id, target_fmt):
     strip_metadata = "ask"
     if category_id == "2":
         console.print("\n[bold yellow]Select Metadata Stripping for Images:[/bold yellow]")
-        console.print(" 1. Ask every time")
-        console.print(" 2. Always strip")
-        console.print(" 3. Never strip")
+        console.print(" [bold cyan]1.[/bold cyan] Ask every time")
+        console.print(" [bold cyan]2.[/bold cyan] Always strip")
+        console.print(" [bold cyan]3.[/bold cyan] Never strip")
         strip_choice = get_char("\nSelect Option: ")
         if strip_choice == '1':
             strip_metadata = "ask"
@@ -335,139 +336,192 @@ def _build_shortcut_data(entry, target_fmt=None, fixed_path="", bitrate="ask", s
     return sc_data
 
 def add_shortcut(shortcuts, conv, console, get_char, get_input, flush_stdin, clean_paths):
-    console.print()
-    console.print("\n\n[bold yellow]Add New Shortcut[/bold yellow]")
-    print_source_menu(console, conv, "Select source category:")
-    console.print(" [bold white]C[/bold white]. Cancel")
-    cat_choice = get_char("\nSelect Option: ")
+    while True:
+        console.print()
+        console.print("\n\n[bold yellow]Add New Shortcut[/bold yellow]")
+        print_source_menu(console, conv, "Select source category:")
+        console.print(" [bold white]C[/bold white]. Cancel")
+        cat_choice = get_char("\nSelect Option: ")
 
-    if cat_choice.lower() == 'c':
-        return
-
-    entry = get_menu_entry(conv, cat_choice)
-    if not entry:
-        console.print(" [dim]Invalid choice[/dim]")
-        time.sleep(0.5)
-        return
-
-    console.print()
-    target_fmt = None
-    combine_type = "auto"
-    password = None
-    output_name = ""
-    output_dir = ""
-    bitrate = "ask"
-    strip_metadata = "ask"
-
-    if entry["operation"] == "convert":
-        category = conv.categories[entry["category_id"]]
-        source_fmts = category["extensions"]
-        available_targets = set()
-        for fmt in source_fmts:
-            available_targets.update(conv.formats.get(fmt, []))
-        sorted_targets = sorted(list(available_targets))
-
-        console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
-        key_to_fmt = {}
-        for i, fmt in enumerate(sorted_targets):
-            key = TARGET_KEYS[i] if i < len(TARGET_KEYS) else str(i)
-            key_to_fmt[key] = fmt
-            console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
-        console.print(" [bold white]B[/bold white]. Back")
-
-        target_choice = get_choice("\nPick target #: ", choices=key_to_fmt)
-        if target_choice.lower() == 'b':
-            console.print()
+        if cat_choice.lower() == 'c':
             return
 
-        target_fmt = key_to_fmt.get(target_choice)
-        if not target_fmt:
+        entry = get_menu_entry(conv, cat_choice)
+        if not entry:
             console.print(" [dim]Invalid choice[/dim]")
             time.sleep(0.5)
-            return
+            continue
 
         console.print()
-        bitrate, strip_metadata = _collect_convert_options(console, get_char, entry["category_id"], target_fmt)
+        target_fmt = None
+        combine_type = "auto"
+        password = None
+        output_name = ""
+        output_dir = ""
+        bitrate = "ask"
+        strip_metadata = "ask"
 
-    elif entry["operation"] == "combine":
-        console.print("\n[bold yellow]When multiple file types are present:[/bold yellow]")
-        console.print(" 1. Auto-detect (ask if mixed)")
-        console.print(" 2. Always combine PDFs")
-        console.print(" 3. Always combine MP4s")
-        console.print(" 4. Always combine MP3s")
-        console.print(" 5. Always combine GIFs")
-        console.print(" 6. Always combine DOCX files")
-        console.print(" 7. Always combine PPTX files")
-        console.print(" 8. Always combine TXT files")
-        combine_choice = get_char("\nSelect Option: ")
-        if combine_choice == '2':
-            combine_type = "pdf"
-        elif combine_choice == '3':
-            combine_type = "mp4"
-        elif combine_choice == '4':
-            combine_type = "mp3"
-        elif combine_choice == '5':
-            combine_type = "gif"
-        elif combine_choice == '6':
-            combine_type = "docx"
-        elif combine_choice == '7':
-            combine_type = "pptx"
-        elif combine_choice == '8':
-            combine_type = "txt"
+        if entry["operation"] == "convert":
+            category = conv.categories[entry["category_id"]]
+            source_fmts = category["extensions"]
+            available_targets = set()
+            for fmt in source_fmts:
+                available_targets.update(conv.formats.get(fmt, []))
+            sorted_targets = sorted(list(available_targets))
 
-    elif entry["operation"] == "compress":
-        target_fmt = prompt_compress_format(console, get_char)
-        if target_fmt is None:
+            console.print(f"\n[bold yellow]Convert to:[/bold yellow]")
+            key_to_fmt = {}
+            for i, fmt in enumerate(sorted_targets):
+                key = TARGET_KEYS[i] if i < len(TARGET_KEYS) else str(i)
+                key_to_fmt[key] = fmt
+                console.print(f" [bold cyan]{key}[/bold cyan]. {fmt.lower()}")
+            console.print(" [bold white]B[/bold white]. Back")
+
+            target_choice = get_choice("\nPick target #: ", choices=key_to_fmt)
+            if target_choice.lower() == 'b':
+                continue
+
+            target_fmt = key_to_fmt.get(target_choice)
+            if not target_fmt:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
+
             console.print()
-            return
-        if target_fmt is False:
-            console.print(" [dim]Invalid choice[/dim]")
-            time.sleep(0.5)
-            return
+            bitrate, strip_metadata = _collect_convert_options(console, get_char, entry["category_id"], target_fmt)
 
-        console.print()
-        if target_fmt in ["ZIP", "7Z", "RAR"]:
-            console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
-            pwd_yn = get_char("")
-            if pwd_yn.lower() == 'y':
-                password = get_input("\nEnter password: ")
+        elif entry["operation"] == "combine":
+            console.print("\n[bold yellow]When multiple file types are present:[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] Auto-detect (ask if mixed)")
+            console.print(" [bold cyan]2.[/bold cyan] Always combine PDFs")
+            console.print(" [bold cyan]3.[/bold cyan] Always combine MP4s")
+            console.print(" [bold cyan]4.[/bold cyan] Always combine MP3s")
+            console.print(" [bold cyan]5.[/bold cyan] Always combine GIFs")
+            console.print(" [bold cyan]6.[/bold cyan] Always combine DOCX files")
+            console.print(" [bold cyan]7.[/bold cyan] Always combine PPTX files")
+            console.print(" [bold cyan]8.[/bold cyan] Always combine TXT files")
+            console.print(" [bold white]B[/bold white]. Back")
+            combine_choice = get_char("\nSelect Option: ")
+            if combine_choice.lower() == 'b':
+                continue
+            if combine_choice == '2':
+                combine_type = "pdf"
+            elif combine_choice == '3':
+                combine_type = "mp4"
+            elif combine_choice == '4':
+                combine_type = "mp3"
+            elif combine_choice == '5':
+                combine_type = "gif"
+            elif combine_choice == '6':
+                combine_type = "docx"
+            elif combine_choice == '7':
+                combine_type = "pptx"
+            elif combine_choice == '8':
+                combine_type = "txt"
+            elif combine_choice == '1':
+                combine_type = "auto"
+            else:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
 
-        output_name = get_input(f"\nEnter default archive name (blank for compressed.{target_fmt.lower()}): ").strip()
+            if combine_type == "pdf":
+                console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
+                pw_choice = get_char().strip().lower()
+                console.print()
+                if pw_choice == 'y':
+                    while True:
+                        password = get_input("Enter password: ").strip()
+                        if password:
+                            break
+                        console.print("[dim]Password cannot be empty.[/dim]")
+                flush_stdin()
 
-    elif entry["operation"] == "decompress":
-        console.print(f"\n[bold yellow]Fix an output directory for this shortcut? (y/n)[/bold yellow]")
-        fix_out = get_char("Choice: ")
-        if fix_out.lower() == 'y':
-            flush_stdin()
-            out_dirs = clean_paths(get_input("\nEnter output directory: "))
-            output_dir = out_dirs[0] if out_dirs else ""
-            flush_stdin()
+        elif entry["operation"] == "compress":
+            target_fmt = prompt_compress_format(console, get_char)
+            if target_fmt is None:
+                continue
+            if target_fmt is False:
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
 
-    elif entry["operation"] == "ocr":
-        console.print("\n[bold yellow]Select target format for OCR text:[/bold yellow]")
-        console.print(" 1. txt")
-        console.print(" 2. md")
-        console.print(" 3. docx")
-        console.print(" 4. pdf")
-        ocr_choice = get_char("\nSelect Option: ")
-        target_fmt = "TXT" if ocr_choice == '1' else "MD" if ocr_choice == '2' else "DOCX" if ocr_choice == '3' else "PDF" if ocr_choice == '4' else "TXT"
+            console.print()
+            if target_fmt in ["ZIP", "7Z", "RAR"]:
+                console.print(f"\n[bold yellow]Add password protection? (y/n):[/bold yellow]", end=" ")
+                pwd_yn = get_char("")
+                if pwd_yn.lower() == 'y':
+                    password = get_input("\nEnter password: ")
 
-    elif entry["operation"] == "stt":
-        console.print("\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
-        console.print(" 1. txt")
-        console.print(" 2. srt")
-        console.print(" 3. vtt")
-        console.print(" 4. md")
-        stt_choice = get_char("\nSelect Option: ")
-        target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
+            output_name = get_input(f"\nEnter default archive name (blank for compressed.{target_fmt.lower()}): ").strip()
 
-        console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
-        console.print(" 1. base (~142MB, daily use)")
-        console.print(" 2. tiny (~75MB, fastest speed)")
-        console.print(" 3. small (~466MB, better accuracy)")
-        console.print(" 4. turbo (~1.5GB, best accuracy)")
-        m_choice = get_char("\nSelect Option: ")
-        model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
+        elif entry["operation"] == "decompress":
+            console.print(f"\n[bold yellow]Fix an output directory for this shortcut? (y/n)[/bold yellow]")
+            fix_out = get_char("Choice: ")
+            if fix_out.lower() == 'y':
+                flush_stdin()
+                out_dirs = clean_paths(get_input("\nEnter output directory: "))
+                output_dir = out_dirs[0] if out_dirs else ""
+                flush_stdin()
+
+        elif entry["operation"] == "ocr":
+            console.print("\n[bold yellow]Select target format for OCR text:[/bold yellow]")
+            console.print(" [bold cyan]1.[/bold cyan] txt")
+            console.print(" [bold cyan]2.[/bold cyan] md")
+            console.print(" [bold cyan]3.[/bold cyan] docx")
+            console.print(" [bold cyan]4.[/bold cyan] pdf")
+            console.print(" [bold white]B[/bold white]. Back")
+            ocr_choice = get_char("\nSelect Option: ")
+            if ocr_choice.lower() == 'b':
+                continue
+            if ocr_choice not in ('1', '2', '3', '4'):
+                console.print(" [dim]Invalid choice[/dim]")
+                time.sleep(0.5)
+                continue
+            target_fmt = "TXT" if ocr_choice == '1' else "MD" if ocr_choice == '2' else "DOCX" if ocr_choice == '3' else "PDF"
+
+        elif entry["operation"] == "stt":
+            stt_step = 1
+            stt_aborted = False
+            while True:
+                if stt_step == 1:
+                    console.print("\n[bold yellow]Select target format for Speech-to-Text:[/bold yellow]")
+                    console.print(" [bold cyan]1.[/bold cyan] txt")
+                    console.print(" [bold cyan]2.[/bold cyan] srt")
+                    console.print(" [bold cyan]3.[/bold cyan] vtt")
+                    console.print(" [bold cyan]4.[/bold cyan] md")
+                    console.print(" [bold white]B[/bold white]. Back")
+                    stt_choice = get_char("\nSelect Option: ")
+                    if stt_choice.lower() == 'b':
+                        stt_aborted = True
+                        break
+                    if stt_choice not in ('1', '2', '3', '4'):
+                        console.print(" [dim]Invalid choice[/dim]")
+                        time.sleep(0.5)
+                        continue
+                    target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD"
+                    stt_step = 2
+                elif stt_step == 2:
+                    console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
+                    console.print(" [bold cyan]1.[/bold cyan] base (~142MB, daily use)")
+                    console.print(" [bold cyan]2.[/bold cyan] tiny (~75MB, fastest speed)")
+                    console.print(" [bold cyan]3.[/bold cyan] small (~466MB, better accuracy)")
+                    console.print(" [bold cyan]4.[/bold cyan] turbo (~1.5GB, best accuracy)")
+                    console.print(" [bold white]B[/bold white]. Back")
+                    m_choice = get_char("\nSelect Option: ")
+                    if m_choice.lower() == 'b':
+                        stt_step = 1
+                        continue
+                    if m_choice not in ('1', '2', '3', '4'):
+                        console.print(" [dim]Invalid choice[/dim]")
+                        time.sleep(0.5)
+                        continue
+                    model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
+                    break
+            if stt_aborted:
+                continue
+
+        break
 
     fixed_path = _prompt_fixed_path(console, get_char, get_input, flush_stdin, clean_paths)
     flush_stdin()
@@ -588,14 +642,14 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                         pass
         elif operation == "combine":
             console.print("\n[bold yellow]Combine type:[/bold yellow]")
-            console.print(" 1. Auto-detect")
-            console.print(" 2. Always PDF")
-            console.print(" 3. Always MP4")
-            console.print(" 4. Always MP3")
-            console.print(" 5. Always GIF")
-            console.print(" 6. Always DOCX")
-            console.print(" 7. Always PPTX")
-            console.print(" 8. Always TXT")
+            console.print(" [bold cyan]1.[/bold cyan] Auto-detect")
+            console.print(" [bold cyan]2.[/bold cyan] Always PDF")
+            console.print(" [bold cyan]3.[/bold cyan] Always MP4")
+            console.print(" [bold cyan]4.[/bold cyan] Always MP3")
+            console.print(" [bold cyan]5.[/bold cyan] Always GIF")
+            console.print(" [bold cyan]6.[/bold cyan] Always DOCX")
+            console.print(" [bold cyan]7.[/bold cyan] Always PPTX")
+            console.print(" [bold cyan]8.[/bold cyan] Always TXT")
             console.print(" [bold white]Enter[/bold white]. Keep Current")
             combine_choice = get_input("Pick a # (or Enter): ")
             if combine_choice == '2':
@@ -631,20 +685,20 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                 new_output_dir = out_dirs[0] if out_dirs else ""
         elif operation == "ocr":
             console.print("\n[bold yellow]Target text format for OCR:[/bold yellow]")
-            console.print(" 1. txt\n 2. md\n 3. docx\n 4. pdf")
+            console.print(" [bold cyan]1.[/bold cyan] txt\n [bold cyan]2.[/bold cyan] md\n [bold cyan]3.[/bold cyan] docx\n [bold cyan]4.[/bold cyan] pdf")
             ocr_choice = get_char("\nSelect Option: ")
             new_target_fmt = "TXT" if ocr_choice == '1' else "MD" if ocr_choice == '2' else "DOCX" if ocr_choice == '3' else "PDF" if ocr_choice == '4' else "TXT"
         elif operation == "stt":
             console.print("\n[bold yellow]Target format for STT:[/bold yellow]")
-            console.print(" 1. txt\n 2. srt\n 3. vtt\n 4. md")
+            console.print(" [bold cyan]1.[/bold cyan] txt\n [bold cyan]2.[/bold cyan] srt\n [bold cyan]3.[/bold cyan] vtt\n [bold cyan]4.[/bold cyan] md")
             stt_choice = get_char("\nSelect Option: ")
             new_target_fmt = "TXT" if stt_choice == '1' else "SRT" if stt_choice == '2' else "VTT" if stt_choice == '3' else "MD" if stt_choice == '4' else "TXT"
 
             console.print("\n[bold yellow]Select STT model size:[/bold yellow]")
-            console.print(" 1. base (~142MB, daily use)")
-            console.print(" 2. tiny (~75MB, fastest speed)")
-            console.print(" 3. small (~466MB, better accuracy)")
-            console.print(" 4. turbo (~1.5GB, best accuracy)")
+            console.print(" [bold cyan]1.[/bold cyan] base (~142MB, daily use)")
+            console.print(" [bold cyan]2.[/bold cyan] tiny (~75MB, fastest speed)")
+            console.print(" [bold cyan]3.[/bold cyan] small (~466MB, better accuracy)")
+            console.print(" [bold cyan]4.[/bold cyan] turbo (~1.5GB, best accuracy)")
             m_choice = get_char("\nSelect Option: ")
             new_model = "tiny" if m_choice == '2' else "small" if m_choice == '3' else "turbo" if m_choice == '4' else "base"
 
@@ -702,11 +756,11 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                     "320k": "320k"
                 }.get(sc_data.get("bitrate", "ask"), "Ask every time")
                 console.print(f"\n[bold yellow]2b. Audio Bitrate[/bold yellow] (Current: {current_bitrate_str})")
-                console.print(" 1. Ask every time")
-                console.print(" 2. Default")
-                console.print(" 3. 128k")
-                console.print(" 4. 192k")
-                console.print(" 5. 320k")
+                console.print(" [bold cyan]1.[/bold cyan] Ask every time")
+                console.print(" [bold cyan]2.[/bold cyan] Default")
+                console.print(" [bold cyan]3.[/bold cyan] 128k")
+                console.print(" [bold cyan]4.[/bold cyan] 192k")
+                console.print(" [bold cyan]5.[/bold cyan] 320k")
                 console.print(" [bold white]Enter[/bold white]. Keep Current")
                 bitrate_choice = get_input("Pick bitrate # (or Enter): ")
                 if bitrate_choice == '1':
@@ -727,9 +781,9 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
                     False: "Never strip"
                 }.get(sc_data.get("strip_metadata", "ask"), "Ask every time")
                 console.print(f"\n[bold yellow]2c. Metadata Stripping[/bold yellow] (Current: {current_strip_str})")
-                console.print(" 1. Ask every time")
-                console.print(" 2. Always strip")
-                console.print(" 3. Never strip")
+                console.print(" [bold cyan]1.[/bold cyan] Ask every time")
+                console.print(" [bold cyan]2.[/bold cyan] Always strip")
+                console.print(" [bold cyan]3.[/bold cyan] Never strip")
                 console.print(" [bold white]Enter[/bold white]. Keep Current")
                 strip_choice = get_input("Pick choice # (or Enter): ")
                 if strip_choice == '1':
@@ -742,7 +796,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
         elif operation == "ocr":
             current_target = old_sc.get("target_fmt", "TXT").lower()
             console.print(f"\n[bold yellow]2. Target Format for OCR[/bold yellow] (Current: {current_target})")
-            console.print(" 1. txt\n 2. md\n 3. docx\n 4. pdf\n [bold white]Enter[/bold white]. Keep Current")
+            console.print(" [bold cyan]1.[/bold cyan] txt\n [bold cyan]2.[/bold cyan] md\n [bold cyan]3.[/bold cyan] docx\n [bold cyan]4.[/bold cyan] pdf\n [bold white]Enter[/bold white]. Keep Current")
             ocr_choice = get_input("Pick target # (or Enter): ")
             if ocr_choice == '1':
                 sc_data["target_fmt"] = "TXT"
@@ -756,7 +810,7 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
         elif operation == "stt":
             current_target = old_sc.get("target_fmt", "TXT").lower()
             console.print(f"\n[bold yellow]2. Target Format for STT[/bold yellow] (Current: {current_target})")
-            console.print(" 1. txt\n 2. srt\n 3. vtt\n 4. md\n [bold white]Enter[/bold white]. Keep Current")
+            console.print(" [bold cyan]1.[/bold cyan] txt\n [bold cyan]2.[/bold cyan] srt\n [bold cyan]3.[/bold cyan] vtt\n [bold cyan]4.[/bold cyan] md\n [bold white]Enter[/bold white]. Keep Current")
             stt_choice = get_input("Pick target # (or Enter): ")
             if stt_choice == '1':
                 sc_data["target_fmt"] = "TXT"
@@ -780,10 +834,10 @@ def edit_shortcut(shortcuts, conv, console, get_char, get_input, clean_paths):
             }
             current_model_label = model_labels.get(old_sc.get("model", "base"), "Standard (~142MB)")
             console.print(f"\n[bold yellow]2b. STT Model Size[/bold yellow] (Current: {current_model_label})")
-            console.print(" 1. Standard (~142MB)")
-            console.print(" 2. Mini (~75MB)")
-            console.print(" 3. Medium (~466MB)")
-            console.print(" 4. Large (~1.5GB)")
+            console.print(" [bold cyan]1.[/bold cyan] Standard (~142MB)")
+            console.print(" [bold cyan]2.[/bold cyan] Mini (~75MB)")
+            console.print(" [bold cyan]3.[/bold cyan] Medium (~466MB)")
+            console.print(" [bold cyan]4.[/bold cyan] Large (~1.5GB)")
             console.print(" [bold white]Enter[/bold white]. Keep Current")
             m_choice = get_input("Pick model # (or Enter): ")
             if m_choice == '1':
@@ -842,38 +896,71 @@ def resolve_shortcut_options(sc, interactive, prompt_fps, prompt_bitrate, prompt
         return {"fps": None, "bitrate": None, "strip_metadata": cli_strip_metadata}
 
     target_fmt = sc["target_fmt"]
+    need_fps = target_fmt == "GIF" and interactive
+    need_bitrate = target_fmt == "MP3" and interactive and sc.get("bitrate", "ask") == "ask"
+    need_strip = sc.get("category") == "2" and interactive and sc.get("strip_metadata", "ask") == "ask"
 
     fps = None
-    if target_fmt == "GIF":
-        if interactive:
-            status, val = prompt_fps()
-            if status in ("back", "invalid"):
-                return None
-            fps = val
-
     bitrate = None
     if target_fmt == "MP3":
         preselected = sc.get("bitrate", "ask")
-        if interactive and preselected == "ask":
-            status, val = prompt_bitrate()
-            if status in ("back", "invalid"):
-                return None
-            bitrate = val
-        elif preselected not in ("ask", "default"):
-            bitrate = preselected
-        elif cli_bitrate:
-            bitrate = cli_bitrate
+        if not interactive or preselected != "ask":
+            if preselected not in ("ask", "default"):
+                bitrate = preselected
+            elif cli_bitrate:
+                bitrate = cli_bitrate
 
     strip_metadata = cli_strip_metadata
     if sc.get("category") == "2":
         preselected = sc.get("strip_metadata", "ask")
-        if interactive and preselected == "ask":
+        if not interactive or preselected != "ask":
+            if preselected != "ask":
+                strip_metadata = preselected
+
+    steps = []
+    if need_fps:
+        steps.append("fps")
+    if need_bitrate:
+        steps.append("bitrate")
+    if need_strip:
+        steps.append("strip")
+
+    if not steps:
+        return {"fps": fps, "bitrate": bitrate, "strip_metadata": strip_metadata}
+
+    step_idx = 0
+    while 0 <= step_idx < len(steps):
+        curr = steps[step_idx]
+        if curr == "fps":
+            status, val = prompt_fps()
+            if status == "back":
+                step_idx -= 1
+                continue
+            if status == "invalid":
+                continue
+            fps = val
+            step_idx += 1
+        elif curr == "bitrate":
+            status, val = prompt_bitrate()
+            if status == "back":
+                step_idx -= 1
+                continue
+            if status == "invalid":
+                continue
+            bitrate = val
+            step_idx += 1
+        elif curr == "strip":
             status, val = prompt_strip_metadata()
-            if status in ("back", "invalid"):
-                return None
+            if status == "back":
+                step_idx -= 1
+                continue
+            if status == "invalid":
+                continue
             strip_metadata = val
-        elif preselected != "ask":
-            strip_metadata = preselected
+            step_idx += 1
+
+    if step_idx < 0:
+        return None
 
     return {"fps": fps, "bitrate": bitrate, "strip_metadata": strip_metadata}
 
