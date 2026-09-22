@@ -81,7 +81,7 @@ ALL_SUPPORTED_EXTENSIONS = {
     # Audio
     "aac", "flac", "m4a", "mp3", "ogg", "wav",
     # Documents
-    "docx", "md", "ntb", "pdf", "pptx", "rtf", "txt",
+    "docx", "htm", "html", "md", "ntb", "pdf", "pptx", "rtf", "txt",
     # Archives
     "7z", "rar", "tar", "tar.gz", "tgz", "tar.bz2", "tbz2", "tar.xz", "txz", "zip"
 }
@@ -113,6 +113,8 @@ def inspect_paths(paths):
                     ext = "jpg"
                 elif ext == "tiff":
                     ext = "tif"
+                elif ext == "htm":
+                    ext = "html"
                 if ext:
                     extensions.add(ext)
         elif path_obj.is_dir():
@@ -134,6 +136,8 @@ def inspect_paths(paths):
                                 ext = "jpg"
                             elif ext == "tiff":
                                 ext = "tif"
+                            elif ext == "htm":
+                                ext = "html"
                             if ext:
                                 extensions.add(ext)
                         count += 1

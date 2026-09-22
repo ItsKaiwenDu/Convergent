@@ -60,7 +60,7 @@ def convergent_convert(
 
     Args:
         input_path: Absolute or relative path to file or directory to convert.
-        target_format: Extension of target format (e.g., 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'GIF', 'SRT', 'VTT').
+        target_format: Extension of target format (e.g., 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'HTML', 'GIF', 'SRT', 'VTT').
         output_path: Optional output directory or file path. Defaults to input path location.
         fps: Target frames per second for video/GIF outputs (e.g. 30).
         bitrate: Audio bitrate for MP3/Audio outputs (e.g. '192k', '320k').

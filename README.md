@@ -175,7 +175,7 @@ ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP
     -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A, AAC, OGG; split by segment/interval/range; or merge clips with mixed-format support and interactive reordering.
     -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`) or documents (`PDF`) to `.txt`, `.md`, or `.docx` (via Apple Vision or Tesseract).
     -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
-    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF, and Markdown (MD) to typeset/raw PDF, HTML, or TXT. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
+    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF and HTML, Markdown (MD) to typeset/raw PDF, HTML, or TXT, and HTML to PDF, MD, TXT, DOCX, or RTF. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
     -   **Notability (Beta)**: Convert `.ntb` note packages to standard vector PDF.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
     -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), and privacy metadata stripping for images (JPG, PNG, HEIC) and video (MP4).

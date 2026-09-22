@@ -116,6 +116,9 @@ class Converter:
     def convert_markdown(self, source, target_ext, md_pdf_mode=None, **kwargs):
         return doc.convert_markdown(source, target_ext, md_pdf_mode)
 
+    def convert_html(self, source, target_ext, **kwargs):
+        return doc.convert_html(source, target_ext, **kwargs)
+
     def combine_pdfs(self, paths, output_path=None, interactive=True):
         return combine.combine_pdfs(paths, output_path=output_path, interactive=interactive)
 

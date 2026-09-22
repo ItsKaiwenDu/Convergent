@@ -489,6 +489,7 @@ class TestCLIFlow(unittest.TestCase):
         # Parentheses should NOT be highlighted with repr.brace bold (\x1b[1m()
         self.assertNotIn("\x1b[1m(", output)
         self.assertIn("tar.(gz/bz2/xz)", output)
+        self.assertIn("docx, html, md, ntb, pdf, pptx, rtf", output)
 
 
     def test_resize_back_navigation(self):

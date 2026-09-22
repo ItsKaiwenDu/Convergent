@@ -100,12 +100,13 @@ FORMAT_REGISTRY = [
     FormatDef("WAV", "4", ["MP3", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
 
     # Document Category ("5")
-    FormatDef("DOCX", "5", ["PDF"], "convert_office"),
+    FormatDef("DOCX", "5", ["PDF", "HTML"], "convert_office"),
+    FormatDef("HTML", "5", ["PDF", "MD", "TXT", "DOCX", "RTF"], "convert_html"),
     FormatDef("MD", "5", ["PDF", "HTML", "TXT"], "convert_markdown"),
     FormatDef("NTB", "5", ["PDF"], "convert_ntb"),
     FormatDef("PDF", "5", ["JPG", "PNG", "TIF", "BMP", "TXT", "MD", "DOCX"], "convert_pdf"),
-    FormatDef("PPTX", "5", ["PDF"], "convert_office"),
-    FormatDef("RTF", "5", ["PDF"], "convert_office"),
+    FormatDef("PPTX", "5", ["PDF", "HTML"], "convert_office"),
+    FormatDef("RTF", "5", ["PDF", "HTML"], "convert_office"),
 ]
 
 def get_expected_output_path(source_file: Path, target_format: str) -> Path:
@@ -126,6 +127,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     """
     start_time = time.perf_counter()
     source_fmt = f.suffix.lower()[1:].upper()
+    if source_fmt == "HTM":
+        source_fmt = "HTML"
     
     if target_format not in conv.formats.get(source_fmt, []):
         duration = time.perf_counter() - start_time
@@ -186,6 +189,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         path_obj = Path(os.path.expanduser(p))
         if path_obj.is_file():
             ext = path_obj.suffix.lower()[1:].upper()
+            if ext == "HTM":
+                ext = "HTML"
             if ext in source_fmts_upper:
                 files.append(path_obj)
             else:
@@ -195,6 +200,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             for item in path_obj.iterdir():
                 if item.is_file():
                     ext = item.suffix.lower()[1:].upper()
+                    if ext == "HTM":
+                        ext = "HTML"
                     if ext in source_fmts_upper:
                         files.append(item)
                     if item.suffix:

@@ -126,6 +126,58 @@ class TestConversionsIntegration(unittest.TestCase):
         self.assertTrue(mp3_output.exists())
         self.assertTrue(mp3_output.stat().st_size > 100)
 
+    @unittest.skipUnless(bool(shutil.which("pandoc")), "Pandoc is not installed")
+    def test_html_conversions_real(self):
+        html_file = self.dir_path / "page.html"
+        html_file.write_text(
+            "<!DOCTYPE html><html><head><title>Test Page</title></head>"
+            "<body><h1>Convergent HTML Test</h1><p>Testing <b>HTML</b> input support.</p></body></html>"
+        )
+
+        # 1. HTML -> MD
+        ok, err = self.conv.convert_html(html_file, "MD")
+        self.assertTrue(ok, f"HTML to MD failed: {err}")
+        md_out = self.dir_path / "page.md"
+        self.assertTrue(md_out.exists())
+        self.assertIn("Convergent HTML Test", md_out.read_text())
+
+        # 2. HTML -> TXT
+        ok, err = self.conv.convert_html(html_file, "TXT")
+        self.assertTrue(ok, f"HTML to TXT failed: {err}")
+        txt_out = self.dir_path / "page.txt"
+        self.assertTrue(txt_out.exists())
+        self.assertIn("Convergent HTML Test", txt_out.read_text())
+
+        # 3. HTML -> DOCX
+        ok, err = self.conv.convert_html(html_file, "DOCX")
+        self.assertTrue(ok, f"HTML to DOCX failed: {err}")
+        docx_out = self.dir_path / "page.docx"
+        self.assertTrue(docx_out.exists())
+        self.assertTrue(docx_out.stat().st_size > 100)
+
+        # 4. DOCX -> HTML (Output test)
+        ok, err = self.conv.convert_office(docx_out, "HTML")
+        self.assertTrue(ok, f"DOCX to HTML failed: {err}")
+        html_out = self.dir_path / "page.html"
+        self.assertTrue(html_out.exists())
+        content = html_out.read_text()
+        self.assertIn("Convergent HTML Test", content)
+
+    @unittest.skipUnless(
+        bool(shutil.which("pandoc") and (shutil.which("typst") or shutil.which("soffice"))),
+        "Pandoc and either Typst or LibreOffice required"
+    )
+    def test_html_to_pdf_real(self):
+        html_file = self.dir_path / "report.html"
+        html_file.write_text("<html><body><h1>PDF Report</h1><p>Converted from HTML.</p></body></html>")
+
+        ok, err = self.conv.convert_html(html_file, "PDF")
+        self.assertTrue(ok, f"HTML to PDF failed: {err}")
+        pdf_out = self.dir_path / "report.pdf"
+        self.assertTrue(pdf_out.exists())
+        self.assertTrue(pdf_out.stat().st_size > 100)
+        self.assertTrue(pdf_out.read_bytes().startswith(b"%PDF-"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -106,6 +106,8 @@ class TestCLIFlags(unittest.TestCase):
         self.assertIn("MP4", self.conv.formats)
         self.assertIn("MP3", self.conv.formats)
         self.assertIn("PDF", self.conv.formats)
+        self.assertIn("HTML", self.conv.formats)
+        self.assertIn("HTML", self.conv.categories["5"]["extensions"])
 
 
 if __name__ == "__main__":
