@@ -81,7 +81,7 @@ FORMAT_REGISTRY = [
     FormatDef("PNG", "2", ["JPG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
     FormatDef("SVG", "2", ["JPG", "PNG", "WEBP", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
     FormatDef("TIF", "2", ["JPG", "PNG", "WEBP", "PDF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
-    FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF"], "convert_image"),
+    FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
 
     # Video Category ("3")
     FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),

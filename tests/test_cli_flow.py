@@ -94,6 +94,29 @@ class TestCLIFlow(unittest.TestCase):
         actual_keys = [e["key"] for e in entries]
         self.assertEqual(actual_keys, expected_keys)
 
+    def test_applicable_entries_for_webp_file(self):
+        f = self.test_dir / "photo.webp"
+        f.touch()
+        entries = shortcut.get_applicable_menu_entries(self.conv, [str(f)])
+        operations = [e["operation"] for e in entries]
+
+        # WEBP should support Image Convert, Compress, OCR
+        self.assertIn("convert", operations)
+        self.assertIn("compress", operations)
+        self.assertIn("ocr", operations)
+
+        # Should NOT support Combine, Split, Video, Audio, Decompress, STT, Resize
+        self.assertNotIn("combine", operations)
+        self.assertNotIn("split", operations)
+        self.assertNotIn("decompress", operations)
+        self.assertNotIn("stt", operations)
+        self.assertNotIn("resize", operations)
+
+        # Consecutive 0-based indexing
+        expected_keys = [str(i) for i in range(len(entries))]
+        actual_keys = [e["key"] for e in entries]
+        self.assertEqual(actual_keys, expected_keys)
+
     def test_applicable_entries_for_folder_excludes_split_and_decompress(self):
         f = self.test_dir / "video.mp4"
         f.touch()

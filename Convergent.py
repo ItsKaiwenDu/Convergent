@@ -504,7 +504,7 @@ def handle_ocr(conv, paths, console, get_char, get_input, time):
         return False
         
     success_map = {}
-    converted = conv.process(["JPG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=True)
+    converted = conv.process(["JPG", "PNG", "HEIC", "WEBP", "PDF"], target_fmt, paths, ocr=True, success_map=success_map, use_cache=True)
     if converted:
         prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
         return True
@@ -796,7 +796,7 @@ def main():
         if is_stdout_req:
             set_stderr_mode(True)
 
-        is_ocr = source_fmt in ("JPG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
+        is_ocr = source_fmt in ("JPG", "PNG", "HEIC", "WEBP", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
         is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
 
         success = file_process.process_stream(
@@ -839,7 +839,7 @@ def main():
             sys.exit(1)
             
         paths = clean_paths(args.path)
-        is_ocr = source_fmt in ("JPG", "PNG", "HEIC", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
+        is_ocr = source_fmt in ("JPG", "PNG", "HEIC", "WEBP", "PDF") and target_fmt in ("TXT", "MD", "DOCX")
         is_stt = args.stt or (target_fmt in ("TXT", "SRT", "VTT", "MD") and source_fmt in ("MP3", "WAV", "M4A", "FLAC", "AAC", "OGG", "MP4", "MOV", "MKV", "WEBM", "AVI"))
         converted = conv.process([source_fmt], target_fmt, paths, fps=args.fps, bitrate=args.bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=args.md_pdf_mode, strip_metadata=args.strip_metadata, interactive=False, ocr=is_ocr, stt=is_stt, model=args.model, language=args.language, use_cache=use_cache, hwaccel=args.hwaccel, dpi=args.dpi)
         sys.exit(0 if converted else 1)

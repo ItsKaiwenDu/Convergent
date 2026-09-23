@@ -15,10 +15,10 @@ if sys.platform == "darwin":
     except ImportError:
         pass
 
-def _convert_heic_to_temp_png(source: Path) -> Path:
+def _convert_image_to_temp_png(source: Path) -> Path:
     """
-    Converts a HEIC file to a temporary PNG for OCR processing.
-    Uses sips (macOS-native) with ImageMagick as fallback.
+    Converts an image file (HEIC, HEIF, WEBP, etc.) to a temporary PNG for OCR processing.
+    Uses sips (macOS-native) with ImageMagick or FFmpeg as fallback.
     Returns Path of temporary PNG file (caller must delete it).
     """
     tmp_png = Path(tempfile.mktemp(suffix="_ocr_tmp.png"))
@@ -48,10 +48,21 @@ def _convert_heic_to_temp_png(source: Path) -> Path:
         if result.returncode == 0 and tmp_png.exists():
             return tmp_png
 
+    # Fallback: FFmpeg
+    if shutil.which("ffmpeg"):
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", str(source), str(tmp_png)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0 and tmp_png.exists():
+            return tmp_png
+
     raise RuntimeError(
-        f"Could not convert HEIC to PNG for OCR. "
-        "Ensure 'sips' (macOS) or ImageMagick is installed."
+        f"Could not convert {source.suffix.upper()} to PNG for OCR. "
+        "Ensure 'sips' (macOS), ImageMagick, or FFmpeg is installed."
     )
+
+_convert_heic_to_temp_png = _convert_image_to_temp_png
 
 
 def _convert_pdf_to_temp_images(source: Path):
@@ -133,7 +144,7 @@ def _convert_pdf_to_temp_images(source: Path):
 
 def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
     """
-    Extracts text from PNG/JPG/HEIC/PDF/etc. and saves it to a .txt, .md, .docx, or .pdf file.
+    Extracts text from PNG/JPG/HEIC/WEBP/PDF/etc. and saves it to a .txt, .md, .docx, or .pdf file.
     Returns: (bool, str) - Success status and error message or empty string.
     """
     source = Path(source_path)
@@ -149,9 +160,9 @@ def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
             temp_dir, ocr_sources = _convert_pdf_to_temp_images(source)
         except RuntimeError as e:
             return False, str(e)
-    elif source.suffix.lower() in (".heic", ".heif"):
+    elif source.suffix.lower() in (".heic", ".heif", ".webp"):
         try:
-            temp_png = _convert_heic_to_temp_png(source)
+            temp_png = _convert_image_to_temp_png(source)
             ocr_sources = [temp_png]
         except RuntimeError as e:
             return False, str(e)

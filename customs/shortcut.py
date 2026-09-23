@@ -53,7 +53,7 @@ def get_menu_entries(conv):
     entries.extend([
         {"key": "7", "label": "Compress:", "exts": "7z, rar, tar.(gz/bz2/xz), zip", "operation": "compress"},
         {"key": "8", "label": "Decompress:", "exts": "7z, rar, tar.(gz/bz2/xz), zip", "operation": "decompress"},
-        {"key": "9", "label": "OCR:", "exts": "jpg, png, heic, pdf", "operation": "ocr"},
+        {"key": "9", "label": "OCR:", "exts": "jpg, png, heic, webp, pdf", "operation": "ocr"},
         {"key": "*", "label": "STT:", "exts": "mp3, wav, m4a, flac, mp4, mov", "operation": "stt"},
     ])
     return entries
@@ -169,7 +169,7 @@ def get_applicable_menu_entries(conv, paths):
     split_exts = {"docx", "gif", "mp3", "mp4", "pdf", "pptx"}
     resize_exts = {"mp4", "jpg", "png", "heic"}
     archive_exts = {"7z", "rar", "tar.bz2", "tar.gz", "tar.xz", "zip", "tar", "tgz", "tbz2", "txz"}
-    ocr_exts = {"jpg", "png", "heic", "pdf"}
+    ocr_exts = {"jpg", "png", "heic", "webp", "pdf"}
     stt_exts = {"mp3", "wav", "m4a", "flac", "aac", "ogg", "mp4", "mov", "mkv", "webm", "avi"}
 
     image_exts = {ext.lower() for ext in conv.categories["2"]["extensions"]}
@@ -1242,7 +1242,7 @@ def run_shortcut(
     if operation == "ocr":
         target_fmt = sc.get("target_fmt", "TXT")
         success_map = {}
-        converted = conv.process(["JPG", "PNG", "HEIC", "PDF"], target_fmt, paths, ocr=True, interactive=interactive, success_map=success_map, use_cache=use_cache)
+        converted = conv.process(["JPG", "PNG", "HEIC", "WEBP", "PDF"], target_fmt, paths, ocr=True, interactive=interactive, success_map=success_map, use_cache=use_cache)
         if interactive and prompt_move_files:
             prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
         return True
