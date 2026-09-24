@@ -194,7 +194,7 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
         if scale_needed:
             cmd += ["-resize", f"{w_final}x{h_final}!"]
         if strip_metadata:
-            cmd.append("-strip")
+            cmd += ["+profile", "exif,iptc,xmp"]
         cmd.append(str(output))
         success, error = run_command(cmd)
         
