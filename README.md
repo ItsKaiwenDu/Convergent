@@ -7,6 +7,24 @@
 
 [![CI](https://github.com/ItsKaiwenDu/Convergent/actions/workflows/ci.yml/badge.svg)](https://github.com/ItsKaiwenDu/Convergent/actions/workflows/ci.yml)
 
+## Key Features
+
+-   **Multi-Format Support**:
+    -   **PDF**: Merge (with interactive page reordering), split, or export pages to JPG, PNG, TIF, or BMP.
+    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW (Sony ARW, Adobe DNG) with native macOS `sips` acceleration and ImageMagick fallback.
+    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A, AAC, OGG; split by segment/interval/range; or merge clips with mixed-format support and interactive reordering.
+    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`/`WEBP`) or documents (`PDF`) to `.txt`, `.md`, or `.docx` (via Apple Vision or Tesseract).
+    -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
+    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF and HTML, Markdown (MD) to typeset/raw PDF, HTML, or TXT, and HTML to PDF, MD, TXT, DOCX, or RTF. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
+    -   **Notability (Beta)**: Convert `.ntb` note packages to standard vector PDF.
+    -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
+    -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), and privacy metadata stripping for images (JPG, PNG, HEIC) and video (MP4).
+-   **CLI Support**: Direct CLI arguments for automated workflows, Unix pipe composition & streaming (`stdin`/`stdout`, `pbpaste`/`pbcopy`), and an interactive terminal menu with single-key navigation.
+-   **MCP Support**: 100% local Model Context Protocol (`stdio`) server exposing conversion tools directly to AI assistants and IDEs (Claude Desktop, Cursor, OpenCode, Zed).
+-   **Fast & Efficient**: Multi-core parallel batch processing, hardware-accelerated transcoding (`VideoToolbox`, `NVENC`, `QSV`), and `blake2b` checksum caching to skip unchanged files.
+-   **Secure & Private**: 100% local and offline execution, EXIF/IPTC metadata stripping, collision preview tables, and safe macOS Trash recovery.
+-   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts, plus native macOS Finder Quick Action integration.
+
 ## Getting Started
 
 ### Prerequisites
@@ -45,61 +63,18 @@
 
 ## Usage
 
-### Help
-View all available Makefile targets:
-```bash
-make help
-```
-
-### Interactive Mode
-Simply run following command and follow on-screen prompts:
-```bash
-make start
-```
-*Features a unified launcher with saved shortcuts, drag-and-drop path input, context-aware operations, and single-key navigation.*
-
-### Desktop Shortcut
-Create a clickable terminal script to launch Convergent from anywhere (e.g., your Desktop) without manual navigation:
-```bash
-make shortcut
-```
-*This generates a `.command` file that you can double-click to open Terminal and run utility instantly.*
-
-### Finder Quick Action (macOS)
-Bind a saved Convergent shortcut to Finder's right-click menu so selected files or folders are sent straight into that workflow:
-```bash
-make quick-action
-```
-*First create a shortcut in Convergent (`make start` → `+`). Installer lists saved shortcuts, writes an Automator Quick Action to `~/Library/Services/`, and registers it. In Finder, right-click file(s) or folder(s) to run action—it will appear directly in main context menu or under "Quick Actions" submenu depending on number of services enabled on system. Use `--shortcut KEY --path` for direct CLI runs:*
-```bash
-make start ARGS="--shortcut S --path ~/Desktop/photo.heic"
-```
-
-### Clean Workspace
-Remove all compiled Python cache (`__pycache__`) directories across project:
-```bash
-make clean
-```
-
-### Cache Management (Checksum-Validated Skip & TTL)
-Convergent automatically caches conversion fingerprints to skip re-encoding unchanged files across runs.
-Cache entries are stored in `~/.convergent_cache.sqlite` and expire after **30 days** (configurable via `--cache-ttl <days>` or `CONVERGENT_CACHE_TTL_DAYS`).
-
-```bash
-# Show number of cached entries, storage size, TTL, and DB path
-make cache-stats
-
-# Prune expired cache records and cap total entries
-make cache-prune
-
-# Remove all cached checksums (forces full re-convert)
-make clean-cache
-```
-
-*Cache entries are keyed by each source file path plus conversion parameters, then validated with fast `blake2b` source fingerprints. Parameters include target, FPS, bitrate, Markdown-PDF mode, metadata stripping, OCR/STT settings, model, language, and DPI. Unchanged files are reported as `↷ cached (blake2b:ab12...)` and skipped without invoking FFmpeg/ImageMagick.*
+| Command | Description |
+|---|---|
+| `make start` | Launch interactive terminal UI with single-key navigation, drag-and-drop input, and saved shortcuts |
+| `make shortcut` | Generate a clickable `.command` desktop shortcut for instant one-click access |
+| `make quick-action` | Bind a saved shortcut to macOS Finder's right-click context menu (create shortcut via `make start` → `+` first) |
+| `make cache-stats` | Display cached fingerprint records, TTL, and SQLite database storage size (`~/.convergent_cache.sqlite`) |
+| `make cache-clear` | Delete all cached conversion checksums to force full re-conversion |
+| `make clean` | Remove all compiled Python `__pycache__` directories across the workspace |
+| `make help` | View all available Makefile targets |
 
 ### CLI Mode (Arguments)
-For automated workflows, you can pass arguments directly using `ARGS` variable.
+For automated workflows, you can pass arguments directly using `ARGS` variable:
 
 | Flag | Description | Example |
 |---|---|---|
@@ -161,27 +136,6 @@ pbpaste | python3 Convergent.py --from PNG --to WEBP --stdout > clipboard.webp
 # Pipe FFmpeg audio stream into Convergent for 320k MP3 output
 ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP3 --bitrate 320k --stdout > audio.mp3
 ```
-
-## Features
-
--   **Interactive & CLI**: Context-aware operations menu with single-key navigation for manual runs, or direct CLI arguments for automated pipelines.
--   **Unix Pipe Composition & Streaming**: Direct `stdin`/`stdout` piping via `--stdin` and `--stdout` (or `-` paths). Allows seamless integration with macOS clipboard (`pbpaste`/`pbcopy`), `curl`, `ffmpeg`, and custom shell scripts with zero disk file clutter.
--   **High Performance**: Multi-core parallel batch processing for high-speed conversions, with **Hardware-Accelerated Transcode Auto-Detection & Fallback** (`h264_videotoolbox`, `hevc_videotoolbox`, `nvenc`, `qsv`) yielding 4x–8x faster video encoding on Apple Silicon and discrete GPUs.
--   **Smart Input**: Handles escaped spaces, messy paths, and EXIF auto-rotation for drag-and-dropped files.
--   **Image Privacy**: Strips EXIF/IPTC metadata via CLI flag (`--strip-metadata`), interactive prompts, or saved shortcuts. Supports safe in-place stripping (e.g., JPG to JPG).
--   **Multi-Format Support**:
-    -   **PDF**: Merge (with interactive page reordering), split, or export pages to JPG, PNG, TIF, or BMP.
-    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW (Sony ARW, Adobe DNG) with native macOS `sips` acceleration and ImageMagick fallback.
-    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A, AAC, OGG; split by segment/interval/range; or merge clips with mixed-format support and interactive reordering.
-    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`/`WEBP`) or documents (`PDF`) to `.txt`, `.md`, or `.docx` (via Apple Vision or Tesseract).
-    -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
-    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF and HTML, Markdown (MD) to typeset/raw PDF, HTML, or TXT, and HTML to PDF, MD, TXT, DOCX, or RTF. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
-    -   **Notability (Beta)**: Convert `.ntb` note packages to standard vector PDF.
-    -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
-    -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), and privacy metadata stripping for images (JPG, PNG, HEIC) and video (MP4).
--   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts.
--   **Safety First**: Safe overwrite guard with macOS Trash integration (uses `trash` CLI/AppleScript), interactive collision preview tables, and bulk shift-modified actions.
--   **Premium UI**: Rich terminal interface with progress bars, status indicators, and real-time benchmarking timers.
 
 ## Local MCP Server Integration
 
@@ -326,7 +280,10 @@ Convergent/
 ```
 
 ## Owner
-**Kaiwen Du** - [GitHub](https://github.com/ItsKaiwenDu)
+
+**Kaiwen Du**: A Junior student majoring in Computer Science at Santa Clara University.
+- **GitHub**: [ItsKaiwenDu](https://github.com/ItsKaiwenDu)
+- **LinkedIn**: [kaiwen-du](https://www.linkedin.com/in/kaiwen-du/)
 
 ## License
 Licensed under Apache License, Version 2.0. See [LICENSE](LICENSE) for details.

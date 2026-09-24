@@ -6,7 +6,7 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup update start check test shortcut quick-action mcp mcp-config clean clean-cache cache-stats cache-prune
+.PHONY: help setup update start check test shortcut quick-action mcp mcp-config clean cache-clear cache-stats
 
 test: ## Run automated unit test suite
 	$(PYTHON) -m unittest discover -s tests -v
@@ -80,12 +80,9 @@ quick-action: ## Install Finder Quick Action for a saved shortcut (macOS only)
 clean: ## Clean up __pycache__ directories
 	find . -type d -name __pycache__ -exec rm -rf {} +
 
-clean-cache: ## Clear conversion cache (checksum DB)
+cache-clear: ## Clear conversion cache (checksum DB)
 	@$(PYTHON) -c "from customs.cache import clear_cache; removed=clear_cache(); print(f'Removed cache DBs: {removed}' if removed else 'No cache DB found.')"
 
 cache-stats: ## Show cache entry count and storage stats
 	@$(PYTHON) -c "from customs.cache import CacheManager; import json; cm=CacheManager(); print(json.dumps(cm.stats(), indent=2)); cm.close()"
-
-cache-prune: ## Prune expired cache entries and enforce capacity limit
-	@$(PYTHON) -c "from customs.cache import CacheManager; cm=CacheManager(); deleted=cm.prune(); print(f'Pruned {deleted} expired/excess cache entries.'); cm.close()"
 
