@@ -15,6 +15,10 @@ from customs import shortcut
 
 class TestCLIFlow(unittest.TestCase):
     def setUp(self):
+        for target in ("Convergent.ensure_dependencies", "modules.resize.ensure_dependencies"):
+            dependency_patch = patch(target, return_value=True)
+            dependency_patch.start()
+            self.addCleanup(dependency_patch.stop)
         self.conv = Converter()
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_dir = Path(self.temp_dir.name)
@@ -501,7 +505,7 @@ class TestCLIFlow(unittest.TestCase):
         from rich.console import Console
 
         out_io = StringIO()
-        test_console = Console(file=out_io, force_terminal=True, color_system="truecolor")
+        test_console = Console(file=out_io, force_terminal=True, color_system="truecolor", no_color=False)
         shortcut.print_source_menu(test_console, self.conv, "Select source category:")
         output = out_io.getvalue()
 
@@ -512,7 +516,7 @@ class TestCLIFlow(unittest.TestCase):
         # Parentheses should NOT be highlighted with repr.brace bold (\x1b[1m()
         self.assertNotIn("\x1b[1m(", output)
         self.assertIn("tar.(gz/bz2/xz)", output)
-        self.assertIn("docx, html, md, ntb, pdf, pptx, rtf", output)
+        self.assertIn("docx, html, md, pdf, pptx, rtf", output)
 
 
     def test_resize_back_navigation(self):

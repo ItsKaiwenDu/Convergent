@@ -32,9 +32,10 @@ import sys
 import argparse
 import shlex
 from pathlib import Path
-from modules import pdf_manip, image, video, audio, doc, compress, decompress, ntb, combine, split, ocr, stt
+from modules import pdf_manip, image, video, audio, doc, compress, decompress, combine, split, ocr, stt
 from customs import shortcut, file_process
-from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run, process_stream
+from customs.file_process import prompt_move_files, FORMAT_REGISTRY, load_failed_run, clear_failed_run, process_stream, retry_options
+from customs.check_deps import ensure_dependencies, MissingDependencyError
 from customs.run_command import run_command
 from customs.console import (
     console, set_stderr_mode, get_input, get_char, get_choice,
@@ -57,6 +58,7 @@ def prompt_paths(action: str, allow_folders: bool = True):
 
 class Converter:
     def __init__(self):
+        self.install_deps = False
         self.formats = {f.name: f.targets for f in FORMAT_REGISTRY}
         self.source_formats = sorted(list(self.formats.keys()))
         category_names = {
@@ -72,6 +74,38 @@ class Converter:
             }
             for cat_id, cat_name in category_names.items()
         }
+
+    def prepare_conversion(self, source_formats, target_format, interactive=False, **options):
+        tools = []
+        needs_model = False
+        for source in sorted(source_formats):
+            source = source.upper()
+            if source == "HTM":
+                source = "HTML"
+            if source == target_format and not options.get("strip_metadata"):
+                continue
+            if target_format not in self.formats.get(source, []) and source != target_format:
+                continue
+            fmt = next((item for item in FORMAT_REGISTRY if item.name == source), None)
+            if fmt is None:
+                continue
+            if fmt.category_id in ("3", "4"):
+                domain = video if fmt.category_id == "3" else audio
+                if options.get("stt") or target_format in ("TXT", "MD", "SRT", "VTT"):
+                    domain = stt
+            elif fmt.category_id == "2" or source == "PDF":
+                domain = pdf_manip if source == "PDF" else image
+                if options.get("ocr") or target_format in ("TXT", "MD", "DOCX"):
+                    domain = ocr
+            else:
+                domain = doc
+            needs_model = needs_model or domain is stt
+            tools.extend(domain.required_dependencies(source, target_format, **options))
+        if not ensure_dependencies(tools, interactive=interactive, install=self.install_deps):
+            return False
+        if needs_model:
+            return stt.prepare_model(options.get("model", "base"), interactive=interactive, install=self.install_deps)
+        return True
 
     def convert_heic(self, source, target_ext, strip_metadata=False, **kwargs):
         return image.convert_heic(source, target_ext, strip_metadata=strip_metadata)
@@ -110,9 +144,6 @@ class Converter:
         dpi = kwargs.get("dpi", 300)
         return pdf_manip.convert_pdf_to_image(source, target_ext, dpi=dpi)
 
-    def convert_ntb(self, source, target_ext, **kwargs):
-        return ntb.convert_ntb(source, target_ext)
-
     def convert_markdown(self, source, target_ext, md_pdf_mode=None, **kwargs):
         return doc.convert_markdown(source, target_ext, md_pdf_mode)
 
@@ -120,51 +151,81 @@ class Converter:
         return doc.convert_html(source, target_ext, **kwargs)
 
     def combine_pdfs(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("pdf"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_pdfs(paths, output_path=output_path, interactive=interactive)
 
     def combine_videos(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("video"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_videos(paths, output_path=output_path, interactive=interactive)
 
     def combine_audios(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("audio"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_audios(paths, output_path=output_path, interactive=interactive)
 
     def combine_gifs(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("gif"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_gifs(paths, output_path=output_path, interactive=interactive)
 
     def combine_docx(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("docx"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_docx(paths, output_path=output_path, interactive=interactive)
 
     def combine_pptx(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("pptx"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_pptx(paths, output_path=output_path, interactive=interactive)
 
     def combine_txt(self, paths, output_path=None, interactive=True):
+        if not ensure_dependencies(combine.required_dependencies("txt"), interactive=interactive, install=self.install_deps):
+            return None
         return combine.combine_txt(paths, output_path=output_path, interactive=interactive)
 
     def get_pdf_page_count(self, path):
         return combine.get_pdf_page_count(path)
 
     def split_pdf(self, path, mode="pages", ranges=None, num_parts=None, output_dir=None, interactive=True, display_name=None):
+        if not ensure_dependencies(split.required_dependencies("pdf"), interactive=interactive, install=self.install_deps):
+            return None
         return split.split_pdf(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive, display_name=display_name)
 
     def split_video(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+        if not ensure_dependencies(split.required_dependencies("video"), interactive=interactive, install=self.install_deps):
+            return None
         return split.split_video(path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
     def split_audio(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+        if not ensure_dependencies(split.required_dependencies("audio"), interactive=interactive, install=self.install_deps):
+            return None
         return split.split_audio(path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
     def split_gif(self, path, mode="frames", frame_format="png", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+        if not ensure_dependencies(split.required_dependencies("gif"), interactive=interactive, install=self.install_deps):
+            return None
         return split.split_gif(path, mode=mode, frame_format=frame_format, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
     def split_docx(self, path, mode="pages", ranges=None, num_parts=None, output_dir=None, interactive=True):
+        if not ensure_dependencies(split.required_dependencies("docx"), interactive=interactive, install=self.install_deps):
+            return None
         return split.split_docx(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
     def split_pptx(self, path, mode="pages", ranges=None, num_parts=None, output_dir=None, interactive=True):
+        if not ensure_dependencies(split.required_dependencies("pptx"), interactive=interactive, install=self.install_deps):
+            return None
         return split.split_pptx(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
-    def compress(self, paths, output_name, format_choice, password=None):
+    def compress(self, paths, output_name, format_choice, password=None, interactive=True):
+        if not ensure_dependencies(compress.required_dependencies(format_choice), interactive=interactive, install=self.install_deps):
+            return False, "Installation cancelled.", None
         return compress.compress(paths, output_name, format_choice, password)
 
-    def decompress(self, path, output_dir=None):
+    def decompress(self, path, output_dir=None, interactive=True):
+        if not ensure_dependencies(decompress.required_dependencies(path), interactive=interactive, install=self.install_deps):
+            return False, "Installation cancelled.", None
         return decompress.decompress(path, output_dir)
 
     def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
@@ -241,6 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache-ttl", type=float, default=None, help="Cache Time-To-Live in days (default: 30 days, 0 to disable expiration)")
     parser.add_argument("--resume", action="store_true", help="Resume / retry last failed batch conversion")
     parser.add_argument("--shortcut", dest="shortcut_key", help="Run a saved shortcut by key symbol (requires --path unless shortcut has a fixed path)")
+    parser.add_argument("--install-deps", action="store_true", help="Install missing tools needed by selected operation without prompting")
     parser.add_argument("--mcp", action="store_true", help="Launch local MCP (Model Context Protocol) server over stdio")
     return parser
 
@@ -692,6 +754,9 @@ def main():
     conv = Converter()
     parser = build_parser()
     args = parser.parse_args()
+    conv.install_deps = args.install_deps
+    if args.install_deps:
+        set_stderr_mode(True)
 
     if args.cache_ttl is not None:
         os.environ["CONVERGENT_CACHE_TTL_DAYS"] = str(args.cache_ttl)
@@ -699,8 +764,12 @@ def main():
     use_cache = not args.no_cache
 
     if args.mcp:
+        set_stderr_mode(True)
+        if not ensure_dependencies(["mcp"], interactive=sys.stdin.isatty(), install=args.install_deps):
+            return
         import importlib
         mcp_server_mod = importlib.import_module("mcp_server.server")
+        mcp_server_mod.conv.install_deps = args.install_deps
         mcp_server_mod.run_server()
         sys.exit(0)
 
@@ -719,15 +788,12 @@ def main():
             
         source_fmts = failed_run["source_formats"]
         target_fmt = failed_run["target_format"]
-        fps = failed_run.get("fps")
-        bitrate = failed_run.get("bitrate")
-        md_pdf_mode = failed_run.get("md_pdf_mode")
-        strip_metadata = failed_run.get("strip_metadata", False)
-        use_cache_failed = failed_run.get("use_cache", True) and not args.no_cache
-        
+        options = retry_options(failed_run)
+        options["use_cache"] = options["use_cache"] and not args.no_cache
         console.print(f"[bold cyan]Resuming last failed batch run: {len(existing_failed)} file(s)...[/bold cyan]")
-        conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, jobs=args.jobs, overwrite=args.overwrite, skip=args.skip, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=False, use_cache=use_cache_failed, hwaccel=args.hwaccel)
-        return
+        converted = conv.process(source_fmts, target_fmt, existing_failed, jobs=args.jobs,
+                                 overwrite=args.overwrite, skip=args.skip, interactive=False, **options)
+        sys.exit(0 if converted else 1)
 
     if args.shortcut_key:
         paths = clean_paths(args.path) if args.path else None
@@ -905,13 +971,9 @@ def main():
             paths = failed_run["paths"]
             source_fmts = failed_run["source_formats"]
             target_fmt = failed_run["target_format"]
-            fps = failed_run.get("fps")
-            bitrate = failed_run.get("bitrate")
-            md_pdf_mode = failed_run.get("md_pdf_mode")
-            strip_metadata = failed_run.get("strip_metadata", False)
-            
             success_map = {}
-            converted = conv.process(source_fmts, target_fmt, existing_failed, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, success_map=success_map)
+            converted = conv.process(source_fmts, target_fmt, existing_failed,
+                                     success_map=success_map, **retry_options(failed_run))
             prompt_move_files(console, get_char, get_input, converted, original_files=list(success_map.values()))
             continue
 
@@ -1066,6 +1128,10 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except MissingDependencyError as exc:
+        set_stderr_mode(True)
+        console.print(str(exc), style="bold red", markup=False)
+        sys.exit(1)
     except KeyboardInterrupt:
         console.print("\n[bold yellow]Exiting...[/bold yellow]")
         sys.exit(0)

@@ -81,7 +81,7 @@ ALL_SUPPORTED_EXTENSIONS = {
     # Audio
     "aac", "flac", "m4a", "mp3", "ogg", "wav",
     # Documents
-    "docx", "htm", "html", "md", "ntb", "pdf", "pptx", "rtf", "txt",
+    "docx", "htm", "html", "md", "pdf", "pptx", "rtf", "txt",
     # Archives
     "7z", "rar", "tar", "tar.gz", "tgz", "tar.bz2", "tbz2", "tar.xz", "txz", "zip"
 }
@@ -1148,7 +1148,7 @@ def _run_compress_shortcut(conv, sc, paths, console, get_char, get_input, prompt
     target_fmt = sc["target_fmt"]
     password = sc.get("password")
     output_name = sc.get("output_name") or f"compressed.{target_fmt.lower()}"
-    success, error, out_path = conv.compress(paths, output_name, target_fmt, password)
+    success, error, out_path = conv.compress(paths, output_name, target_fmt, password, interactive=interactive)
     if success:
         console.print(f"\n[bold green]Successfully compressed into {output_name}[/bold green]")
         if interactive and prompt_move_files:
@@ -1174,7 +1174,7 @@ def _run_decompress_shortcut(conv, sc, paths, console, get_char, get_input, prom
 
     decompressed_dirs = []
     for path in paths:
-        success, error, actual_out_dir = conv.decompress(path, out_dir)
+        success, error, actual_out_dir = conv.decompress(path, out_dir, interactive=interactive)
         if success:
             console.print(f"\n[bold green]Successfully decompressed {Path(path).name}.[/bold green]")
             decompressed_dirs.append(actual_out_dir)

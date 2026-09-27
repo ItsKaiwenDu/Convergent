@@ -110,6 +110,33 @@ class TestCLIFlags(unittest.TestCase):
         self.assertIn("HTML", self.conv.categories["5"]["extensions"])
 
 
+    def test_resume_reuses_saved_settings(self):
+        import tempfile
+        from Convergent import main
+        from customs.file_process import retry_options
+        with tempfile.TemporaryDirectory() as folder:
+            src = Path(folder) / "recording.wav"
+            src.touch()
+            saved = dict(paths=[str(src)], source_formats=["WAV"], target_format="TXT",
+                         stt=True, model="turbo", language="zh", hwaccel="none", dpi=150)
+            with patch("sys.argv", ["Convergent.py", "--resume"]), \
+                 patch("Convergent.load_failed_run", return_value=saved), \
+                 patch("Convergent.Converter.process", return_value=[src.with_suffix(".txt")]) as process:
+                with self.assertRaises(SystemExit) as result:
+                    main()
+            self.assertEqual(result.exception.code, 0)
+            for key, value in retry_options(saved).items():
+                self.assertEqual(process.call_args.kwargs[key], value)
+
+    def test_install_deps_flag_is_explicit(self):
+        self.assertFalse(self.parser.parse_args([]).install_deps)
+        self.assertTrue(self.parser.parse_args(["--install-deps"]).install_deps)
+
+    def test_removed_format_is_not_exposed(self):
+        self.assertNotIn("NTB", self.conv.formats)
+        self.assertFalse(hasattr(self.conv, "convert_ntb"))
+
+
 if __name__ == "__main__":
     from unittest.mock import patch
     unittest.main()

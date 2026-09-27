@@ -2,6 +2,10 @@ from pathlib import Path
 from customs.run_command import run_command
 from customs.hwaccel import get_video_encoder
 
+def required_dependencies(source_format, target_format, **options):
+    return ["ffmpeg"]
+
+
 def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
     output = source.with_suffix(f".{target_ext.lower()}")
     target_upper = target_ext.upper()

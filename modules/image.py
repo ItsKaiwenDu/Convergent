@@ -4,6 +4,12 @@ import shutil
 from pathlib import Path
 from customs.run_command import run_command
 
+def required_dependencies(source_format, target_format, strip_metadata=False, **options):
+    native = (sys.platform == "darwin" and shutil.which("sips")
+              and source_format != "SVG" and target_format in ("JPG", "PNG", "TIF", "BMP", "GIF", "PDF"))
+    return [] if native and not strip_metadata else ["imagemagick"]
+
+
 def convert_heic(source, target_ext, strip_metadata=False):
     output = source.with_suffix(f".{target_ext.lower()}")
     target_upper = target_ext.upper()
@@ -21,8 +27,9 @@ def convert_heic(source, target_ext, strip_metadata=False):
         if target_upper in sips_targets:
             res, err = run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
             if res:
-                if strip_metadata and shutil.which("magick"):
-                    run_command(["magick", str(output), "-strip", str(output)])
+                if strip_metadata:
+                    strip_cmd = "magick" if shutil.which("magick") else "convert"
+                    return run_command([strip_cmd, str(output), "-strip", str(output)])
                 return True, ""
 
     cmd_name = "magick" if shutil.which("magick") else ("convert" if shutil.which("convert") else "magick")
@@ -73,8 +80,9 @@ def convert_image(source, target_ext, strip_metadata=False):
             }
             if target_upper in sips_targets:
                 res, err = run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
-                if res and strip_metadata and shutil.which("magick"):
-                    run_command(["magick", str(output), "-strip", str(output)])
+                if res and strip_metadata:
+                    strip_cmd = "magick" if shutil.which("magick") else "convert"
+                    res, err = run_command([strip_cmd, str(output), "-strip", str(output)])
             elif target_upper == "WEBP" and source.suffix.lower() in (".arw", ".dng"):
                 # Convert to temp PNG first using sips, then use magick to convert PNG to WEBP
                 temp_png = source.with_suffix(".temp.png")

@@ -321,5 +321,68 @@ class TestFileProcess(unittest.TestCase):
         self.assertTrue(expected_txt.exists())
 
 
+    def test_large_noninteractive_batch_never_reads_input(self):
+        conv = Converter()
+        files = [self.dir_path / f"photo{i}.png" for i in range(51)]
+        for f in files:
+            f.touch()
+        prompt = MagicMock(side_effect=AssertionError("Unexpected prompt"))
+        with patch.object(conv, "prepare_conversion", return_value=True), \
+             patch("customs.file_process.process_single_file", side_effect=lambda c, f, *a: (f.name, True, "", 0)), \
+             patch("customs.file_process.FAILED_RUN_FILE", self.dir_path / "failed.json"):
+            outputs = process(conv, self.console, prompt, ["PNG"], "JPG", files,
+                              interactive=False, use_cache=False, jobs=2)
+        self.assertEqual(len(outputs), 51)
+        prompt.assert_not_called()
+
+    def test_noninteractive_collision_defaults_to_preserving_outputs(self):
+        conv = Converter()
+        src = self.dir_path / "photo.png"
+        src.write_bytes(b"source")
+        dst = src.with_suffix(".jpg")
+        dst.write_bytes(b"original")
+        prompt = MagicMock(side_effect=AssertionError("Unexpected prompt"))
+        with patch("customs.file_process.process_single_file") as convert, \
+             patch("customs.file_process.FAILED_RUN_FILE", self.dir_path / "failed.json"):
+            result = process(conv, self.console, prompt, ["PNG"], "JPG", [src],
+                             interactive=False, use_cache=False)
+        self.assertEqual(result, [])
+        self.assertEqual(dst.read_bytes(), b"original")
+        convert.assert_not_called()
+        prompt.assert_not_called()
+
+    def test_saved_retry_preserves_all_conversion_settings(self):
+        from customs.file_process import retry_options
+        src = self.dir_path / "audio.wav"
+        src.touch()
+        options = dict(fps="30", bitrate="192k", md_pdf_mode="raw", strip_metadata=True,
+                       use_cache=False, ocr=True, stt=True, model="turbo", language="zh",
+                       hwaccel="none", dpi=150)
+        with patch("customs.file_process.FAILED_RUN_FILE", self.dir_path / "failed.json"):
+            save_failed_run([src], ["WAV"], "TXT", **options)
+            self.assertEqual(retry_options(load_failed_run()), options)
+        legacy = retry_options({"fps": "60"})
+        self.assertEqual(legacy["fps"], "60")
+        self.assertEqual(legacy["model"], "base")
+        self.assertEqual(legacy["hwaccel"], "auto")
+        self.assertFalse(legacy["stt"])
+
+    def test_immediate_retry_preserves_model_language_dpi_and_acceleration(self):
+        conv = Converter()
+        src = self.dir_path / "audio.wav"
+        src.touch()
+        with patch.object(conv, "prepare_conversion", return_value=True), \
+             patch("customs.file_process.process_single_file", side_effect=[(src.name, False, "failed", 0), (src.name, True, "", 0)]) as convert, \
+             patch("customs.file_process.sys.stdin.isatty", return_value=True), \
+             patch("customs.file_process.FAILED_RUN_FILE", self.dir_path / "failed.json"):
+            outputs = process(conv, self.console, lambda _: "y", ["WAV"], "TXT", [src],
+                              interactive=True, use_cache=False, stt=True, model="tiny",
+                              language="es", hwaccel="none", dpi=150)
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(convert.call_count, 2)
+        for call in convert.call_args_list:
+            self.assertEqual(call.args[7:], (False, True, "tiny", "es", "none", 150))
+
+
 if __name__ == "__main__":
     unittest.main()

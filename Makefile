@@ -6,7 +6,7 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup update start check test shortcut quick-action mcp mcp-config clean cache-clear cache-stats
+.PHONY: help setup setup-mcp update start check test shortcut quick-action mcp mcp-config clean cache-clear cache-stats
 
 test: ## Run automated unit test suite
 	$(PYTHON) -m unittest discover -s tests -v
@@ -18,8 +18,8 @@ update: ## Pull latest updates from Git and refresh dependencies
 	$(PYTHON) -m pip install -r requirements.txt
 	@echo "Update complete!"
 
-mcp: check ## Start local MCP server over stdio
-	$(PYTHON) mcp_server/server.py
+mcp: ## Start local MCP server over stdio
+	@$(PYTHON) $(SCRIPT) --mcp
 
 mcp-config: ## Print copy-paste JSON config for Claude Desktop / OpenCode / Cursor
 	$(PYTHON) mcp_server/config_generator.py
@@ -33,31 +33,17 @@ help: ## Show this help message
 	@echo "\033[1mExample:\033[0m"
 	@echo "  make start ARGS=\"--from JPG --to PNG\""
 
-setup: ## Install dependencies
-	@echo "Checking Python dependencies..."
+setup: ## Install minimal CLI dependencies; conversion tools install on demand
 	$(PYTHON) -m pip install -r requirements.txt
-	@echo "Checking System dependencies..."
-	@if command -v brew >/dev/null; then \
-		brew install ffmpeg imagemagick pandoc ghostscript typst sevenzip tesseract whisper-cpp; \
-		brew install --cask rar || true; \
-		brew install --cask libreoffice || true; \
-		xattr -d com.apple.quarantine $$(which rar unrar) 2>/dev/null || true; \
-	elif command -v apt >/dev/null; then \
-		sudo apt update && sudo apt install -y ffmpeg imagemagick pandoc ghostscript typst p7zip-full unrar rar trash-cli libreoffice tesseract-ocr || true; \
-	elif command -v dnf >/dev/null; then \
-		sudo dnf install -y ffmpeg ImageMagick pandoc ghostscript typst p7zip p7zip-plugins unrar rar trash-cli libreoffice tesseract || true; \
-	elif command -v pacman >/dev/null; then \
-		sudo pacman -S --noconfirm ffmpeg imagemagick pandoc ghostscript typst p7zip unrar rar trash-cli libreoffice-fresh tesseract || true; \
-	else \
-		echo "Warning: Supported package manager (brew, apt, dnf, pacman) not found. Please install FFmpeg, ImageMagick, Pandoc, Ghostscript, Typst, 7-Zip, unrar, rar, Tesseract, Whisper.cpp, and LibreOffice manually."; \
-	fi
-	@echo "Setup complete!"
 
-start: check ## Run converter
+setup-mcp: ## Install optional MCP support
+	$(PYTHON) -m pip install -r requirements-mcp.txt
+
+start: ## Run converter
 	$(PYTHON) $(SCRIPT) $(ARGS)
 
 check: ## Verify dependencies
-	@$(PYTHON) customs/check_deps.py
+	@$(PYTHON) -m customs.check_deps
 
 shortcut: ## Create desktop shortcut
 	@printf "Path (default: ~/Desktop): "; \

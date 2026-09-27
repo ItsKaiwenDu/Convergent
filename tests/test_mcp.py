@@ -9,6 +9,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import importlib.util
+if importlib.util.find_spec("mcp") is None:
+    raise unittest.SkipTest("Optional MCP SDK is not installed; run make setup-mcp")
+
 from mcp_server.server import (
     list_supported_formats,
     convergent_convert,
@@ -141,6 +145,97 @@ class TestMCPServer(unittest.TestCase):
             )
 
         self.assertEqual(stdout_buf.getvalue(), "", "sys.stdout must remain strictly clean for JSON-RPC messages!")
+
+    def test_relocation_preserves_existing_file_directory_and_symlink(self):
+        for kind in ("file", "directory", "symlink"):
+            with self.subTest(kind=kind):
+                folder = self.dir_path / kind
+                folder.mkdir()
+                src = folder / "input.jpg"
+                src.touch()
+                output = folder / ("input_images" if kind == "directory" else "input.png")
+                if kind == "directory":
+                    output.mkdir()
+                    (output / "page.png").write_bytes(b"new")
+                else:
+                    output.write_bytes(b"new")
+                destination = folder / "dest"
+                destination.mkdir()
+                existing = destination / output.name
+                if kind == "directory":
+                    existing.mkdir()
+                    (existing / "keep.txt").write_bytes(b"old")
+                elif kind == "symlink":
+                    existing.symlink_to(folder / "missing.png")
+                else:
+                    existing.write_bytes(b"old")
+                with patch("mcp_server.server.conv.process", return_value=[output]):
+                    result = convergent_convert(str(src), "PNG", output_path=str(destination), overwrite=False)
+                self.assertFalse(result["success"])
+                self.assertIn("Destination already exists", result["error"])
+                self.assertTrue(output.exists())
+                if kind == "directory":
+                    self.assertEqual((existing / "keep.txt").read_bytes(), b"old")
+                elif kind == "symlink":
+                    self.assertTrue(existing.is_symlink())
+                else:
+                    self.assertEqual(existing.read_bytes(), b"old")
+
+    def test_explicit_output_filename_respects_overwrite(self):
+        src = self.dir_path / "input.jpg"
+        src.touch()
+        output = src.with_suffix(".png")
+        destination = self.dir_path / "chosen.png"
+        destination.write_bytes(b"old")
+        for overwrite in (False, True):
+            output.write_bytes(b"new")
+            with patch("mcp_server.server.conv.process", return_value=[output]):
+                result = convergent_convert(str(src), "PNG", output_path=str(destination), overwrite=overwrite)
+            self.assertEqual(result["success"], overwrite)
+            self.assertEqual(destination.read_bytes(), b"new" if overwrite else b"old")
+
+    def test_relocation_checks_all_conflicts_before_moving_any_output(self):
+        src = self.dir_path / "input.jpg"
+        src.touch()
+        outputs = [self.dir_path / f"{name}.png" for name in ("a", "b")]
+        for out in outputs:
+            out.write_bytes(b"new")
+        destination = self.dir_path / "dest"
+        destination.mkdir()
+        (destination / "b.png").write_bytes(b"old")
+        with patch("mcp_server.server.conv.process", return_value=outputs):
+            result = convergent_convert(str(src), "PNG", output_path=str(destination), overwrite=False)
+        self.assertFalse(result["success"])
+        self.assertTrue(all(out.exists() for out in outputs))
+        self.assertFalse((destination / "a.png").exists())
+
+
+    def test_no_overwrite_relocation_handles_new_conflict_after_preflight(self):
+        from mcp_server.server import _relocate_output
+        source = self.dir_path / "new.png"
+        destination = self.dir_path / "existing.png"
+        source.write_bytes(b"new")
+        destination.write_bytes(b"keep")
+        with self.assertRaises(FileExistsError):
+            _relocate_output(source, destination, overwrite=False)
+        self.assertEqual(source.read_bytes(), b"new")
+        self.assertEqual(destination.read_bytes(), b"keep")
+
+    def test_no_overwrite_relocation_moves_file_and_directory_without_conflicts(self):
+        from mcp_server.server import _relocate_output
+        for is_directory in (False, True):
+            source = self.dir_path / ("pages" if is_directory else "photo.png")
+            if is_directory:
+                source.mkdir()
+                (source / "page.png").write_bytes(b"new")
+            else:
+                source.write_bytes(b"new")
+            destination = self.dir_path / "dest" / source.name
+            _relocate_output(source, destination, overwrite=False)
+            self.assertFalse(source.exists())
+            content = destination / "page.png" if is_directory else destination
+            self.assertEqual(content.read_bytes(), b"new")
+
 
 import asyncio
 from mcp.client.stdio import stdio_client

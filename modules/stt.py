@@ -58,6 +58,38 @@ MODEL_DISPLAY_NAMES = {
 }
 
 
+def required_dependencies(source_format, target_format, **options):
+    return ["ffmpeg", "whisper"]
+
+
+def prepare_model(model, interactive=False, install=False):
+    from customs.check_deps import MissingDependencyError
+    from customs.console import console, get_char
+    try:
+        get_model_path(model, auto_download=False)
+        return True
+    except FileNotFoundError:
+        pass
+    interactive = interactive and sys.stdin.isatty()
+    normalized = normalize_model_name(model)
+    message = f"Whisper model '{normalized}' ({MODEL_SIZES.get(normalized, 'unknown size')}) is not installed."
+    if not interactive and not install:
+        raise MissingDependencyError(message + " Rerun conversion with --install-deps to download it.")
+    if interactive and not install:
+        console.print(f"\n[bold yellow]{message}[/bold yellow]")
+        console.print(" [bold cyan]Y.[/bold cyan] Download and continue   [bold white]N.[/bold white] Cancel")
+        choice = get_char("\nSelect Option: ").lower()
+        console.print()
+        if choice != "y":
+            console.print("[dim]Download cancelled.[/dim]")
+            return False
+    try:
+        get_model_path(model, auto_download=True)
+    except (OSError, RuntimeError) as exc:
+        raise MissingDependencyError(str(exc)) from exc
+    return True
+
+
 def normalize_model_name(model_name: str) -> str:
     """Normalizes friendly model names and aliases to canonical Whisper model identifiers."""
     name = (model_name or "base").lower().strip()
@@ -114,7 +146,6 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
     if normalized_name not in MODEL_URLS:
         normalized_name = "base"
 
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     model_filename = f"ggml-{normalized_name}.bin"
     if normalized_name in ("turbo", "large-v3-turbo"):
         model_filename = "ggml-large-v3-turbo.bin"
@@ -136,10 +167,13 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
     if not auto_download:
         raise FileNotFoundError(f"Whisper model '{normalized_name}' not found at {model_path}")
 
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     url = MODEL_URLS[normalized_name]
     display_title = MODEL_DISPLAY_NAMES.get(raw_name, MODEL_DISPLAY_NAMES.get(normalized_name, normalized_name))
-    print(f"\n[STT] Downloading Whisper '{display_title}' model ({MODEL_SIZES.get(normalized_name, '')})...", file=sys.stderr)
-    print(f"      Saving to: {model_path}", file=sys.stderr)
+    from rich.console import Console
+    download_console = Console(stderr=True, highlight=False)
+    download_console.print(f"\n[bold cyan]Downloading Whisper '{display_title}' ({MODEL_SIZES.get(normalized_name, '')})...[/bold cyan]")
+    download_console.print(f"[dim]Saving to: {model_path}[/dim]")
 
     temp_dest = model_path.with_suffix(".tmp")
     try:
@@ -177,8 +211,10 @@ def get_model_path(model_name: str = "base", auto_download: bool = True) -> Path
                         sys.stderr.write(f"\r[STT] Downloading: {percent:5.1f}% ({downloaded / (1024*1024):.1f} MB / {totalsize / (1024*1024):.1f} MB)")
                         sys.stderr.flush()
 
-        print("\n[STT] Model download complete!\n", file=sys.stderr)
+        if not temp_dest.exists() or temp_dest.stat().st_size <= 1024 * 1024:
+            raise RuntimeError("Downloaded model is incomplete.")
         temp_dest.replace(model_path)
+        download_console.print("\n[bold green]✓ Whisper model is ready.[/bold green]")
     except Exception as e:
         if temp_dest.exists():
             temp_dest.unlink()
@@ -260,7 +296,7 @@ def convert_audio_to_text(
 
         # 3. Resolve or download model
         try:
-            model_path = get_model_path(model_name=model, auto_download=True)
+            model_path = get_model_path(model_name=model, auto_download=False)
         except Exception as e:
             return False, f"Could not load Whisper model: {e}"
 

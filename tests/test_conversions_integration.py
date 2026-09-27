@@ -179,5 +179,21 @@ class TestConversionsIntegration(unittest.TestCase):
         self.assertTrue(pdf_out.read_bytes().startswith(b"%PDF-"))
 
 
+    @unittest.skipUnless(bool(shutil.which("sips") or shutil.which("magick")), "Neither sips nor ImageMagick 7 is installed")
+    def test_png_to_pdf_batch_real(self):
+        import struct
+        import zlib
+        def chunk(kind, data):
+            return struct.pack("!I", len(data)) + kind + data + struct.pack("!I", zlib.crc32(kind + data))
+        png = self.dir_path / "pixel.png"
+        png.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack("!2I5B", 1, 1, 8, 2, 0, 0, 0))
+                        + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00")) + chunk(b"IEND", b""))
+        from unittest.mock import patch
+        with patch("customs.file_process.FAILED_RUN_FILE", self.dir_path / "failed.json"):
+            outputs = self.conv.process(["PNG"], "PDF", [str(png)], interactive=False, use_cache=False)
+        self.assertEqual(outputs, [png.with_suffix(".pdf")])
+        self.assertTrue(outputs[0].read_bytes().startswith(b"%PDF-"))
+
+
 if __name__ == "__main__":
     unittest.main()

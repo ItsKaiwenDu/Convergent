@@ -15,6 +15,19 @@ if sys.platform == "darwin":
     except ImportError:
         pass
 
+def required_dependencies(source_format, target_format, **options):
+    tools = [] if HAS_MACOS_VISION else ["tesseract"]
+    if source_format == "PDF":
+        if not any(shutil.which(cmd) for cmd in ("pdftoppm", "gs")):
+            tools.append("ghostscript")
+    elif source_format not in ("PNG", "JPG", "JPEG"):
+        if not any(shutil.which(cmd) for cmd in ("sips", "magick", "convert", "ffmpeg")):
+            tools.append("imagemagick")
+    if target_format == "DOCX":
+        tools.append("pandoc")
+    return tools
+
+
 def _convert_image_to_temp_png(source: Path) -> Path:
     """
     Converts an image file (HEIC, HEIF, WEBP, etc.) to a temporary PNG for OCR processing.

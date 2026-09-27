@@ -6,6 +6,15 @@ from pathlib import Path
 from customs.console import console, get_input, get_char, prompt_paths, clean_paths
 from customs.run_command import run_command, send_to_trash
 
+def required_dependencies(kind):
+    if kind in ("docx", "pptx"):
+        from modules.doc import required_dependencies as document_dependencies
+        return document_dependencies(kind.upper(), "PDF") + ["ghostscript"]
+    if kind == "pdf":
+        return ["ghostscript"]
+    return [] if kind == "txt" else ["ffmpeg"]
+
+
 def natural_sort_key(path):
     name = path.name if hasattr(path, "name") else str(path)
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', name)]

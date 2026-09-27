@@ -7,6 +7,7 @@ from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 from customs.file_process import prompt_move_files
 from customs.console import prompt_strip_metadata
+from customs.check_deps import ensure_dependencies
 from customs.hwaccel import get_video_encoder
 
 try:
@@ -225,6 +226,10 @@ def resize_media(paths, conv, console, get_char, get_input):
         console.print("[bold red]No MP4, JPG, PNG, or HEIC files found in provided paths.[/bold red]")
         get_char("\nPress any key to continue...")
         return
+
+    tools = ["ffmpeg" if f.suffix.lower() == ".mp4" else "imagemagick7" for f in files]
+    if not ensure_dependencies(tools, interactive=True, install=conv.install_deps):
+        return []
 
     # 2. Display files and dimensions
     console.print("\n[bold yellow]Files to Resize:[/bold yellow]")

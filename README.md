@@ -16,7 +16,6 @@
     -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`/`WEBP`) or documents (`PDF`) to `.txt`, `.md`, or `.docx` (via Apple Vision or Tesseract).
     -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF and HTML, Markdown (MD) to typeset/raw PDF, HTML, or TXT, and HTML to PDF, MD, TXT, DOCX, or RTF. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
-    -   **Notability (Beta)**: Convert `.ntb` note packages to standard vector PDF.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
     -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), and privacy metadata stripping for images (JPG, PNG, HEIC) and video (MP4).
 -   **CLI Support**: Direct CLI arguments for automated workflows, Unix pipe composition & streaming (`stdin`/`stdout`, `pbpaste`/`pbcopy`), and an interactive terminal menu with single-key navigation.
@@ -44,12 +43,12 @@
     ```bash
     make setup
     ```
-    *Installs Python dependencies from `requirements.txt` (incl. `rich`) and system tools (`ffmpeg`, `imagemagick`, `pandoc`, `ghostscript`, `typst`, `7-zip`, `unrar`, `rar`, `tesseract`, `whisper-cpp`, `libreoffice`) via package manager (`brew`, `apt`, `dnf`, `pacman`).*
+    *Installs `rich`; interactive mode offers missing conversion tools on first use and reuses installed ones.*
 3.  **Check Dependencies**:
     ```bash
     make check
     ```
-    *Verifies all required and optional system dependencies.*
+    *Lists optional tools; missing tools do not block startup.*
 4.  **Update Repository**:
     ```bash
     make update
@@ -59,25 +58,27 @@
     ```bash
     make test
     ```
-    *Runs automated unit test suite verifying caching, collision handling, MCP tools, and flags.*
+    *Runs automated tests. MCP and real-conversion tests require their optional dependencies.*
 
 ## Usage
 
 | Command | Description |
 |---|---|
+| `make setup-mcp` | Install optional MCP support |
 | `make start` | Launch interactive terminal UI with single-key navigation, drag-and-drop input, and saved shortcuts |
 | `make shortcut` | Generate a clickable `.command` desktop shortcut for instant one-click access |
 | `make quick-action` | Bind a saved shortcut to macOS Finder's right-click context menu (create shortcut via `make start` → `+` first) |
 | `make cache-stats` | Display cached fingerprint records, TTL, and SQLite database storage size (`~/.convergent_cache.sqlite`) |
 | `make cache-clear` | Delete all cached conversion checksums to force full re-conversion |
-| `make clean` | Remove all compiled Python `__pycache__` directories across the workspace |
+| `make clean` | Remove all compiled Python `__pycache__` directories across workspace |
 | `make help` | View all available Makefile targets |
 
 ### CLI Mode (Arguments)
-For automated workflows, you can pass arguments directly using `ARGS` variable:
+For automated workflows, pass arguments using `ARGS`. CLI batches never prompt; missing tools return an error unless `--install-deps` is supplied.
 
 | Flag | Description | Example |
 |---|---|---|
+| `--install-deps` | Install required tools/models without prompting | `--install-deps` |
 | `--from` | Source file extension (e.g., `HEIC`, `MOV`) | `--from HEIC` |
 | `--to` | Target output extension (e.g., `JPG`, `MP3`) | `--to JPG` |
 | `--path` | Path to input file/dir (or `-` for stdin pipe) | `--path ~/Desktop/Photos` |
@@ -103,6 +104,9 @@ For automated workflows, you can pass arguments directly using `ARGS` variable:
 
 **Example Commands:**
 ```bash
+# Install a specific tool before an automated run
+python3 -m customs.check_deps --install ffmpeg
+
 # Transcribe MP3 audio to plain text using local Whisper engine (base model)
 make start ARGS="--from MP3 --to TXT --path ~/Desktop/recording.mp3"
 
@@ -143,12 +147,15 @@ Convergent can run as a **100% local Model Context Protocol (MCP) server** over 
 
 ### Running MCP Server
 ```bash
-# Start MCP server over stdio
+# Install optional MCP support and start server
+make setup-mcp
 make mcp
 
 # Or directly via Python
 python Convergent.py --mcp
 ```
+
+*MCP never prompts. Add `--install-deps` to Python command to allow tool/model downloads.*
 
 ### Client Configuration Helper
 To print ready-to-use JSON configuration snippets for your AI clients:
@@ -189,18 +196,20 @@ Save frequent workflows as persistent shortcuts for instant access.
   - `[+]` Create
   - `[=]` Edit
   - `[-]` Delete
-- **Instant Run**: Trigger any shortcut directly from the initial prompt or via `--shortcut KEY`.
+- **Instant Run**: Trigger any shortcut directly from initial prompt or via `--shortcut KEY`.
 - **Skip Prompts**: Save a fixed file or folder path in any shortcut to completely skip input path prompt.
 - **Persistence**: Saved automatically to `~/.convergent_shortcuts.json` and loaded into main menu on startup.
 
 ## Collision Handling & Overwrite Guard
 
-If output files already exist, a **Collision Preview** table lists conflicts and prompts you immediately:
+In interactive mode, a **Collision Preview** table lists existing outputs and offers:
 
 - `[o]`: Overwrite once | `[Shift] + [o]`: Overwrite all
 - `[s]`: Skip once | `[Shift] + [s]`: Skip all
 - `[k]`: Keep both (auto-rename) once | `[Shift] + [k]`: Keep all
 - `[c]`: Cancel entire operation
+
+**Automation:** CLI skips existing outputs unless `--overwrite` is set. MCP `overwrite=False` rejects destination conflicts and leaves generated outputs in place.
 
 ## Post-Conversion Actions
 
@@ -213,11 +222,12 @@ After conversion, you can choose from Post-Convert Options menu:
 
 ## Troubleshooting
 
+- **Dependency installation**: Uses `brew`, `apt`, `dnf`, or `pacman`; install manually if unavailable. Downloads need internet; conversion runs locally. Unattended Linux installs require root or passwordless sudo.
 - **Ghostscript not found**: Ensure `gs` is in system PATH. Run `brew install ghostscript` to install or fix link.
 - **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
 - **Pandoc PDF fonts / Markdown to PDF**: If converting documents to PDF fails, ensure you have a LaTeX distribution or Typst installed (e.g., `brew install pandoc typst`).
 - **Office styling off**: Install LibreOffice (`brew install --cask libreoffice`) for high-fidelity DOCX/PPTX/RTF to PDF layout conversion.
-- **Whisper Speech-to-Text**: Install whisper.cpp via `brew install whisper-cpp`. Models are automatically cached in `~/.cache/convergent/models/`.
+- **Whisper Speech-to-Text**: Install whisper.cpp via `brew install whisper-cpp`. Models download on approval or with `--install-deps`; cached in `~/.cache/convergent/models/`.
 - **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide necessary delegates for ImageMagick.
 
 ## Tech Stack & Requirements
@@ -245,7 +255,8 @@ After conversion, you can choose from Post-Convert Options menu:
 Convergent/
 ├── Convergent.py        # Main CLI entry point and menu orchestrator
 ├── Makefile             # Task automation (setup, run, test, check, mcp, clean, cache)
-├── requirements.txt     # Python dependencies
+├── requirements.txt     # Minimal CLI dependencies
+├── requirements-mcp.txt # Optional MCP SDK and CLI dependencies
 ├── tests/               # Automated unit test suite (cache, MCP, flags, orchestration)
 ├── _config.yml          # Jekyll configuration for GitHub Pages & SEO
 ├── _includes/           # Jekyll template includes
@@ -261,7 +272,6 @@ Convergent/
 │   ├── decompress.py    # Archive decompression
 │   ├── doc.py           # Document conversion (Office & Markdown)
 │   ├── image.py         # Image conversion (HEIC, JPG, PNG, RAW, etc.)
-│   ├── ntb.py           # Notability .ntb to vector PDF conversion
 │   ├── resize.py        # Image & video resize / aspect-ratio crop engine
 │   ├── ocr.py           # Local OCR text extraction engine
 │   ├── pdf_manip.py     # PDF format conversion (PDF to Image)
@@ -270,7 +280,7 @@ Convergent/
 │   └── video.py         # Video format conversion
 └── customs/             # Shared helpers and utility frameworks
     ├── cache.py         # Content-addressable conversion cache (blake2b + SQLite)
-    ├── check_deps.py    # CLI dependency validator
+    ├── check_deps.py    # On-demand dependency checks and installation
     ├── console.py       # Terminal UI and rich-text helper
     ├── file_process.py  # Queue manager, collision handler, and cache skip
     ├── hwaccel.py       # FFmpeg hardware acceleration detection and encoder selection

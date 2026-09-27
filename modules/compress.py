@@ -6,6 +6,12 @@ from customs.run_command import run_command, send_to_trash
 
 from customs.console import console
 
+def required_dependencies(format_choice):
+    if format_choice.startswith("TAR"):
+        return ["tar"]
+    return {"ZIP": ["zip"], "7Z": ["sevenzip"], "RAR": ["rar"]}.get(format_choice, [])
+
+
 def compress(paths, output_name, format_choice, password=None):
     if isinstance(paths, str):
         paths = [paths]

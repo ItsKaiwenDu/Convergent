@@ -5,6 +5,26 @@ import uuid
 from pathlib import Path
 from customs.run_command import run_command
 
+def required_dependencies(source_format, target_format, md_pdf_mode=None, **options):
+    if source_format == "MD":
+        if target_format == "PDF":
+            return [] if md_pdf_mode == "raw" else ["pandoc", "typst"]
+        return ["pandoc"]
+    if source_format == "HTML":
+        if target_format == "PDF":
+            if _get_soffice_path() or _get_chrome_path():
+                return []
+            return ["pandoc", "typst"]
+        return ["pandoc"]
+    if target_format == "PDF" or source_format == "PPTX":
+        if _get_soffice_path():
+            return []
+        if source_format != "PPTX" and shutil.which("pandoc") and (shutil.which("typst") or shutil.which("pdflatex")):
+            return []
+        return ["libreoffice"]
+    return [] if _get_soffice_path() and not shutil.which("pandoc") else ["pandoc"]
+
+
 def convert_with_temp_files(source, output, run_conv_fn):
     """
     Copies input files to a temp directory inside Convergent workspace

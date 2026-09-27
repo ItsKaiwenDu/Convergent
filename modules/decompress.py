@@ -4,6 +4,15 @@ import shutil
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 
+def required_dependencies(path):
+    name = str(path).lower()
+    if name.endswith(".zip"):
+        return ["unzip"]
+    if name.endswith((".rar", ".7z")):
+        return [] if name.endswith(".rar") and shutil.which("unrar") else ["sevenzip"]
+    return ["tar"]
+
+
 def decompress(path, output_dir=None):
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.exists():

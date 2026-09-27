@@ -1,6 +1,10 @@
 from pathlib import Path
 from customs.run_command import run_command
 
+def required_dependencies(source_format, target_format, **options):
+    return ["ffmpeg"]
+
+
 def convert_audio(source, target_ext, bitrate=None):
     output = source.with_suffix(f".{target_ext.lower()}")
     cmd = ["ffmpeg", "-i", str(source), "-y", "-loglevel", "error"]

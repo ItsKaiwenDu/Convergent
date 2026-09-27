@@ -12,10 +12,11 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List
 from customs.run_command import send_to_trash
+from customs.check_deps import MissingDependencyError
 
 FAILED_RUN_FILE = Path.home() / ".convergent_failed.json"
 
-def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, use_cache=True):
+def save_failed_run(failed_files, source_formats, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, use_cache=True, *, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
     if not failed_files:
         clear_failed_run()
         return
@@ -28,13 +29,22 @@ def save_failed_run(failed_files, source_formats, target_format, fps=None, bitra
         "bitrate": bitrate,
         "md_pdf_mode": md_pdf_mode,
         "strip_metadata": strip_metadata,
-        "use_cache": use_cache
+        "use_cache": use_cache,
+        "ocr": ocr, "stt": stt, "model": model, "language": language,
+        "hwaccel": hwaccel, "dpi": dpi,
     }
     try:
         with open(FAILED_RUN_FILE, 'w') as f:
             json.dump(data, f, indent=4)
     except Exception:
         pass
+
+def retry_options(saved_run):
+    defaults = dict(fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False,
+                    use_cache=True, ocr=False, stt=False, model="base", language=None,
+                    hwaccel="auto", dpi=None)
+    return {key: saved_run.get(key, default) for key, default in defaults.items()}
+
 
 def load_failed_run():
     if FAILED_RUN_FILE.exists():
@@ -103,7 +113,6 @@ FORMAT_REGISTRY = [
     FormatDef("DOCX", "5", ["PDF", "HTML"], "convert_office"),
     FormatDef("HTML", "5", ["PDF", "MD", "TXT", "DOCX", "RTF"], "convert_html"),
     FormatDef("MD", "5", ["PDF", "HTML", "TXT"], "convert_markdown"),
-    FormatDef("NTB", "5", ["PDF"], "convert_ntb"),
     FormatDef("PDF", "5", ["JPG", "PNG", "TIF", "BMP", "TXT", "MD", "DOCX"], "convert_pdf"),
     FormatDef("PPTX", "5", ["PDF", "HTML"], "convert_office"),
     FormatDef("RTF", "5", ["PDF", "HTML"], "convert_office"),
@@ -292,6 +301,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     failed_files = []
     completed_files = set()
     
+    if not interactive and not overwrite:
+        skip = True
+
     # 1. Identify conflicts
     conflicts = []
     for f in files:
@@ -471,11 +483,18 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             return []
 
         num_files = len(files)
-        if num_files > 50:
+        if interactive and num_files > 50:
             console.print(f"\n[bold yellow]Found {num_files} files. Proceed? (y/n)[/bold yellow]")
             if get_char("   Choice: ").lower() != 'y':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return []
+
+        if not conv.prepare_conversion(
+            {f.suffix.lstrip(".").upper() for f in files}, target_format,
+            interactive=interactive, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata,
+            ocr=ocr, stt=stt, model=model,
+        ):
+            return []
 
         console.print(f"[bold cyan]Found {num_files} files to convert...[/bold cyan]")
         
@@ -603,6 +622,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         error_lines = error.strip().splitlines()
                         formatted_error = "\n".join("   " + line for line in error_lines)
                         console.print(f"[dim]{formatted_error}[/dim]")
+    except MissingDependencyError:
+        failed_files.extend(f for f in files if f not in failed_files)
+        raise
     except KeyboardInterrupt:
         # For fallback mode or general handling, gather remaining uncompleted files
         for f in files:
@@ -611,7 +633,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         raise
     finally:
         if failed_files:
-            save_failed_run(failed_files, source_formats, target_format, fps, bitrate, md_pdf_mode, strip_metadata, use_cache=use_cache)
+            save_failed_run(failed_files, source_formats, target_format, fps, bitrate, md_pdf_mode, strip_metadata, use_cache=use_cache,
+                            ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel, dpi=dpi)
         else:
             clear_failed_run()
         
@@ -662,7 +685,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 conv, console, get_char, source_formats, target_format, retry_paths,
                 fps=fps, bitrate=bitrate, jobs=jobs, overwrite=overwrite, skip=skip,
                 md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive, ocr=ocr,
-                success_map=success_map, use_cache=use_cache
+                success_map=success_map, use_cache=use_cache, stt=stt, model=model,
+                language=language, hwaccel=hwaccel, dpi=dpi
             )
             converted_files.extend(retry_converted)
             
@@ -796,6 +820,11 @@ def process_stream(conv, console, source_format, target_format, input_path=None,
     executes single-file conversion via conv.process_single_file,
     and outputs result to sys.stdout.buffer or output_path.
     """
+    if not conv.prepare_conversion([source_format], target_format, interactive=False,
+                                   md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata,
+                                   ocr=ocr, stt=stt, model=model):
+        return False
+
     workspace_dir = Path(__file__).parent.parent.resolve()
     tmp_dir = workspace_dir / ".convergent_tmp"
     tmp_dir.mkdir(exist_ok=True)

@@ -7,6 +7,13 @@ from pathlib import Path
 from customs.console import console, get_input, get_char
 from customs.run_command import run_command, send_to_trash
 
+def required_dependencies(kind):
+    if kind in ("docx", "pptx"):
+        from modules.doc import required_dependencies as document_dependencies
+        return document_dependencies(kind.upper(), "PDF") + ["ghostscript"]
+    return ["ghostscript"] if kind == "pdf" else ["ffmpeg"]
+
+
 def get_pdf_page_count(path):
     try:
         result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)

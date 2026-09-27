@@ -10,6 +10,7 @@ extract, process, combine, split, and OCR local files.
 import os
 import sys
 import json
+import shutil
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -18,7 +19,12 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError as exc:
+    if exc.name == "mcp":
+        raise SystemExit("MCP support is optional. Install it with: make setup-mcp") from exc
+    raise
 from Convergent import Converter, clean_paths
 from customs.file_process import FORMAT_REGISTRY
 from customs.console import set_stderr_mode
@@ -36,6 +42,25 @@ mcp = FastMCP(
 )
 
 conv = Converter()
+
+
+def _relocate_output(source: Path, destination: Path, overwrite: bool):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not overwrite:
+        if source.is_dir():
+            shutil.copytree(source, destination)
+            shutil.rmtree(source)
+        else:
+            with source.open("rb") as src, destination.open("xb") as dst:
+                shutil.copyfileobj(src, dst)
+            shutil.copystat(source, destination)
+            source.unlink()
+        return
+    if destination.is_symlink() or destination.is_file():
+        destination.unlink()
+    elif destination.is_dir():
+        shutil.rmtree(destination)
+    shutil.move(str(source), str(destination))
 
 
 @mcp.tool()
@@ -123,8 +148,8 @@ def convergent_convert(
 
         # Honor output_path parameter if specified
         if output_path and converted_list:
-            import shutil
-            dest_target = Path(os.path.expanduser(output_path)).resolve()
+            dest_target = Path(os.path.expanduser(output_path)).absolute()
+            dest_target = dest_target.parent.resolve() / dest_target.name
             final_converted_list = []
 
             is_dest_dir = (
@@ -136,37 +161,27 @@ def convergent_convert(
                 or len(converted_list) > 1
             )
 
-            if is_dest_dir:
-                dest_target.mkdir(parents=True, exist_ok=True)
-                for out_item in converted_list:
-                    out_p = Path(out_item)
-                    if out_p.exists():
-                        target_loc = dest_target / out_p.name
-                        if target_loc != out_p:
-                            if target_loc.is_dir():
-                                shutil.rmtree(target_loc)
-                            elif target_loc.is_file():
-                                target_loc.unlink()
-                            shutil.move(str(out_p), str(target_loc))
-                            final_converted_list.append(str(target_loc))
-                        else:
-                            final_converted_list.append(str(out_p))
-            else:
-                dest_target.parent.mkdir(parents=True, exist_ok=True)
-                out_p = Path(converted_list[0])
-                if out_p.exists():
-                    if dest_target != out_p:
-                        if dest_target.is_dir():
-                            shutil.rmtree(dest_target)
-                        elif dest_target.is_file():
-                            dest_target.unlink()
-                        shutil.move(str(out_p), str(dest_target))
-                        final_converted_list.append(str(dest_target))
-                    else:
-                        final_converted_list.append(str(out_p))
-                for out_item in converted_list[1:]:
-                    final_converted_list.append(out_item)
+            moves = []
+            for out_item in converted_list:
+                out_p = Path(out_item).resolve()
+                target_loc = dest_target / out_p.name if is_dest_dir else dest_target
+                moves.append((out_p, target_loc))
 
+            for out_p, target_loc in moves:
+                if out_p == target_loc:
+                    continue
+                if (target_loc.exists() or target_loc.is_symlink()) and not overwrite:
+                    raise FileExistsError(
+                        f"Destination already exists: {target_loc}. "
+                        "Choose another output path or set overwrite=True. "
+                        "Converted outputs remain at their original locations."
+                    )
+
+            for out_p, target_loc in moves:
+                if out_p.exists():
+                    if out_p != target_loc:
+                        _relocate_output(out_p, target_loc, overwrite)
+                    final_converted_list.append(str(target_loc))
             converted_list = final_converted_list
 
         if converted_list:

@@ -2,6 +2,10 @@ import os
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 
+def required_dependencies(source_format, target_format, **options):
+    return ["ghostscript"]
+
+
 def convert_pdf_to_image(source, target_ext, dpi=300):
     path_obj = Path(os.path.expanduser(source)).resolve()
     if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
