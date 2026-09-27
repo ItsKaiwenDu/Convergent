@@ -118,19 +118,20 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF", "HTML"], "convert_office"),
 ]
 
-def get_expected_output_path(source_file: Path, target_format: str) -> Path:
+def get_expected_output_path(source_file: Path, target_format: str, output_dir: Path = None) -> Path:
     """
     Returns expected output Path (file or directory) for a given source file and target format.
     PDF to images (JPG/PNG/etc.) creates a directory named '{stem}_images', whereas PDF to text (OCR)
     or standard conversions create a file named '{stem}.{target_format.lower()}'.
     """
     target_upper = str(target_format).upper().lstrip(".")
+    parent = Path(os.path.expanduser(str(output_dir))).resolve() if output_dir else source_file.parent
     if source_file.suffix.lower() == ".pdf" and target_upper in ("JPG", "PNG", "TIF", "BMP"):
-        return source_file.parent / f"{source_file.stem}_images"
-    return source_file.with_suffix(f".{target_format.lower()}")
+        return parent / f"{source_file.stem}_images"
+    return parent / f"{source_file.stem}.{target_format.lower()}"
 
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None):
     """
     Processes a single file conversion using provided Converter instance.
     """
@@ -150,31 +151,65 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
             return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
     # Move existing single output file to Trash if it exists
-    output_file = get_expected_output_path(f, target_format)
+    output_file = get_expected_output_path(f, target_format, output_dir=output_dir)
     if output_file.is_file() and output_file.resolve() != f.resolve():
         send_to_trash(output_file)
 
     success = False
     error = ""
+    extra_kwargs = {}
+    if output_dir:
+        extra_kwargs["output_dir"] = output_dir
 
     fmt_def = next((fd for fd in FORMAT_REGISTRY if fd.name == source_fmt), None)
     if fmt_def:
         handler = getattr(conv, fmt_def.handler_method, None)
         if handler:
-            success, error = handler(
-                f,
-                target_format,
-                fps=fps,
-                bitrate=bitrate,
-                md_pdf_mode=md_pdf_mode,
-                strip_metadata=strip_metadata,
-                ocr=ocr,
-                stt=stt,
-                model=model,
-                language=language,
-                hwaccel=hwaccel,
-                dpi=dpi
-            )
+            out_dir_resolved = Path(output_dir).resolve() if output_dir else None
+            is_distinct_dest = (out_dir_resolved and out_dir_resolved != f.parent.resolve())
+            
+            if is_distinct_dest and source_fmt != "PDF":
+                default_out = get_expected_output_path(f, target_format)
+                success, error = handler(
+                    f,
+                    target_format,
+                    fps=fps,
+                    bitrate=bitrate,
+                    md_pdf_mode=md_pdf_mode,
+                    strip_metadata=strip_metadata,
+                    ocr=ocr,
+                    stt=stt,
+                    model=model,
+                    language=language,
+                    hwaccel=hwaccel,
+                    dpi=dpi,
+                    **extra_kwargs
+                )
+                if success:
+                    if default_out.resolve() == f.resolve():
+                        shutil.copy2(str(default_out), str(output_file))
+                    elif default_out.exists() and default_out.resolve() != output_file.resolve():
+                        if output_file.is_dir():
+                            shutil.rmtree(output_file)
+                        elif output_file.exists():
+                            output_file.unlink()
+                        shutil.move(str(default_out), str(output_file))
+            else:
+                success, error = handler(
+                    f,
+                    target_format,
+                    fps=fps,
+                    bitrate=bitrate,
+                    md_pdf_mode=md_pdf_mode,
+                    strip_metadata=strip_metadata,
+                    ocr=ocr,
+                    stt=stt,
+                    model=model,
+                    language=language,
+                    hwaccel=hwaccel,
+                    dpi=dpi,
+                    **extra_kwargs
+                )
         else:
             error = f"Handler method {fmt_def.handler_method} not found on Converter"
     else:
@@ -183,13 +218,17 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None):
     """
     Processes a batch of files for conversion.
     """
     if isinstance(paths, str):
         paths = [paths]
         
+    out_dir_path = Path(os.path.expanduser(output_dir)).resolve() if output_dir else None
+    if out_dir_path:
+        out_dir_path.mkdir(parents=True, exist_ok=True)
+
     files = []
     source_fmts_upper = [fmt.upper() for fmt in source_formats]
     found_extensions = set()
@@ -227,6 +266,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             msg += f" Found: {', '.join(sorted_exts)}"
             
         console.print(f"[bold red]{msg}[/bold red]")
+        if failed_details is not None:
+            failed_details.append({"file": "", "name": "", "error": msg})
         return []
 
     # Content-Addressable Cache pre-filter (automatic by default, bypass via --no-cache)
@@ -251,7 +292,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             }
             remaining_after_cache = []
             for f in files:
-                out_path = get_expected_output_path(f, target_format)
+                out_path = get_expected_output_path(f, target_format, output_dir=out_dir_path)
                 is_valid, reason = cache_mgr.is_cached_valid(f, out_path, params_for_cache)
                 if is_valid:
                     cached_count += 1
@@ -307,7 +348,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     # 1. Identify conflicts
     conflicts = []
     for f in files:
-        output = get_expected_output_path(f, target_format)
+        output = get_expected_output_path(f, target_format, output_dir=out_dir_path)
         if output.exists() and output.resolve() != f.resolve():
             conflicts.append((f, output))
 
@@ -367,7 +408,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
 
 
         for f in files:
-            output = get_expected_output_path(f, target_format)
+            output = get_expected_output_path(f, target_format, output_dir=out_dir_path)
             if output.exists() and output.resolve() != f.resolve() and not overwrite and not skip and not keep_all:
                 console.print(f"\n[bold yellow]⚠  File already exists: {output.name}[/bold yellow]")
                 console.print("   [bold]\\[o][/bold] Overwrite   [bold]\\[s][/bold] Skip   [bold]\\[k][/bold] Keep both   [bold]\\[c][/bold] Cancel")
@@ -526,7 +567,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi): f for f in files}
+                    proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
+                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **proc_kwargs): f for f in files}
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
@@ -535,7 +577,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             name, success, error, duration = future.result()
                             if success:
                                 success_count += 1
-                                out_path = get_expected_output_path(orig_file, target_format)
+                                out_path = get_expected_output_path(orig_file, target_format, output_dir=out_dir_path)
                                 converted_files.append(out_path)
                                 if isinstance(success_map, dict):
                                     if out_path.resolve() != orig_file.resolve():
@@ -567,6 +609,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             else:
                                 fail_count += 1
                                 failed_files.append(orig_file)
+                                if failed_details is not None:
+                                    failed_details.append({"file": str(orig_file), "name": name, "error": error})
                                 error_lines = error.strip().splitlines()
                                 if len(error_lines) > 1:
                                     formatted_error = error_lines[0] + "\n" + "\n".join("   " + line for line in error_lines[1:])
@@ -583,10 +627,11 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             # Fallback for systems without rich
             for f in files:
                 completed_files.add(f)
-                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi)
+                proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
+                name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **proc_kwargs)
                 if success:
                     success_count += 1
-                    out_path = get_expected_output_path(f, target_format)
+                    out_path = get_expected_output_path(f, target_format, output_dir=out_dir_path)
                     converted_files.append(out_path)
                     if isinstance(success_map, dict):
                         if out_path.resolve() != f.resolve():
@@ -617,13 +662,19 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 else:
                     fail_count += 1
                     failed_files.append(f)
+                    if failed_details is not None:
+                        failed_details.append({"file": str(f), "name": name, "error": error})
                     console.print(f" > {name}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
                     if error:
                         error_lines = error.strip().splitlines()
                         formatted_error = "\n".join("   " + line for line in error_lines)
                         console.print(f"[dim]{formatted_error}[/dim]")
-    except MissingDependencyError:
+    except MissingDependencyError as e:
         failed_files.extend(f for f in files if f not in failed_files)
+        if failed_details is not None:
+            for f in files:
+                if not any(fd.get("file") == str(f) for fd in failed_details):
+                    failed_details.append({"file": str(f), "name": f.name, "error": str(e)})
         raise
     except KeyboardInterrupt:
         # For fallback mode or general handling, gather remaining uncompleted files
@@ -686,7 +737,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 fps=fps, bitrate=bitrate, jobs=jobs, overwrite=overwrite, skip=skip,
                 md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, interactive=interactive, ocr=ocr,
                 success_map=success_map, use_cache=use_cache, stt=stt, model=model,
-                language=language, hwaccel=hwaccel, dpi=dpi
+                language=language, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir, failed_details=failed_details
             )
             converted_files.extend(retry_converted)
             

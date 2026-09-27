@@ -22,6 +22,9 @@ from mcp_server.server import (
     perform_stt,
     combine_files,
     split_file,
+    compress_files,
+    decompress_archive,
+    resize_media,
 )
 
 
@@ -236,6 +239,184 @@ class TestMCPServer(unittest.TestCase):
             content = destination / "page.png" if is_directory else destination
             self.assertEqual(content.read_bytes(), b"new")
 
+    def test_finding_1_in_place_strip_metadata_copy_safeguard(self):
+        from mcp_server.server import _relocate_output
+        source = self.dir_path / "photo.jpg"
+        source.write_bytes(b"original_photo_bytes")
+        destination = self.dir_path / "output_photo.jpg"
+
+        # When source is in original_inputs, it must be copied, never unlinked/moved
+        _relocate_output(source, destination, overwrite=True, original_inputs={source.resolve()})
+        self.assertTrue(source.exists(), "Source input file must NEVER be deleted when relocating!")
+        self.assertEqual(source.read_bytes(), b"original_photo_bytes")
+        self.assertEqual(destination.read_bytes(), b"original_photo_bytes")
+
+    def test_finding_2_split_pdf_custom_output_dir_never_trashed(self):
+        from modules import split
+        custom_dir = self.dir_path / "my_custom_split_dir"
+        custom_dir.mkdir()
+        canary = custom_dir / "canary.txt"
+        canary.write_text("preserve me")
+
+        # split_pdf with user output_dir must never trash the user directory
+        with patch("modules.split.send_to_trash") as mock_trash, \
+             patch("modules.split.get_pdf_page_count", return_value=0):
+            split.split_pdf("dummy.pdf", output_dir=str(custom_dir), interactive=False)
+            # send_to_trash should not have been called with custom_dir
+            for call_args in mock_trash.call_args_list:
+                self.assertNotEqual(Path(call_args[0][0]).resolve(), custom_dir.resolve())
+        self.assertTrue(canary.exists())
+
+    def test_finding_3_caching_with_output_path(self):
+        from customs.cache import CacheManager
+        cache_mgr = CacheManager(db_path=self.dir_path / "test_cache.db")
+        src_file = self.dir_path / "doc.md"
+        src_file.write_text("# Test Document")
+        out_dir = self.dir_path / "custom_out"
+        out_dir.mkdir()
+        expected_out = out_dir / "doc.pdf"
+        expected_out.write_bytes(b"%PDF-1.4 dummy")
+
+        params = {"target": "PDF", "fps": None, "bitrate": None, "md_pdf_mode": "formatted",
+                  "strip_metadata": False, "ocr": False, "stt": False, "model": "base", "language": None, "dpi": None}
+        cache_mgr.save(src_file, expected_out, params)
+
+        # Cache check against out_dir must succeed
+        is_valid, _ = cache_mgr.is_cached_valid(src_file, expected_out, params)
+        self.assertTrue(is_valid, "Cache entry must be valid for output in custom out_dir")
+        cache_mgr.close()
+
+    def test_finding_4_convenience_tools_accept_output_path(self):
+        import inspect
+        for fn in (pdf_to_images, extract_audio, perform_ocr, perform_stt):
+            sig = inspect.signature(fn)
+            self.assertIn("output_path", sig.parameters, f"{fn.__name__} must accept output_path parameter!")
+
+    def test_finding_5_error_diagnostics_returned(self):
+        src_file = self.dir_path / "bad.txt"
+        src_file.write_text("hello")
+        res = convergent_convert(
+            input_path=str(src_file),
+            target_format="XYZ",
+            overwrite=True,
+        )
+        self.assertFalse(res["success"])
+        self.assertIn("error", res)
+        self.assertNotIn("No matching files found", res["error"])
+
+    def test_finding_6_partial_success_reported(self):
+        src_dir = self.dir_path / "batch_dir"
+        src_dir.mkdir()
+        f1 = src_dir / "file1.txt"
+        f1.write_text("valid file 1")
+        f2 = src_dir / "file2.txt"
+        f2.write_text("valid file 2")
+
+        dummy_out = self.dir_path / "file1.pdf"
+        dummy_out.write_bytes(b"pdf")
+
+        def mock_process_side_effect(*args, **kwargs):
+            failed = kwargs.get("failed_details")
+            if failed is not None:
+                failed.append({"file": str(f2), "name": f2.name, "error": "Simulated error on file2"})
+            return [dummy_out]
+
+        with patch("mcp_server.server.conv.process", side_effect=mock_process_side_effect):
+            res = convergent_convert(
+                input_path=str(src_dir),
+                target_format="PDF",
+                overwrite=True,
+            )
+            self.assertTrue(res["success"])
+            self.assertTrue(res.get("partial_success"))
+            self.assertEqual(len(res.get("failed_files", [])), 1)
+            self.assertIn("file2.txt", res["failed_files"][0]["name"])
+
+    def test_finding_7_combine_files_rejects_mixed_formats(self):
+        p1 = self.dir_path / "document.pdf"
+        p2 = self.dir_path / "video.mp4"
+        p1.write_bytes(b"%PDF")
+        p2.write_bytes(b"MP4")
+
+        res = combine_files(file_paths=[str(p1), str(p2)])
+        self.assertFalse(res["success"])
+        self.assertIn("mismatched file types", res["error"])
+
+    def test_finding_8_compress_and_decompress_tools(self):
+        test_file = self.dir_path / "hello.txt"
+        test_file.write_text("Hello MCP Archive")
+
+        comp_res = compress_files(
+            file_paths=[str(test_file)],
+            output_name="test_archive.zip",
+            output_dir=str(self.dir_path),
+        )
+        self.assertTrue(comp_res["success"])
+        self.assertTrue(Path(comp_res["archive_path"]).exists())
+
+        extract_dir = self.dir_path / "extracted_contents"
+        decomp_res = decompress_archive(
+            archive_path=comp_res["archive_path"],
+            output_dir=str(extract_dir),
+        )
+        self.assertTrue(decomp_res["success"])
+        self.assertTrue((extract_dir / "hello.txt").exists())
+        self.assertEqual((extract_dir / "hello.txt").read_text(), "Hello MCP Archive")
+
+    def test_finding_9_resize_media_tool(self):
+        img_file = self.dir_path / "sample.png"
+        img_file.write_bytes(b"dummy")
+
+        with patch("modules.resize.resize_single_file", return_value=("sample.png", True, "", 0.05)):
+            res = resize_media(
+                file_path=str(img_file),
+                scale_percent=50,
+                output_path=str(self.dir_path / "scaled.png"),
+            )
+            self.assertTrue(res["success"])
+            self.assertIn("scaled.png", res["output_file"])
+            self.assertIn("duration_seconds", res)
+
+    def test_finding_10_split_file_docx_docstring(self):
+        self.assertIn("DOCX", split_file.__doc__)
+        self.assertIn("PDF", split_file.__doc__)
+
+    def test_finding_11_list_supported_formats_filters(self):
+        # Category filter
+        res_cat = list_supported_formats(category="image")
+        self.assertEqual(res_cat["category"], "image")
+        self.assertIn("JPG", res_cat["source_formats"])
+
+        # Source format filter
+        res_fmt = list_supported_formats(source_format="PNG")
+        self.assertEqual(res_fmt["source_format"], "PNG")
+        self.assertIn("JPG", res_fmt["target_formats"])
+
+    def test_finding_12_preview_truncation(self):
+        ocr_out = self.dir_path / "ocr_output.txt"
+        ocr_out.write_text("A" * 1200)
+
+        with patch("mcp_server.server.convergent_convert") as mock_conv:
+            mock_conv.return_value = {
+                "success": True,
+                "count": 1,
+                "converted_files": [str(ocr_out)],
+                "target_format": "TXT",
+            }
+            res = perform_ocr(input_path=str(ocr_out), preview_length=200)
+            self.assertEqual(res["total_characters"], 1200)
+            self.assertIn("truncated, 1200 total characters", res["extracted_text_preview"])
+            self.assertTrue(len(res["extracted_text_preview"]) < 300)
+
+    def test_finding_13_stt_model_fallback_warning(self):
+        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}):
+            dummy_audio = self.dir_path / "audio.mp3"
+            dummy_audio.touch()
+            res = perform_stt(input_path=str(dummy_audio), model="custom-gpt-whisper-unknown")
+            self.assertEqual(res.get("model_used"), "base")
+            self.assertIn("warning", res)
+            self.assertIn("Falling back to 'base'", res["warning"])
+
 
 import asyncio
 from mcp.client.stdio import stdio_client
@@ -264,6 +445,9 @@ class TestMCPAsyncSession(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("pdf_to_images", tool_names)
                 self.assertIn("perform_ocr", tool_names)
                 self.assertIn("perform_stt", tool_names)
+                self.assertIn("compress_files", tool_names)
+                self.assertIn("decompress_archive", tool_names)
+                self.assertIn("resize_media", tool_names)
 
                 # 3. Bounded call_tool
                 call_res = await asyncio.wait_for(session.call_tool("list_supported_formats", {}), timeout=5.0)

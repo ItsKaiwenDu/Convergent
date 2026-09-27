@@ -148,8 +148,11 @@ def split_pdf(
             return None
         chosen_mode = user_choice
 
-    out_directory = Path(os.path.expanduser(str(output_dir))) if output_dir else (path_obj.parent / f"{path_obj.stem}_split")
-    send_to_trash(out_directory)
+    if output_dir:
+        out_directory = Path(os.path.expanduser(str(output_dir)))
+    else:
+        out_directory = path_obj.parent / f"{path_obj.stem}_split"
+        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
 
     if chosen_mode in ('1', 'pages', 'all', 'individual', 'auto'):
@@ -289,8 +292,11 @@ def split_video(
             return None
         chosen_mode = user_choice
 
-    out_directory = Path(os.path.expanduser(str(output_dir))) if output_dir else (path_obj.parent / f"{path_obj.stem}_split")
-    send_to_trash(out_directory)
+    if output_dir:
+        out_directory = Path(os.path.expanduser(str(output_dir)))
+    else:
+        out_directory = path_obj.parent / f"{path_obj.stem}_split"
+        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
     
     if chosen_mode in ('1', 'interval', 'fixed', 'segments', 'auto'):
@@ -466,8 +472,11 @@ def split_audio(
             return None
         chosen_mode = user_choice
         
-    out_directory = Path(os.path.expanduser(str(output_dir))) if output_dir else (path_obj.parent / f"{path_obj.stem}_split")
-    send_to_trash(out_directory)
+    if output_dir:
+        out_directory = Path(os.path.expanduser(str(output_dir)))
+    else:
+        out_directory = path_obj.parent / f"{path_obj.stem}_split"
+        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
     
     if chosen_mode in ('1', 'interval', 'fixed', 'segments', 'auto'):
@@ -664,8 +673,11 @@ def split_gif(
                 time.sleep(0.5)
                 continue
         
-    out_directory = Path(os.path.expanduser(str(output_dir))) if output_dir else (path_obj.parent / f"{path_obj.stem}_split")
-    send_to_trash(out_directory)
+    if output_dir:
+        out_directory = Path(os.path.expanduser(str(output_dir)))
+    else:
+        out_directory = path_obj.parent / f"{path_obj.stem}_split"
+        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
     
     if chosen_mode in ('1', 'frames', 'extract', 'images', 'auto'):

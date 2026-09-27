@@ -20,10 +20,10 @@ def decompress(path, output_dir=None):
     
     if not output_dir:
         output_dir = path_obj.parent / path_obj.stem
+        send_to_trash(output_dir)
     else:
-        output_dir = Path(output_dir).resolve()
+        output_dir = Path(os.path.expanduser(str(output_dir))).resolve()
         
-    send_to_trash(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     cwd = path_obj.parent
     
@@ -36,7 +36,7 @@ def decompress(path, output_dir=None):
     if ext.endswith(".zip"):
         if not shutil.which("unzip"):
             return False, "Required utility 'unzip' is not installed on your system.", None
-        cmd = ["unzip", str(path_obj), "-d", str(output_dir)]
+        cmd = ["unzip", "-o", str(path_obj), "-d", str(output_dir)]
     elif ext.endswith(".tar.gz") or ext.endswith(".tgz") or ext.endswith(".tar.bz2") or ext.endswith(".tbz2") or ext.endswith(".tar.xz") or ext.endswith(".txz"):
         if not shutil.which("tar"):
             return False, "Required utility 'tar' is not installed on your system.", None
@@ -49,12 +49,12 @@ def decompress(path, output_dir=None):
     elif ext.endswith(".7z"):
         if not shutil.which(sevenzip_exec):
             return False, "7-Zip is not installed on your system.\nTo install it, run:\n   brew install sevenzip", None
-        cmd = [sevenzip_exec, "x", str(path_obj), f"-o{str(output_dir)}"]
+        cmd = [sevenzip_exec, "x", "-y", str(path_obj), f"-o{str(output_dir)}"]
     elif ext.endswith(".rar"):
         if shutil.which("unrar"):
-            cmd = ["unrar", "x", str(path_obj), f"{str(output_dir)}/"]
+            cmd = ["unrar", "x", "-o+", str(path_obj), f"{str(output_dir)}/"]
         elif shutil.which(sevenzip_exec):
-            cmd = [sevenzip_exec, "x", str(path_obj), f"-o{str(output_dir)}"]
+            cmd = [sevenzip_exec, "x", "-y", str(path_obj), f"-o{str(output_dir)}"]
         else:
             return False, f"Neither 'unrar' nor '{sevenzip_exec}' is installed on your system.\nTo extract RAR archives, please install 7-Zip by running:\n   brew install sevenzip", None
     else:

@@ -93,6 +93,10 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
         '2': 4/3,
         '3': 1/1,
         '4': 9/16,
+        '16:9': 16/9,
+        '4:3': 4/3,
+        '1:1': 1/1,
+        '9:16': 9/16,
     }
     
     # 1. Target Aspect Ratio Cropping Dimensions
@@ -131,11 +135,12 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
 
     return w_crop, h_crop, w_final, h_final
 
-def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", strip_metadata=False):
+def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", strip_metadata=False, output_path=None):
     """
     Resizes/crops a single file (image or video) and saves it with a '_resized' suffix.
     """
     start_time = time.perf_counter()
+    f = Path(f)
     is_video = f.suffix.lower() == ".mp4"
     
     if is_video:
@@ -158,7 +163,15 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
     crop_needed = (w_crop != w or h_crop != h)
     scale_needed = (w_final != w_crop or h_final != h_crop)
     
-    output = f.parent / f"{f.stem}_resized{f.suffix}"
+    if output_path:
+        out_p = Path(os.path.expanduser(str(output_path))).resolve()
+        if out_p.is_dir() or str(output_path).endswith(os.sep) or str(output_path).endswith("/"):
+            output = out_p / f"{f.stem}_resized{f.suffix}"
+        else:
+            output = out_p
+    else:
+        output = f.parent / f"{f.stem}_resized{f.suffix}"
+    output.parent.mkdir(parents=True, exist_ok=True)
     send_to_trash(output)
 
     success = False

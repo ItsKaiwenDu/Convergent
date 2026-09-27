@@ -12,7 +12,7 @@ def required_dependencies(format_choice):
     return {"ZIP": ["zip"], "7Z": ["sevenzip"], "RAR": ["rar"]}.get(format_choice, [])
 
 
-def compress(paths, output_name, format_choice, password=None):
+def compress(paths, output_name, format_choice, password=None, output_dir=None):
     if isinstance(paths, str):
         paths = [paths]
         
@@ -35,7 +35,19 @@ def compress(paths, output_name, format_choice, password=None):
     elif format_choice == "RAR" and not output_name.lower().endswith(".rar"):
         output_name += ".rar"
         
-    output_path = valid_paths[0].parent / output_name
+    out_name_path = Path(os.path.expanduser(str(output_name)))
+    if out_name_path.is_absolute() or out_name_path.parent != Path("."):
+        output_path = out_name_path
+    elif output_dir:
+        dest_dir = Path(os.path.expanduser(str(output_dir))).resolve()
+        if dest_dir.is_dir() or str(output_dir).endswith(os.sep) or str(output_dir).endswith("/"):
+            output_path = dest_dir / output_name
+        else:
+            output_path = dest_dir
+    else:
+        output_path = valid_paths[0].parent / output_name
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     send_to_trash(output_path)
     cwd = valid_paths[0].parent
     

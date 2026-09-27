@@ -6,14 +6,21 @@ def required_dependencies(source_format, target_format, **options):
     return ["ghostscript"]
 
 
-def convert_pdf_to_image(source, target_ext, dpi=300):
-    path_obj = Path(os.path.expanduser(source)).resolve()
+def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
+    path_obj = Path(os.path.expanduser(source))
     if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
         return False, f"Not a valid PDF file: {source}"
     
-    output_dir = path_obj.parent / f"{path_obj.stem}_images"
-    send_to_trash(output_dir)
-    output_dir.mkdir(exist_ok=True)
+    if output_dir:
+        dest_p = Path(os.path.expanduser(str(output_dir)))
+        if dest_p.name == f"{path_obj.stem}_images":
+            output_dir = dest_p
+        else:
+            output_dir = dest_p / f"{path_obj.stem}_images"
+    else:
+        output_dir = path_obj.parent / f"{path_obj.stem}_images"
+        send_to_trash(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     target_ext = target_ext.lower()
     # Ghostscript devices: jpeg, png16m (24-bit color), tiff24nc (24-bit color TIFF), bmp16m (24-bit color BMP)
