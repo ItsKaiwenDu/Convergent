@@ -181,11 +181,14 @@ make mcp-config
 ### Available MCP Tools Exposed to AI Models
 - `convergent_convert`: General-purpose file & directory converter (PDF, JPG, PNG, MP3, MP4, DOCX, MD, etc.).
 - `pdf_to_images`: Convert multi-page PDFs to image sequences (JPG/PNG) for visual model analysis.
-- `extract_audio`: Extract audio tracks (`MP3`, `WAV`, `AAC`) from video files for transcription.
+- `extract_audio`: Extract audio tracks (`MP3`, `WAV`, `AAC`, `FLAC`, `M4A`) from video files for transcription.
 - `perform_ocr`: Extract plain text or Markdown from images or scanned PDFs using local OCR.
 - `perform_stt`: Perform local Speech-to-Text transcription on audio/video to generate text or subtitles.
 - `combine_files`: Merge multiple PDFs, videos, audio clips, or documents into a single file.
 - `split_file`: Split PDFs, videos, audio files, or documents into segments.
+- `compress_files`: Compress files or directories into archives (ZIP, TAR.GZ, 7Z, RAR) with optional password protection.
+- `decompress_archive`: Decompress archive packages safely to target directories.
+- `resize_media`: Resize, rescale, crop aspect ratio, or strip metadata from images or video.
 - `list_supported_formats`: Query all supported format conversions and category mappings.
 
 ## Quick Shortcuts

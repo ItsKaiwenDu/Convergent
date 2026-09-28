@@ -128,6 +128,10 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
     elif method == '3':
         # Custom width and height
         w_final, h_final = scale_val
+    elif method == 'w':
+        # Set Target Width (proportional height)
+        w_final = scale_val
+        h_final = int(round(scale_val * (h_crop / w_crop)))
     else:
         # No change
         w_final = w_crop

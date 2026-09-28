@@ -49,6 +49,13 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
         cmd += ["-vn", "-acodec", "pcm_s16le"]
     elif target_upper == "M4A":
         cmd += ["-vn", "-acodec", "aac", "-q:a", "2"]
+    elif target_upper == "AAC":
+        if bitrate in ["128k", "192k", "320k"]:
+            cmd += ["-vn", "-c:a", "aac", "-b:a", bitrate]
+        else:
+            cmd += ["-vn", "-c:a", "aac", "-b:a", "192k"]
+    elif target_upper == "FLAC":
+        cmd += ["-vn", "-c:a", "flac"]
 
     cmd.append(str(output))
     return run_command(cmd)

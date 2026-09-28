@@ -102,11 +102,15 @@ def _convert_pdf_to_temp_images(source: Path):
     # 2. Ghostscript (gs)
     if shutil.which("gs"):
         out_pattern = temp_dir / "page_%04d.png"
+        resolved_source = Path(source).resolve()
+        resolved_temp = Path(temp_dir).resolve()
         result = subprocess.run(
             [
-                "gs", "-dNOPAUSE", "-dBATCH", "-dNOSAFER",
+                "gs", "-dNOPAUSE", "-dBATCH", "-dSAFER",
+                f"--permit-file-read={resolved_source}",
+                f"--permit-file-write={resolved_temp}/*",
                 "-sDEVICE=png16m", "-r300",
-                f"-sOUTPUTFILE={out_pattern}", str(source)
+                f"-sOUTPUTFILE={out_pattern}", str(resolved_source)
             ],
             capture_output=True, text=True
         )

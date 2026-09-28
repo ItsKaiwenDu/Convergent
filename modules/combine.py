@@ -15,6 +15,9 @@ def required_dependencies(kind):
     return [] if kind == "txt" else ["ffmpeg"]
 
 
+LAST_COMBINE_ERROR = ""
+
+
 def natural_sort_key(path):
     name = path.name if hasattr(path, "name") else str(path)
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', name)]
@@ -24,7 +27,8 @@ def get_pdf_page_count(path):
         result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "(null)":
             return int(result.stdout.strip())
-        cmd = ["gs", "-q", "-dNODISPLAY", "-dNOSAFER", "-c", f"({path}) (r) file runpdfbegin pdfpagecount = quit"]
+        resolved_p = Path(path).resolve()
+        cmd = ["gs", "-q", "-dNODISPLAY", "-dSAFER", f"--permit-file-read={resolved_p}", "-c", f"({resolved_p}) (r) file runpdfbegin pdfpagecount = quit"]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return int(result.stdout.strip())
@@ -370,9 +374,11 @@ def combine_videos(paths, output_path=None, interactive=True):
         with open(temp_txt_path, "w", encoding="utf-8") as f:
             for vf in video_files:
                 abs_path = str(vf.resolve())
-                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "\\'")
+                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
     except Exception as e:
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
         if interactive:
             console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
         return None
@@ -396,6 +402,7 @@ def combine_videos(paths, output_path=None, interactive=True):
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine videos"
         if interactive:
             console.print(f"[bold red]FAILED to combine videos[/bold red]")
             if error:
@@ -520,9 +527,11 @@ def combine_audios(paths, output_path=None, interactive=True):
         with open(temp_txt_path, "w", encoding="utf-8") as f:
             for af in audio_files:
                 abs_path = str(af.resolve())
-                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "\\'")
+                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
     except Exception as e:
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
         if interactive:
             console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
         return None
@@ -530,6 +539,10 @@ def combine_audios(paths, output_path=None, interactive=True):
     try:
         cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
         success, error = run_command(cmd)
+        if not success:
+            # Fallback to re-encoding if stream copy fails (e.g., mixed formats like wav and flac, or differing sample rates)
+            cmd_reencode = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
+            success, error = run_command(cmd_reencode)
     finally:
         if temp_txt_path.exists():
             try:
@@ -542,6 +555,7 @@ def combine_audios(paths, output_path=None, interactive=True):
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine audios"
         if interactive:
             console.print(f"[bold red]FAILED to combine audios[/bold red]")
             if error:
@@ -663,9 +677,11 @@ def combine_gifs(paths, output_path=None, interactive=True):
         with open(temp_txt_path, "w", encoding="utf-8") as f:
             for gf in gif_files:
                 abs_path = str(gf.resolve())
-                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "\\'")
+                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
     except Exception as e:
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
         if interactive:
             console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
         return None
@@ -685,6 +701,7 @@ def combine_gifs(paths, output_path=None, interactive=True):
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine GIFs"
         if interactive:
             console.print(f"[bold red]FAILED to combine GIFs[/bold red]")
             if error:

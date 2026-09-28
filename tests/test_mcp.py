@@ -417,6 +417,101 @@ class TestMCPServer(unittest.TestCase):
             self.assertIn("warning", res)
             self.assertIn("Falling back to 'base'", res["warning"])
 
+    def test_ghostscript_uses_dsafer(self):
+        from modules import pdf_manip
+        dummy_pdf = self.dir_path / "test.pdf"
+        dummy_pdf.touch()
+
+        with patch("modules.pdf_manip.run_command", return_value=(True, "")) as mock_cmd:
+            success, err = pdf_manip.convert_pdf_to_image(str(dummy_pdf), "jpg", output_dir=str(self.dir_path / "out"))
+            self.assertTrue(success)
+            cmd_args = mock_cmd.call_args[0][0]
+            self.assertIn("-dSAFER", cmd_args)
+            self.assertNotIn("-dNOSAFER", cmd_args)
+            permit_read = [a for a in cmd_args if a.startswith("--permit-file-read=")]
+            self.assertTrue(len(permit_read) > 0)
+
+    def test_stt_whisper_timestamp_flags_and_turbo_alias(self):
+        from modules.stt import normalize_model_name
+        self.assertEqual(normalize_model_name("large-v3-turbo"), "turbo")
+        self.assertEqual(normalize_model_name("large-turbo"), "turbo")
+
+        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}):
+            dummy_audio = self.dir_path / "audio.mp3"
+            dummy_audio.touch()
+            res = perform_stt(input_path=str(dummy_audio), model="large-v3-turbo")
+            self.assertEqual(res.get("model_used"), "large-v3-turbo")
+            self.assertNotIn("warning", res)
+
+    def test_combine_apostrophe_escaping(self):
+        import modules.combine as combine_mod
+        f1 = self.dir_path / "speaker's recording.wav"
+        f1.touch()
+        f2 = self.dir_path / "normal.wav"
+        f2.touch()
+
+        with patch("modules.combine.run_command", return_value=(True, "")) as mock_cmd, \
+             patch("builtins.open", unittest.mock.mock_open()) as mock_file:
+            combine_mod.combine_audios([str(f1), str(f2)], output_path=str(self.dir_path / "out.wav"), interactive=False)
+            written_lines = [call[0][0] for call in mock_file().write.call_args_list if call[0]]
+            # Ensure apostrophe in filename is escaped as '\'''
+            escaped_found = any("'\\'''" in line or "\\'" in line for line in written_lines)
+            self.assertTrue(escaped_found)
+
+    def test_perform_ocr_docx_no_binary_preview(self):
+        docx_file = self.dir_path / "output.docx"
+        docx_file.write_bytes(b"PK\x03\x04\x14\x00fake_zip_binary")
+        with patch("mcp_server.server.convergent_convert") as mock_conv:
+            mock_conv.return_value = {
+                "success": True,
+                "count": 1,
+                "converted_files": [str(docx_file)],
+                "target_format": "DOCX",
+            }
+            res = perform_ocr(input_path=str(docx_file), target_format="DOCX")
+            self.assertIsNone(res.get("total_characters"))
+            self.assertEqual(res.get("extracted_text_preview"), "[Text extracted and saved to DOCX document]")
+
+    def test_resize_media_width_only(self):
+        with patch("modules.resize.resize_single_file", return_value=("test.jpg", True, "", 0.05)) as mock_resize:
+            dummy_img = self.dir_path / "img.jpg"
+            dummy_img.touch()
+            res = resize_media(file_path=str(dummy_img), width=300)
+            self.assertTrue(res["success"])
+            self.assertEqual(mock_resize.call_args[1]["method"], "w")
+            self.assertEqual(mock_resize.call_args[1]["scale_val"], 300)
+
+    def test_extract_audio_validation(self):
+        dummy_video = self.dir_path / "video.mp4"
+        dummy_video.touch()
+
+        # Reject GIF or invalid non-audio formats
+        res_gif = extract_audio(video_path=str(dummy_video), target_format="GIF")
+        self.assertFalse(res_gif["success"])
+        self.assertIn("Invalid audio target format", res_gif["error"])
+
+        # Allow valid AAC audio format
+        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": ["video.aac"]}):
+            res_aac = extract_audio(video_path=str(dummy_video), target_format="AAC")
+            self.assertTrue(res_aac["success"])
+
+    def test_list_supported_formats_category_5_and_alias(self):
+        # Category "5" (Document)
+        res_cat5 = list_supported_formats(category="5")
+        self.assertEqual(res_cat5.get("category"), "document")
+        self.assertIn("PDF", res_cat5.get("source_formats", []))
+
+        # Alias lookup for jpeg
+        res_jpeg = list_supported_formats(source_format="jpeg")
+        self.assertEqual(res_jpeg.get("source_format"), "JPG")
+        self.assertIn("PNG", res_jpeg.get("target_formats", []))
+
+        # Verify RAW and HEIF in image category
+        res_img = list_supported_formats(category="image")
+        self.assertIn("ARW", res_img.get("source_formats", []))
+        self.assertIn("DNG", res_img.get("source_formats", []))
+        self.assertIn("HEIF", res_img.get("source_formats", []))
+
 
 import asyncio
 from mcp.client.stdio import stdio_client

@@ -32,11 +32,13 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
         "gs", 
         "-dNOPAUSE", 
         "-dBATCH", 
-        "-dNOSAFER",
+        "-dSAFER",
+        f"--permit-file-read={path_obj.resolve()}",
+        f"--permit-file-write={output_dir.resolve()}/*",
         "-sDEVICE=" + device, 
         f"-r{dpi_val}", 
         f"-sOUTPUTFILE={output_pattern}", 
-        str(path_obj)
+        str(path_obj.resolve())
     ]
     
     success, error = run_command(cmd)

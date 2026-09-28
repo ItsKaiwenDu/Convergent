@@ -94,12 +94,12 @@ FORMAT_REGISTRY = [
     FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
 
     # Video Category ("3")
-    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
     FormatDef("GIF", "3", ["MOV", "MP4", "WEBM", "AVI", "MKV"], "convert_video"),
-    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
-    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
-    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
-    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
 
     # Audio Category ("4")
     FormatDef("AAC", "4", ["MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
@@ -118,17 +118,32 @@ FORMAT_REGISTRY = [
     FormatDef("RTF", "5", ["PDF", "HTML"], "convert_office"),
 ]
 
+def normalize_format_alias(fmt: str) -> str:
+    """
+    Normalizes format extension aliases (e.g. JPEG -> JPG, TIFF -> TIF, HTM -> HTML).
+    """
+    if not fmt:
+        return ""
+    fmt_upper = str(fmt).upper().lstrip(".")
+    aliases = {
+        "JPEG": "JPG",
+        "TIFF": "TIF",
+        "HTM": "HTML",
+    }
+    return aliases.get(fmt_upper, fmt_upper)
+
+
 def get_expected_output_path(source_file: Path, target_format: str, output_dir: Path = None) -> Path:
     """
     Returns expected output Path (file or directory) for a given source file and target format.
     PDF to images (JPG/PNG/etc.) creates a directory named '{stem}_images', whereas PDF to text (OCR)
     or standard conversions create a file named '{stem}.{target_format.lower()}'.
     """
-    target_upper = str(target_format).upper().lstrip(".")
+    target_upper = normalize_format_alias(target_format)
     parent = Path(os.path.expanduser(str(output_dir))).resolve() if output_dir else source_file.parent
     if source_file.suffix.lower() == ".pdf" and target_upper in ("JPG", "PNG", "TIF", "BMP"):
         return parent / f"{source_file.stem}_images"
-    return parent / f"{source_file.stem}.{target_format.lower()}"
+    return parent / f"{source_file.stem}.{target_upper.lower()}"
 
 
 def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None):
@@ -136,14 +151,13 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     Processes a single file conversion using provided Converter instance.
     """
     start_time = time.perf_counter()
-    source_fmt = f.suffix.lower()[1:].upper()
-    if source_fmt == "HTM":
-        source_fmt = "HTML"
+    source_fmt = normalize_format_alias(f.suffix.lower()[1:])
+    target_format = normalize_format_alias(target_format)
     
     if target_format not in conv.formats.get(source_fmt, []):
         duration = time.perf_counter() - start_time
         if source_fmt == target_format:
-            if strip_metadata and source_fmt in ("JPG", "JPEG", "PNG", "WEBP", "TIF", "TIFF", "BMP", "HEIC", "HEIF", "AVIF"):
+            if strip_metadata and source_fmt in ("JPG", "PNG", "WEBP", "TIF", "BMP", "HEIC", "HEIF", "AVIF"):
                 pass
             else:
                 return f.name, True, "Skipped (Same format)", duration
@@ -230,15 +244,14 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         out_dir_path.mkdir(parents=True, exist_ok=True)
 
     files = []
-    source_fmts_upper = [fmt.upper() for fmt in source_formats]
+    source_fmts_upper = [normalize_format_alias(fmt) for fmt in source_formats]
+    target_format = normalize_format_alias(target_format)
     found_extensions = set()
     
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
         if path_obj.is_file():
-            ext = path_obj.suffix.lower()[1:].upper()
-            if ext == "HTM":
-                ext = "HTML"
+            ext = normalize_format_alias(path_obj.suffix.lower()[1:])
             if ext in source_fmts_upper:
                 files.append(path_obj)
             else:
@@ -247,9 +260,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         elif path_obj.is_dir():
             for item in path_obj.iterdir():
                 if item.is_file():
-                    ext = item.suffix.lower()[1:].upper()
-                    if ext == "HTM":
-                        ext = "HTML"
+                    ext = normalize_format_alias(item.suffix.lower()[1:])
                     if ext in source_fmts_upper:
                         files.append(item)
                     if item.suffix:

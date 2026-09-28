@@ -337,9 +337,17 @@ def extract_audio(
     if not os.path.exists(full_path):
         return {"success": False, "error": f"File not found: {video_path}"}
 
+    target_upper = target_format.upper().lstrip(".")
+    valid_audio_formats = {"MP3", "WAV", "AAC", "FLAC", "M4A", "OGG"}
+    if target_upper not in valid_audio_formats:
+        return {
+            "success": False,
+            "error": f"Invalid audio target format '{target_format}'. Supported audio formats are: {', '.join(sorted(valid_audio_formats))}",
+        }
+
     res = convergent_convert(
         input_path=full_path,
-        target_format=target_format.upper(),
+        target_format=target_upper,
         output_path=output_path,
         bitrate=bitrate,
         overwrite=True,
@@ -378,19 +386,26 @@ def perform_ocr(
         overwrite=True,
     )
 
+    target_upper = target_format.upper().lstrip(".")
     extracted_text = None
     converted_files = res.get("converted_files", [])
-    if converted_files and os.path.exists(converted_files[0]):
-        try:
-            with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
-                full_text = f.read()
-                res["total_characters"] = len(full_text)
-                if len(full_text) > preview_length:
-                    extracted_text = full_text[:preview_length] + f"\n... [truncated, {len(full_text)} total characters]"
-                else:
-                    extracted_text = full_text
-        except Exception:
-            pass
+    safe_preview_len = max(0, int(preview_length)) if preview_length is not None else 500
+
+    if target_upper in ("TXT", "MD"):
+        if converted_files and os.path.exists(converted_files[0]):
+            try:
+                with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
+                    full_text = f.read()
+                    res["total_characters"] = len(full_text)
+                    if len(full_text) > safe_preview_len:
+                        extracted_text = full_text[:safe_preview_len] + f"\n... [truncated, {len(full_text)} total characters]"
+                    else:
+                        extracted_text = full_text
+            except Exception:
+                pass
+    elif target_upper == "DOCX":
+        res["total_characters"] = None
+        extracted_text = "[Text extracted and saved to DOCX document]"
 
     if extracted_text is not None:
         res["extracted_text_preview"] = extracted_text
@@ -425,7 +440,10 @@ def perform_stt(
     if not os.path.exists(full_path):
         return {"success": False, "error": f"File not found: {input_path}"}
 
-    valid_models = ("tiny", "mini", "base", "standard", "small", "medium", "large", "turbo")
+    valid_models = (
+        "tiny", "mini", "base", "standard", "small", "medium",
+        "large", "turbo", "large-turbo", "large-v3-turbo", "large-v3"
+    )
     actual_model = model
     warning = None
     if model.lower() not in valid_models:
@@ -447,13 +465,14 @@ def perform_stt(
 
     extracted_text = None
     converted_files = res.get("converted_files", [])
+    safe_preview_len = max(0, int(preview_length)) if preview_length is not None else 500
     if converted_files and os.path.exists(converted_files[0]):
         try:
             with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
                 full_text = f.read()
                 res["total_characters"] = len(full_text)
-                if len(full_text) > preview_length:
-                    extracted_text = full_text[:preview_length] + f"\n... [truncated, {len(full_text)} total characters]"
+                if len(full_text) > safe_preview_len:
+                    extracted_text = full_text[:safe_preview_len] + f"\n... [truncated, {len(full_text)} total characters]"
                 else:
                     extracted_text = full_text
         except Exception:
@@ -565,9 +584,11 @@ def combine_files(
                 "output_file": str(out_file),
             }
         else:
+            from modules.combine import LAST_COMBINE_ERROR
+            error_detail = LAST_COMBINE_ERROR.strip() if LAST_COMBINE_ERROR else "Check file compatibility and dependencies (ghostscript, ffmpeg, libreoffice)."
             return {
                 "success": False,
-                "error": "Failed to combine files. Check dependencies (ghostscript, ffmpeg, libreoffice).",
+                "error": f"Failed to combine files: {error_detail}",
             }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -776,6 +797,9 @@ def resize_media(
     elif height and not width:
         method = '2'
         scale_val = int(height)
+    elif width and not height:
+        method = 'w'
+        scale_val = int(width)
     elif scale_percent is not None:
         method = '1'
         scale_val = float(scale_percent)
@@ -833,8 +857,10 @@ def list_supported_formats(
     Returns:
         Dictionary mapping input extension to list of valid target output extensions, with optional filtering.
     """
+    from customs.file_process import normalize_format_alias
+
     semantic_categories = {
-        "image": ["JPG", "JPEG", "PNG", "WEBP", "GIF", "HEIC", "BMP", "TIFF", "TIF", "SVG", "ICO", "AVIF"],
+        "image": ["JPG", "JPEG", "PNG", "WEBP", "GIF", "HEIC", "HEIF", "BMP", "TIFF", "TIF", "SVG", "ICO", "AVIF", "ARW", "DNG"],
         "video": ["MP4", "MOV", "MKV", "AVI", "WEBM", "FLV", "WMV"],
         "audio": ["MP3", "WAV", "AAC", "FLAC", "M4A", "OGG", "WMA"],
         "document": ["PDF", "DOCX", "PPTX", "XLSX", "MD", "TXT", "HTML", "HTM", "TYP", "EPUB", "RTF", "ODT", "ODS", "ODP"],
@@ -842,7 +868,7 @@ def list_supported_formats(
 
     formats = dict(conv.formats)
     if source_format:
-        sf_upper = source_format.upper().lstrip(".")
+        sf_upper = normalize_format_alias(source_format.upper().lstrip("."))
         if sf_upper in formats:
             return {
                 "source_format": sf_upper,
@@ -856,7 +882,7 @@ def list_supported_formats(
 
     if category:
         cat_key = category.lower().strip()
-        num_to_semantic = {"1": "document", "2": "image", "3": "video", "4": "audio"}
+        num_to_semantic = {"1": "document", "2": "image", "3": "video", "4": "audio", "5": "document"}
         cat_key = num_to_semantic.get(cat_key, cat_key)
         cat_formats = semantic_categories.get(cat_key)
         if cat_formats:

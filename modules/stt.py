@@ -99,6 +99,8 @@ def normalize_model_name(model_name: str) -> str:
         "medium": "small",
         "large": "turbo",
         "large-turbo": "turbo",
+        "large-v3-turbo": "turbo",
+        "large-v3": "turbo",
     }
     return aliases.get(name, name)
 
@@ -307,10 +309,10 @@ def convert_audio_to_text(
             "-m", str(model_path),
             "-f", str(temp_wav),
             "-of", str(temp_out_prefix),
-            "-nt",  # No timestamps in plain text output
         ]
 
         if target_ext == "TXT":
+            cmd.append("-nt")  # No timestamps in plain text output
             cmd.append("-otxt")
         elif target_ext == "SRT":
             cmd.append("-osrt")

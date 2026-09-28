@@ -19,7 +19,8 @@ def get_pdf_page_count(path):
         result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "(null)":
             return int(result.stdout.strip())
-        cmd = ["gs", "-q", "-dNODISPLAY", "-dNOSAFER", "-c", f"({path}) (r) file runpdfbegin pdfpagecount = quit"]
+        resolved_p = Path(path).resolve()
+        cmd = ["gs", "-q", "-dNODISPLAY", "-dSAFER", f"--permit-file-read={resolved_p}", "-c", f"({resolved_p}) (r) file runpdfbegin pdfpagecount = quit"]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return int(result.stdout.strip())
