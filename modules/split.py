@@ -857,9 +857,8 @@ def split_office(
         
     from modules.doc import convert_office
     
-    workspace_dir = Path(__file__).parent.parent.resolve()
-    tmp_dir = workspace_dir / ".convergent_tmp"
-    tmp_dir.mkdir(exist_ok=True)
+    from customs.file_process import get_convergent_tmp_dir
+    tmp_dir = get_convergent_tmp_dir()
     
     unique_id = uuid.uuid4().hex
     temp_office = tmp_dir / f"split_{unique_id}.{file_type}"

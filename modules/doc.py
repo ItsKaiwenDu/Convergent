@@ -32,9 +32,8 @@ def convert_with_temp_files(source, output, run_conv_fn):
     Runs conversion function run_conv_fn(temp_source, temp_output),
     and then copies output back to original destination.
     """
-    workspace_dir = Path(__file__).parent.parent.resolve()
-    tmp_dir = workspace_dir / ".convergent_tmp"
-    tmp_dir.mkdir(exist_ok=True)
+    from customs.file_process import get_convergent_tmp_dir
+    tmp_dir = get_convergent_tmp_dir()
     
     unique_id = uuid.uuid4().hex
     temp_source = tmp_dir / f"{unique_id}{source.suffix}"

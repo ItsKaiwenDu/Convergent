@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import uuid
+import tempfile
 import datetime
 import shlex
 import shutil
@@ -133,6 +134,22 @@ def normalize_format_alias(fmt: str) -> str:
     return aliases.get(fmt_upper, fmt_upper)
 
 
+def get_convergent_tmp_dir() -> Path:
+    """
+    Returns ~/.convergent/tmp directory, ensuring it exists.
+    Falls back to system temp directory if ~/.convergent cannot be created (e.g. permission denied).
+    Replaces repo-root .convergent_tmp to avoid modifying repo and avoid permission errors in read-only installs.
+    """
+    try:
+        tmp_dir = Path.home() / ".convergent" / "tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        return tmp_dir
+    except (PermissionError, OSError):
+        tmp_dir = Path(tempfile.gettempdir()) / "convergent_tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        return tmp_dir
+
+
 def get_expected_output_path(source_file: Path, target_format: str, output_dir: Path = None) -> Path:
     """
     Returns expected output Path (file or directory) for a given source file and target format.
@@ -164,9 +181,13 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
         else:
             return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
-    # Move existing single output file to Trash if it exists
+    # Determine whether destination directory is distinct from source directory
     output_file = get_expected_output_path(f, target_format, output_dir=output_dir)
-    if output_file.is_file() and output_file.resolve() != f.resolve():
+    out_dir_resolved = Path(os.path.expanduser(str(output_dir))).resolve() if output_dir else None
+    is_distinct_dest = (out_dir_resolved is not None and out_dir_resolved != f.parent.resolve())
+
+    # Only trash destination file up front if converting within the same folder
+    if not is_distinct_dest and output_file.is_file() and output_file.resolve() != f.resolve():
         send_to_trash(output_file)
 
     success = False
@@ -179,35 +200,55 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     if fmt_def:
         handler = getattr(conv, fmt_def.handler_method, None)
         if handler:
-            out_dir_resolved = Path(output_dir).resolve() if output_dir else None
-            is_distinct_dest = (out_dir_resolved and out_dir_resolved != f.parent.resolve())
+            # Check if this is PDF to images where handler natively uses output_dir
+            is_pdf_to_images = (source_fmt == "PDF" and target_format in ("JPG", "PNG", "TIF", "BMP"))
             
-            if is_distinct_dest and source_fmt != "PDF":
-                default_out = get_expected_output_path(f, target_format)
-                success, error = handler(
-                    f,
-                    target_format,
-                    fps=fps,
-                    bitrate=bitrate,
-                    md_pdf_mode=md_pdf_mode,
-                    strip_metadata=strip_metadata,
-                    ocr=ocr,
-                    stt=stt,
-                    model=model,
-                    language=language,
-                    hwaccel=hwaccel,
-                    dpi=dpi,
-                    **extra_kwargs
-                )
-                if success:
-                    if default_out.resolve() == f.resolve():
-                        shutil.copy2(str(default_out), str(output_file))
-                    elif default_out.exists() and default_out.resolve() != output_file.resolve():
-                        if output_file.is_dir():
-                            shutil.rmtree(output_file)
-                        elif output_file.exists():
-                            output_file.unlink()
-                        shutil.move(str(default_out), str(output_file))
+            if is_distinct_dest and not is_pdf_to_images:
+                with tempfile.TemporaryDirectory() as staging_dir_str:
+                    staging_path = Path(staging_dir_str)
+                    staged_input = staging_path / f.name
+                    try:
+                        shutil.copy2(str(f), str(staged_input))
+                    except Exception as e:
+                        return f.name, False, f"Failed to stage input file: {e}", time.perf_counter() - start_time
+                    
+                    staged_out = get_expected_output_path(staged_input, target_format)
+                    success, error = handler(
+                        staged_input,
+                        target_format,
+                        fps=fps,
+                        bitrate=bitrate,
+                        md_pdf_mode=md_pdf_mode,
+                        strip_metadata=strip_metadata,
+                        ocr=ocr,
+                        stt=stt,
+                        model=model,
+                        language=language,
+                        hwaccel=hwaccel,
+                        dpi=dpi,
+                    )
+                    if success:
+                        if staged_out.exists():
+                            if output_file.exists() and output_file.resolve() != f.resolve():
+                                send_to_trash(output_file)
+                            output_file.parent.mkdir(parents=True, exist_ok=True)
+                            if staged_out.is_dir():
+                                if output_file.exists():
+                                    if output_file.is_dir():
+                                        shutil.rmtree(output_file)
+                                    else:
+                                        output_file.unlink()
+                                shutil.copytree(str(staged_out), str(output_file))
+                            else:
+                                shutil.copy2(str(staged_out), str(output_file))
+                        elif staged_input.resolve() == staged_out.resolve():
+                            if output_file.exists() and output_file.resolve() != f.resolve():
+                                send_to_trash(output_file)
+                            output_file.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(str(staged_input), str(output_file))
+                        else:
+                            success = False
+                            error = f"Expected staged output was not found: {staged_out.name}"
             else:
                 success, error = handler(
                     f,
@@ -887,9 +928,7 @@ def process_stream(conv, console, source_format, target_format, input_path=None,
                                    ocr=ocr, stt=stt, model=model):
         return False
 
-    workspace_dir = Path(__file__).parent.parent.resolve()
-    tmp_dir = workspace_dir / ".convergent_tmp"
-    tmp_dir.mkdir(exist_ok=True)
+    tmp_dir = get_convergent_tmp_dir()
 
     unique_id = uuid.uuid4().hex
     source_ext = source_format.lower()

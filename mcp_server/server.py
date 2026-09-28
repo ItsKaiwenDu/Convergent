@@ -27,6 +27,8 @@ except ModuleNotFoundError as exc:
     raise
 from Convergent import Converter, clean_paths
 from customs.file_process import FORMAT_REGISTRY
+from customs.cache import CacheManager
+from modules.combine import natural_sort_key
 from customs.console import set_stderr_mode
 
 set_stderr_mode(True)
@@ -171,6 +173,35 @@ def convergent_convert(
         else:
             conv_output_dir = dest_target.parent
 
+    params_for_cache = {
+        "target": target_fmt,
+        "fps": fps_val,
+        "bitrate": bitrate_val,
+        "md_pdf_mode": md_pdf_mode,
+        "strip_metadata": strip_metadata,
+        "ocr": ocr,
+        "stt": stt,
+        "model": model,
+        "language": language,
+        "dpi": dpi,
+    }
+
+    # If single file conversion targets a custom file path, check if already validly cached
+    if use_cache and not is_dest_dir and path_obj.is_file() and dest_target and dest_target.exists():
+        try:
+            cache_mgr = CacheManager()
+            is_valid, _ = cache_mgr.is_cached_valid(path_obj, dest_target, params_for_cache)
+            cache_mgr.close()
+            if is_valid:
+                return {
+                    "success": True,
+                    "count": 1,
+                    "converted_files": [str(dest_target)],
+                    "target_format": target_fmt,
+                }
+        except Exception:
+            pass
+
     success_map: Dict[str, str] = {}
     failed_details: List[Dict[str, Any]] = []
 
@@ -224,6 +255,15 @@ def convergent_convert(
                 if out_p.exists():
                     if out_p != target_loc:
                         _relocate_output(out_p, target_loc, overwrite, original_inputs=original_inputs)
+                        if use_cache:
+                            try:
+                                cache_mgr = CacheManager()
+                                cache_mgr.update_output_path(out_p, target_loc)
+                                if path_obj.is_file():
+                                    cache_mgr.save(path_obj, target_loc, params_for_cache)
+                                cache_mgr.close()
+                            except Exception:
+                                pass
                     final_converted_list.append(str(target_loc))
                 elif target_loc.exists():
                     final_converted_list.append(str(target_loc))
@@ -300,17 +340,33 @@ def pdf_to_images(
     for item in converted_files:
         p = Path(item)
         if p.is_dir():
-            for img in sorted(p.iterdir()):
+            for img in sorted(p.iterdir(), key=natural_sort_key):
                 if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "png", "tif", "bmp"):
                     image_files.append(str(img))
         elif p.is_file():
             image_files.append(str(p))
 
+    image_files.sort(key=natural_sort_key)
+    total_count = len(image_files)
+
+    if not res.get("success", False) or total_count == 0:
+        return {
+            "success": False,
+            "count": 0,
+            "images": [],
+            "error": res.get("error") or "No page images were generated.",
+            "truncated": False,
+        }
+
+    is_truncated = total_count > 50
+    returned_images = image_files[:50] if is_truncated else image_files
+
     return {
-        "success": res.get("success", False),
-        "count": len(image_files) if image_files else res.get("count", 0),
-        "images": image_files if image_files else converted_files,
-        "error": res.get("error"),
+        "success": True,
+        "count": total_count,
+        "images": returned_images,
+        "truncated": is_truncated,
+        "error": None,
     }
 
 
@@ -597,7 +653,7 @@ def combine_files(
 @mcp.tool()
 def split_file(
     file_path: str,
-    mode: str = "pages",
+    mode: str = "auto",
     interval: Optional[float] = None,
     ranges: Optional[str] = None,
     num_parts: Optional[int] = None,
@@ -610,10 +666,9 @@ def split_file(
 
     Args:
         file_path: Path to file to split.
-        mode: Split mode. Options:
-              - For PDF / DOCX / PPTX: 'pages' (default, 1 page per file), 'ranges' (e.g. ranges='1-5,6-10'), 'parts' (num_parts=N)
-              - For Video / Audio: 'interval' (default, e.g. interval=60), 'ranges' (e.g. ranges='0-10,60-120'), 'parts' (num_parts=N)
-              - For GIF: 'frames' (default, extracts frame images), 'interval', 'ranges', 'parts'
+        mode: Split mode ('auto', 'pages', 'interval', 'ranges', 'parts', 'frames').
+              Defaults to 'auto', which automatically chooses 'pages' for PDF/documents,
+              'interval' for video/audio, and 'frames' for GIF.
         interval: Interval in seconds for video/audio/GIF interval split (e.g. 30, 60).
         ranges: Page or time ranges string (e.g. '1-3,4-8' for PDF, '00:00:00-00:01:00,00:02:00-00:03:00' for video).
         num_parts: Total number of parts to split into equally.
@@ -628,32 +683,77 @@ def split_file(
         return {"success": False, "error": f"File not found: {file_path}"}
 
     ext = Path(full_path).suffix.lower()
+
+    # Auto-resolve mode if auto or mismatched
+    effective_mode = mode.lower() if mode else "auto"
+    if effective_mode == "auto":
+        if ext in (".mp4", ".mov", ".mkv", ".avi", ".webm", ".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
+            if num_parts is not None:
+                effective_mode = "parts"
+            elif ranges is not None:
+                effective_mode = "ranges"
+            else:
+                effective_mode = "interval"
+        elif ext == ".gif":
+            if num_parts is not None:
+                effective_mode = "parts"
+            elif ranges is not None:
+                effective_mode = "ranges"
+            elif interval is not None:
+                effective_mode = "interval"
+            else:
+                effective_mode = "frames"
+        else:
+            if num_parts is not None:
+                effective_mode = "parts"
+            elif ranges is not None:
+                effective_mode = "ranges"
+            else:
+                effective_mode = "pages"
+    elif effective_mode == "pages" and ext in (".mp4", ".mov", ".mkv", ".avi", ".webm", ".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
+        # Gracefully handle default or accidental 'pages' mode for media files
+        if num_parts is not None:
+            effective_mode = "parts"
+        elif ranges is not None:
+            effective_mode = "ranges"
+        else:
+            effective_mode = "interval"
+    elif effective_mode == "frames" and ext in (".pdf", ".docx", ".pptx"):
+        effective_mode = "pages"
+
     try:
         out_dir = None
         if ext == ".pdf":
-            out_dir = conv.split_pdf(full_path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_pdf(full_path, mode=effective_mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext in (".mp4", ".mov", ".mkv", ".avi", ".webm"):
-            out_dir = conv.split_video(full_path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_video(full_path, mode=effective_mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext in (".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
-            out_dir = conv.split_audio(full_path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_audio(full_path, mode=effective_mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".gif":
-            out_dir = conv.split_gif(full_path, mode=mode, frame_format=frame_format, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_gif(full_path, mode=effective_mode, frame_format=frame_format, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".docx":
-            out_dir = conv.split_docx(full_path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_docx(full_path, mode=effective_mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".pptx":
-            out_dir = conv.split_pptx(full_path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_pptx(full_path, mode=effective_mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         else:
             return {"success": False, "error": f"Unsupported file type for splitting: {ext}"}
 
         if out_dir and Path(out_dir).exists():
             out_path_obj = Path(out_dir)
-            files = [str(f) for f in sorted(out_path_obj.iterdir(), key=lambda p: p.name) if f.is_file()]
+            files = [str(f) for f in sorted(out_path_obj.iterdir(), key=natural_sort_key) if f.is_file()]
+            total_count = len(files)
+            if total_count == 0:
+                return {"success": False, "error": f"No split files were generated from {file_path}."}
+
+            is_truncated = total_count > 50
+            returned_files = files[:50] if is_truncated else files
             return {
                 "success": True,
                 "output_dir": str(out_path_obj),
-                "split_files": files,
-                "count": len(files),
-                "message": f"Successfully split {file_path} into {len(files)} files.",
+                "split_files": returned_files,
+                "count": total_count,
+                "truncated": is_truncated,
+                "message": f"Successfully split {file_path} into {total_count} files." + (" (showing first 50)" if is_truncated else ""),
             }
         else:
             return {"success": False, "error": f"Failed to split {file_path}."}

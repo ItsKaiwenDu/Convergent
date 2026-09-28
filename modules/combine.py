@@ -3,6 +3,7 @@ import re
 import uuid
 import subprocess
 from pathlib import Path
+from customs.file_process import get_convergent_tmp_dir
 from customs.console import console, get_input, get_char, prompt_paths, clean_paths
 from customs.run_command import run_command, send_to_trash
 
@@ -369,7 +370,8 @@ def combine_videos(paths, output_path=None, interactive=True):
 
     send_to_trash(dest_path)
 
-    temp_txt_path = base_dir / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
+    is_mixed_video = len({vf.suffix.lower() for vf in video_files}) > 1
+    temp_txt_path = get_convergent_tmp_dir() / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
     try:
         with open(temp_txt_path, "w", encoding="utf-8") as f:
             for vf in video_files:
@@ -384,12 +386,17 @@ def combine_videos(paths, output_path=None, interactive=True):
         return None
 
     try:
-        cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
-        success, error = run_command(cmd)
-        if not success:
-            # Fallback to re-encoding if stream copy fails (e.g., mixed formats like mov and mp4, or differing codecs)
-            cmd_reencode = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
-            success, error = run_command(cmd_reencode)
+        if is_mixed_video:
+            # When mixing video formats/containers, re-encode directly to ensure proper stream synchronization
+            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
+            success, error = run_command(cmd)
+        else:
+            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
+            success, error = run_command(cmd)
+            if not success:
+                # Fallback to re-encoding if stream copy fails (e.g., mixed codecs or differing resolutions)
+                cmd_reencode = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
+                success, error = run_command(cmd_reencode)
     finally:
         if temp_txt_path.exists():
             try:
@@ -522,33 +529,55 @@ def combine_audios(paths, output_path=None, interactive=True):
 
     send_to_trash(dest_path)
 
-    temp_txt_path = base_dir / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
-    try:
-        with open(temp_txt_path, "w", encoding="utf-8") as f:
-            for af in audio_files:
-                abs_path = str(af.resolve())
-                escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
-                f.write(f"file '{escaped_path}'\n")
-    except Exception as e:
-        global LAST_COMBINE_ERROR
-        LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
-        if interactive:
-            console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
-        return None
+    is_mixed_audio = len({af.suffix.lower() for af in audio_files}) > 1
+    success = False
+    error = ""
 
-    try:
-        cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
+    if is_mixed_audio:
+        # Use -filter_complex concat for mixed audio formats/codecs to avoid stream copy corruptions & silent failures
+        input_args = []
+        filter_inputs = []
+        for idx, af in enumerate(audio_files):
+            input_args.extend(["-i", str(af.resolve())])
+            filter_inputs.append(f"[{idx}:a]")
+        filter_str = f"{''.join(filter_inputs)}concat=n={len(audio_files)}:v=0:a=1[outa]"
+        cmd = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outa]", "-y", "-loglevel", "error", str(dest_path)]
         success, error = run_command(cmd)
-        if not success:
-            # Fallback to re-encoding if stream copy fails (e.g., mixed formats like wav and flac, or differing sample rates)
-            cmd_reencode = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
-            success, error = run_command(cmd_reencode)
-    finally:
-        if temp_txt_path.exists():
-            try:
-                temp_txt_path.unlink()
-            except:
-                pass
+    else:
+        # Same format: try concat demuxer with -c copy first for fast lossless concatenation
+        temp_txt_path = get_convergent_tmp_dir() / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
+        try:
+            with open(temp_txt_path, "w", encoding="utf-8") as f:
+                for af in audio_files:
+                    abs_path = str(af.resolve())
+                    escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
+                    f.write(f"file '{escaped_path}'\n")
+        except Exception as e:
+            global LAST_COMBINE_ERROR
+            LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
+            if interactive:
+                console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
+            return None
+
+        try:
+            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
+            success, error = run_command(cmd)
+            if not success:
+                # Fallback to filter_complex concat if demuxer fails
+                input_args = []
+                filter_inputs = []
+                for idx, af in enumerate(audio_files):
+                    input_args.extend(["-i", str(af.resolve())])
+                    filter_inputs.append(f"[{idx}:a]")
+                filter_str = f"{''.join(filter_inputs)}concat=n={len(audio_files)}:v=0:a=1[outa]"
+                cmd_reencode = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outa]", "-y", "-loglevel", "error", str(dest_path)]
+                success, error = run_command(cmd_reencode)
+        finally:
+            if temp_txt_path.exists():
+                try:
+                    temp_txt_path.unlink()
+                except:
+                    pass
 
     if success:
         if interactive:
@@ -755,10 +784,8 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
     # Import convert_office
     from modules.doc import convert_office
 
-    # Create workspace temp dir
-    workspace_dir = Path(__file__).parent.parent.resolve()
-    tmp_dir = workspace_dir / ".convergent_tmp"
-    tmp_dir.mkdir(exist_ok=True)
+    from customs.file_process import get_convergent_tmp_dir
+    tmp_dir = get_convergent_tmp_dir()
 
     temp_files_to_clean = []
     pdf_details = []

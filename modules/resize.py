@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 import subprocess
 import multiprocessing
 import concurrent.futures
@@ -176,7 +177,13 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
     else:
         output = f.parent / f"{f.stem}_resized{f.suffix}"
     output.parent.mkdir(parents=True, exist_ok=True)
-    send_to_trash(output)
+
+    is_inplace = (output.resolve() == f.resolve())
+    if is_inplace:
+        actual_output = output.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output.name}"
+    else:
+        actual_output = output
+        send_to_trash(output)
 
     success = False
     error = ""
@@ -194,7 +201,7 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
             cmd += ["-vf", ",".join(filters)]
         if strip_metadata:
             cmd += ["-map_metadata", "-1"]
-        cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "copy", "-y", "-loglevel", "error", str(output)]
+        cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "copy", "-y", "-loglevel", "error", str(actual_output)]
         success, error = run_command(cmd)
 
         if not success and encoder != "libx264":
@@ -203,7 +210,7 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
                 fallback_cmd += ["-vf", ",".join(filters)]
             if strip_metadata:
                 fallback_cmd += ["-map_metadata", "-1"]
-            fallback_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(output)]
+            fallback_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(actual_output)]
             success, error = run_command(fallback_cmd)
     else:
         cmd = ["magick", str(f), "-auto-orient"]
@@ -213,8 +220,18 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
             cmd += ["-resize", f"{w_final}x{h_final}!"]
         if strip_metadata:
             cmd += ["+profile", "exif,iptc,xmp"]
-        cmd.append(str(output))
+        cmd.append(str(actual_output))
         success, error = run_command(cmd)
+
+    if success:
+        if is_inplace and actual_output.exists():
+            os.replace(str(actual_output), str(output))
+    else:
+        if is_inplace and actual_output.exists():
+            try:
+                actual_output.unlink(missing_ok=True)
+            except Exception:
+                pass
         
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration

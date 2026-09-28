@@ -512,6 +512,146 @@ class TestMCPServer(unittest.TestCase):
         self.assertIn("DNG", res_img.get("source_formats", []))
         self.assertIn("HEIF", res_img.get("source_formats", []))
 
+    def test_process_single_file_staging_prevents_sibling_clobbering(self):
+        from customs.file_process import process_single_file
+        from Convergent import Converter
+        conv = Converter()
+        
+        src_dir = self.dir_path / "src"
+        src_dir.mkdir()
+        out_dir = self.dir_path / "out"
+        out_dir.mkdir()
+        
+        # Source file to convert
+        src_file = src_dir / "photo.jpg"
+        src_file.write_bytes(b"original jpg content")
+        
+        # Sibling file in the source directory that happens to share target name
+        sibling_file = src_dir / "photo.png"
+        sibling_file.write_bytes(b"precious sibling content")
+        
+        # Mock handler on conv to simulate creating output file next to input
+        def mock_convert_image(source, target_ext, **kwargs):
+            out_p = source.with_suffix(f".{target_ext.lower()}")
+            out_p.write_bytes(b"converted png data")
+            return True, ""
+            
+        with patch.object(conv, "convert_image", side_effect=mock_convert_image):
+            name, success, err, dur = process_single_file(
+                conv, src_file, "PNG", output_dir=out_dir
+            )
+            self.assertTrue(success)
+            
+            # Sibling file in src_dir MUST remain untouched
+            self.assertTrue(sibling_file.exists())
+            self.assertEqual(sibling_file.read_bytes(), b"precious sibling content")
+            
+            # Output file in out_dir must be created
+            dest_file = out_dir / "photo.png"
+            self.assertTrue(dest_file.exists())
+            self.assertEqual(dest_file.read_bytes(), b"converted png data")
+
+    def test_pdf_to_images_natural_sorting_and_truncation(self):
+        # Create 60 dummy page images
+        doc_pdf = self.dir_path / "doc.pdf"
+        doc_pdf.touch()
+        img_dir = self.dir_path / "doc_images"
+        img_dir.mkdir()
+        created_paths = []
+        page_indices = list(range(1, 61))
+        for idx in page_indices:
+            p = img_dir / f"page_{idx}.jpg"
+            p.touch()
+            created_paths.append(str(p))
+
+        with patch("mcp_server.server.convergent_convert") as mock_conv:
+            mock_conv.return_value = {
+                "success": True,
+                "count": len(created_paths),
+                "converted_files": [str(img_dir)],
+                "target_format": "JPG",
+            }
+            res = pdf_to_images(pdf_path=str(doc_pdf))
+            self.assertTrue(res["success"])
+            self.assertEqual(res["count"], 60)
+            self.assertTrue(res["truncated"])
+            self.assertEqual(len(res["images"]), 50)
+            # Verify natural sorting (page_2 comes before page_10)
+            self.assertTrue(res["images"][0].endswith("page_1.jpg"))
+            self.assertTrue(res["images"][1].endswith("page_2.jpg"))
+            self.assertTrue(res["images"][9].endswith("page_10.jpg"))
+
+    def test_split_file_auto_mode_and_truncation(self):
+        # 1. Video auto-mode -> interval
+        dummy_video = self.dir_path / "clip.mp4"
+        dummy_video.touch()
+        with patch("mcp_server.server.conv.split_video", return_value=str(self.dir_path / "split_out")) as mock_split_vid:
+            (self.dir_path / "split_out").mkdir(exist_ok=True)
+            res = split_file(file_path=str(dummy_video))
+            self.assertEqual(mock_split_vid.call_args[1]["mode"], "interval")
+
+        # 2. PDF auto-mode -> pages
+        dummy_pdf = self.dir_path / "doc.pdf"
+        dummy_pdf.touch()
+        with patch("mcp_server.server.conv.split_pdf", return_value=str(self.dir_path / "split_out")) as mock_split_pdf:
+            res = split_file(file_path=str(dummy_pdf))
+            self.assertEqual(mock_split_pdf.call_args[1]["mode"], "pages")
+
+    def test_combine_mixed_audio_filter_complex(self):
+        import modules.combine as combine_mod
+        f1 = self.dir_path / "track1.wav"
+        f1.touch()
+        f2 = self.dir_path / "track2.flac"
+        f2.touch()
+
+        with patch("modules.combine.run_command", return_value=(True, "")) as mock_cmd:
+            combine_mod.combine_audios([str(f1), str(f2)], output_path=str(self.dir_path / "combined.mp3"), interactive=False)
+            self.assertTrue(mock_cmd.called)
+            cmd_args = mock_cmd.call_args[0][0]
+            # Must use filter_complex concat instead of demuxer -c copy
+            self.assertIn("-filter_complex", cmd_args)
+            self.assertIn("[0:a][1:a]concat=n=2:v=0:a=1[outa]", cmd_args)
+            self.assertNotIn("-c", cmd_args)
+
+    def test_cache_custom_output_path_relocation_and_hit(self):
+        dummy_src = self.dir_path / "source.jpg"
+        dummy_src.write_bytes(b"test jpg source binary")
+        custom_out = self.dir_path / "custom_named.png"
+        test_db = self.dir_path / "test_cache.sqlite"
+        
+        with patch("customs.cache.CACHE_DB_PATH", test_db):
+            # First call: converts and relocates
+            with patch("mcp_server.server.conv.process") as mock_proc:
+                def fake_proc(*args, **kwargs):
+                    default_file = self.dir_path / "source.png"
+                    default_file.write_bytes(b"generated png data")
+                    return [default_file]
+                mock_proc.side_effect = fake_proc
+
+                res1 = convergent_convert(
+                    input_path=str(dummy_src),
+                    target_format="PNG",
+                    output_path=str(custom_out),
+                )
+                self.assertTrue(res1["success"])
+                self.assertTrue(custom_out.exists())
+                self.assertEqual(custom_out.read_bytes(), b"generated png data")
+
+            # Second call: hits cache directly without calling conv.process
+            with patch("mcp_server.server.conv.process") as mock_proc2:
+                res2 = convergent_convert(
+                    input_path=str(dummy_src),
+                    target_format="PNG",
+                    output_path=str(custom_out),
+                )
+                self.assertTrue(res2["success"])
+                self.assertEqual(
+                    [str(Path(p).resolve()) for p in res2["converted_files"]],
+                    [str(custom_out.resolve())]
+                )
+                # conv.process should NOT have been called because cache hit directly!
+                self.assertFalse(mock_proc2.called)
+
 
 import asyncio
 from mcp.client.stdio import stdio_client

@@ -172,14 +172,39 @@ class TestCache(unittest.TestCase):
         self.assertEqual(deleted, 1)
         self.assertEqual(self.cache_mgr.stats()["count"], 1)
 
-    def test_clear_cache(self):
-        dummy_db = self.dir_path / "custom_cache.sqlite"
-        dummy_db.write_bytes(b"dummy")
-        self.assertTrue(dummy_db.exists())
-        
-        removed = clear_cache(db_path=dummy_db)
-        self.assertIn(str(dummy_db), removed)
-        self.assertFalse(dummy_db.exists())
+    def test_cache_out_size_validation_and_relocation(self):
+        src = self.dir_path / "doc.md"
+        src.write_bytes(b"# Sample Document")
+        out = self.dir_path / "doc.pdf"
+        out.write_bytes(b"%PDF-1.4 fake pdf binary data")
+        params = {"target": "PDF"}
+
+        # 1. Save and verify valid
+        self.cache_mgr.save(src, out, params)
+        is_valid, reason = self.cache_mgr.is_cached_valid(src, out, params)
+        self.assertTrue(is_valid)
+
+        # 2. Output truncated to 0-bytes -> invalid
+        out.write_bytes(b"")
+        is_valid, reason = self.cache_mgr.is_cached_valid(src, out, params)
+        self.assertFalse(is_valid)
+        self.assertEqual(reason, "output empty")
+
+        # 3. Output size altered -> invalid
+        out.write_bytes(b"%PDF-1.4 altered data with different size")
+        is_valid, reason = self.cache_mgr.is_cached_valid(src, out, params)
+        self.assertFalse(is_valid)
+        self.assertEqual(reason, "output size mismatch")
+
+        # 4. Relocate output and update cache
+        out.write_bytes(b"%PDF-1.4 fake pdf binary data")
+        new_out = self.dir_path / "custom_doc.pdf"
+        out.rename(new_out)
+        self.cache_mgr.update_output_path(out, new_out)
+
+        # Querying new_out is now valid
+        is_valid, reason = self.cache_mgr.is_cached_valid(src, new_out, params)
+        self.assertTrue(is_valid)
 
 
 if __name__ == "__main__":

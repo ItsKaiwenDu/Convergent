@@ -11,6 +11,7 @@ import json
 import os
 import sqlite3
 import time
+import tempfile
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS entries (
     src_size INTEGER,
     out_path TEXT,
     out_mtime REAL,
+    out_size INTEGER,
     params_hash TEXT,
     created_at REAL,
     last_accessed_at REAL
@@ -146,9 +148,21 @@ class CacheManager:
         else:
             self.ttl_days = float(ttl_days)
 
-        self.conn = sqlite3.connect(str(self.db_path))
-        self.conn.execute("PRAGMA journal_mode=WAL;")
+        try:
+            self.conn = sqlite3.connect(str(self.db_path))
+            self.conn.execute("PRAGMA journal_mode=WAL;")
+        except (sqlite3.OperationalError, PermissionError):
+            self.db_path = Path(tempfile.gettempdir()) / ".convergent_cache.sqlite"
+            self.conn = sqlite3.connect(str(self.db_path))
+            self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.executescript(_SCHEMA)
+
+        # Migration: Add out_size column if upgrading from older schema
+        try:
+            self.conn.execute("ALTER TABLE entries ADD COLUMN out_size INTEGER;")
+            self.conn.commit()
+        except Exception:
+            pass
 
         # Migration: Add last_accessed_at column if upgrading from older schema
         try:
@@ -184,7 +198,7 @@ class CacheManager:
         try:
             cur = self.conn.cursor()
             cur.execute(
-                "SELECT key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, params_hash, created_at, last_accessed_at FROM entries WHERE key=?",
+                "SELECT key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, out_size, params_hash, created_at, last_accessed_at FROM entries WHERE key=?",
                 (key,),
             )
             row = cur.fetchone()
@@ -197,9 +211,10 @@ class CacheManager:
                     "src_size": row[4],
                     "out_path": row[5],
                     "out_mtime": row[6],
-                    "params_hash": row[7],
-                    "created_at": row[8],
-                    "last_accessed_at": row[9] if len(row) > 9 and row[9] is not None else row[8],
+                    "out_size": row[7],
+                    "params_hash": row[8],
+                    "created_at": row[9],
+                    "last_accessed_at": row[10] if len(row) > 10 and row[10] is not None else row[9],
                 }
         except Exception:
             pass
@@ -230,6 +245,25 @@ class CacheManager:
                 return False, "output missing"
         except Exception:
             return False, "output missing"
+
+        # Check output file/dir size and content integrity
+        try:
+            if out_path.is_file():
+                cur_out_stat = out_path.stat()
+                if cur_out_stat.st_size == 0:
+                    return False, "output empty"
+                if entry.get("out_size") is not None and entry["out_size"] > 0:
+                    if cur_out_stat.st_size != entry["out_size"]:
+                        return False, "output size mismatch"
+            elif out_path.is_dir():
+                dir_items = list(out_path.iterdir())
+                if not dir_items:
+                    return False, "output empty dir"
+                if entry.get("out_size") is not None and entry["out_size"] > 0:
+                    if len(dir_items) != entry["out_size"]:
+                        return False, "output item count mismatch"
+        except Exception:
+            return False, "output stat failed"
 
         try:
             cur_stat = src_path.stat()
@@ -266,6 +300,29 @@ class CacheManager:
         except Exception:
             pass
 
+    def update_output_path(self, old_out_path: Path, new_out_path: Path):
+        """Updates the recorded output path and stats for entries when output is renamed or relocated."""
+        try:
+            old_str = str(old_out_path.resolve())
+            new_str = str(new_out_path.resolve())
+            new_mtime = time.time()
+            new_size = None
+            if new_out_path.exists():
+                stat = new_out_path.stat()
+                new_mtime = stat.st_mtime
+                if new_out_path.is_file():
+                    new_size = stat.st_size
+                elif new_out_path.is_dir():
+                    new_size = len(list(new_out_path.iterdir()))
+
+            self.conn.execute(
+                "UPDATE entries SET out_path = ?, out_mtime = ?, out_size = ? WHERE out_path = ?",
+                (new_str, new_mtime, new_size, old_str),
+            )
+            self.conn.commit()
+        except Exception:
+            pass
+
     def save(self, src_path: Path, out_path: Path, params: Dict):
         """Upsert cache entry after successful conversion."""
         try:
@@ -273,9 +330,17 @@ class CacheManager:
             if not src_hash:
                 return
             try:
-                out_mtime = out_path.stat().st_mtime
+                out_stat = out_path.stat()
+                out_mtime = out_stat.st_mtime
+                if out_path.is_file():
+                    out_size = out_stat.st_size
+                elif out_path.is_dir():
+                    out_size = len(list(out_path.iterdir()))
+                else:
+                    out_size = None
             except Exception:
                 out_mtime = time.time()
+                out_size = None
 
             key = make_cache_key(src_path, params)
             params_hash = get_params_hash(params)
@@ -292,10 +357,10 @@ class CacheManager:
             self.conn.execute(
                 """
                 INSERT OR REPLACE INTO entries
-                (key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, params_hash, created_at, last_accessed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, out_size, params_hash, created_at, last_accessed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (key, resolved_src, src_hash, src_mtime, src_size, resolved_out, out_mtime, params_hash, now, now),
+                (key, resolved_src, src_hash, src_mtime, src_size, resolved_out, out_mtime, out_size, params_hash, now, now),
             )
             self.conn.commit()
         except Exception:
