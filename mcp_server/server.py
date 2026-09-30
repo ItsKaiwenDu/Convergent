@@ -9,8 +9,10 @@ extract, process, combine, split, resize, compress, decompress, and OCR local fi
 
 import os
 import sys
+import time
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -38,7 +40,7 @@ mcp = FastMCP(
     "Convergent",
     instructions=(
         "Convergent Local MCP Server provides high-performance local file conversion, "
-        "media processing (video/audio/image/resizing), document processing (PDF, Markdown, DOCX, Typst), "
+        "media processing (video/audio/image/resizing), document processing (PDF, Markdown, DOCX, HTML, RTF), "
         "OCR, Speech-to-Text transcription, compression/decompression, splitting, and merging. "
         "All processing runs 100% locally."
     ),
@@ -158,6 +160,7 @@ def convergent_convert(
     conv_output_dir = None
     dest_target = None
     is_dest_dir = False
+    temp_stage_dir = None
     if output_path:
         dest_target = Path(os.path.expanduser(output_path)).resolve()
         is_dest_dir = (
@@ -170,8 +173,6 @@ def convergent_convert(
         )
         if is_dest_dir:
             conv_output_dir = dest_target
-        else:
-            conv_output_dir = dest_target.parent
 
     params_for_cache = {
         "target": target_fmt,
@@ -198,9 +199,14 @@ def convergent_convert(
                     "count": 1,
                     "converted_files": [str(dest_target)],
                     "target_format": target_fmt,
+                    "cached": True,
                 }
         except Exception:
             pass
+
+    if output_path and not is_dest_dir:
+        temp_stage_dir = tempfile.TemporaryDirectory()
+        conv_output_dir = Path(temp_stage_dir.name)
 
     success_map: Dict[str, str] = {}
     failed_details: List[Dict[str, Any]] = []
@@ -275,6 +281,7 @@ def convergent_convert(
                 "count": len(converted_list),
                 "converted_files": converted_list,
                 "target_format": target_fmt,
+                "cached": False,
             }
             if failed_details:
                 res["partial_success"] = True
@@ -297,6 +304,12 @@ def convergent_convert(
             "converted_files": [str(p) for p in (converted if 'converted' in locals() and converted else list(success_map.keys()))],
             "failed_files": failed_details,
         }
+    finally:
+        if temp_stage_dir:
+            try:
+                temp_stage_dir.cleanup()
+            except Exception:
+                pass
 
 
 @mcp.tool()
@@ -324,8 +337,14 @@ def pdf_to_images(
         return {"success": False, "error": f"File not found: {pdf_path}", "images": []}
 
     target_fmt = target_format.upper().lstrip(".")
-    if target_fmt not in ("JPG", "PNG"):
-        target_fmt = "JPG"
+    if target_fmt not in ("JPG", "JPEG", "PNG", "TIF", "TIFF", "BMP"):
+        return {
+            "success": False,
+            "error": f"Unsupported target image format '{target_format}'. Supported formats: JPG, PNG, TIF, BMP",
+            "images": [],
+            "count": 0,
+            "truncated": False,
+        }
 
     res = convergent_convert(
         input_path=full_path,
@@ -459,11 +478,11 @@ def perform_ocr(
                         extracted_text = full_text
             except Exception:
                 pass
-    elif target_upper == "DOCX":
+    elif target_upper == "DOCX" and res.get("success", False):
         res["total_characters"] = None
         extracted_text = "[Text extracted and saved to DOCX document]"
 
-    if extracted_text is not None:
+    if extracted_text is not None and res.get("success", False):
         res["extracted_text_preview"] = extracted_text
 
     return res
@@ -722,6 +741,16 @@ def split_file(
         effective_mode = "pages"
 
     try:
+        split_start = time.time()
+        target_dir = Path(os.path.expanduser(output_dir)).resolve() if output_dir else None
+        pre_existing = {}
+        if target_dir and target_dir.exists():
+            pre_existing = {f.resolve(): f.stat().st_mtime for f in target_dir.iterdir() if f.is_file()}
+        else:
+            default_dir = Path(full_path).parent / f"{Path(full_path).stem}_split"
+            if default_dir.exists():
+                pre_existing = {f.resolve(): f.stat().st_mtime for f in default_dir.iterdir() if f.is_file()}
+
         out_dir = None
         if ext == ".pdf":
             out_dir = conv.split_pdf(full_path, mode=effective_mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
@@ -740,7 +769,9 @@ def split_file(
 
         if out_dir and Path(out_dir).exists():
             out_path_obj = Path(out_dir)
-            files = [str(f) for f in sorted(out_path_obj.iterdir(), key=natural_sort_key) if f.is_file()]
+            all_files = [f for f in sorted(out_path_obj.iterdir(), key=natural_sort_key) if f.is_file()]
+            new_files = [str(f) for f in all_files if f.resolve() not in pre_existing or f.stat().st_mtime > pre_existing[f.resolve()]]
+            files = new_files if new_files else [str(f) for f in all_files]
             total_count = len(files)
             if total_count == 0:
                 return {"success": False, "error": f"No split files were generated from {file_path}."}
@@ -782,7 +813,21 @@ def compress_files(
     Returns:
         Dictionary with status and output archive path.
     """
-    expanded_paths = [os.path.expanduser(p) for p in file_paths if os.path.exists(os.path.expanduser(p))]
+    if not file_paths:
+        return {"success": False, "error": "No valid existing files provided to compress."}
+
+    expanded_paths = []
+    missing_paths = []
+    for p in file_paths:
+        ep = os.path.expanduser(p)
+        if os.path.exists(ep):
+            expanded_paths.append(ep)
+        else:
+            missing_paths.append(p)
+
+    if missing_paths:
+        return {"success": False, "error": f"The following file(s) do not exist: {', '.join(missing_paths)}"}
+
     if not expanded_paths:
         return {"success": False, "error": "No valid existing files provided to compress."}
 
@@ -837,6 +882,12 @@ def decompress_archive(
     if not os.path.exists(full_path):
         return {"success": False, "error": f"Archive file not found: {archive_path}"}
 
+    start_decompress = time.time()
+    dest_path_obj = Path(os.path.expanduser(output_dir)).resolve() if output_dir else Path(full_path).parent / Path(full_path).stem
+    pre_existing_extracted = {}
+    if dest_path_obj.exists():
+        pre_existing_extracted = {f.resolve(): f.stat().st_mtime for f in dest_path_obj.rglob("*") if f.is_file()}
+
     try:
         success, message, out_dir = conv.decompress(
             path=full_path,
@@ -845,11 +896,13 @@ def decompress_archive(
         )
         if success and out_dir and Path(out_dir).exists():
             out_p = Path(out_dir)
-            files = [str(f) for f in sorted(out_p.rglob("*")) if f.is_file()]
+            all_files = [f for f in sorted(out_p.rglob("*")) if f.is_file()]
+            new_extracted = [f for f in all_files if f.resolve() not in pre_existing_extracted or f.stat().st_mtime > pre_existing_extracted[f.resolve()]]
+            count = len(new_extracted) if new_extracted else len(all_files)
             return {
                 "success": True,
                 "output_dir": str(out_p),
-                "extracted_files_count": len(files),
+                "extracted_files_count": count,
             }
         else:
             return {
@@ -959,11 +1012,12 @@ def list_supported_formats(
     """
     from customs.file_process import normalize_format_alias
 
+    cat_name_map = {"2": "image", "3": "video", "4": "audio", "5": "document"}
     semantic_categories = {
-        "image": ["JPG", "JPEG", "PNG", "WEBP", "GIF", "HEIC", "HEIF", "BMP", "TIFF", "TIF", "SVG", "ICO", "AVIF", "ARW", "DNG"],
-        "video": ["MP4", "MOV", "MKV", "AVI", "WEBM", "FLV", "WMV"],
-        "audio": ["MP3", "WAV", "AAC", "FLAC", "M4A", "OGG", "WMA"],
-        "document": ["PDF", "DOCX", "PPTX", "XLSX", "MD", "TXT", "HTML", "HTM", "TYP", "EPUB", "RTF", "ODT", "ODS", "ODP"],
+        "image": sorted(list(set(fd.name for fd in FORMAT_REGISTRY if fd.category_id == "2"))),
+        "video": sorted(list(set(fd.name for fd in FORMAT_REGISTRY if fd.category_id == "3"))),
+        "audio": sorted(list(set(fd.name for fd in FORMAT_REGISTRY if fd.category_id == "4"))),
+        "document": sorted(list(set(fd.name for fd in FORMAT_REGISTRY if fd.category_id == "5"))),
     }
 
     formats = dict(conv.formats)
@@ -982,8 +1036,7 @@ def list_supported_formats(
 
     if category:
         cat_key = category.lower().strip()
-        num_to_semantic = {"1": "document", "2": "image", "3": "video", "4": "audio", "5": "document"}
-        cat_key = num_to_semantic.get(cat_key, cat_key)
+        cat_key = cat_name_map.get(cat_key, cat_key)
         cat_formats = semantic_categories.get(cat_key)
         if cat_formats:
             filtered_mapping = {k: v for k, v in formats.items() if k in cat_formats}

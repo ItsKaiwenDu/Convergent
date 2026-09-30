@@ -101,11 +101,12 @@ def convert_office(source, target_ext):
                     pass
 
             # Try converting using typst as PDF engine first, as typst is fast and clean
-            success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst"])
+            res_path = str(source.parent.resolve())
+            success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=str(source.parent))
             if success:
                 return True, ""
             # Fallback to default pandoc behavior (which usually uses LaTeX/pdflatex)
-            success_fb, err_fb = run_command(["pandoc", str(temp_src), "-o", str(temp_out)])
+            success_fb, err_fb = run_command(["pandoc", str(temp_src), "-o", str(temp_out), f"--resource-path={res_path}"], cwd=str(source.parent))
             if success_fb:
                 return True, ""
             return False, err or err_fb
@@ -125,8 +126,8 @@ def convert_office(source, target_ext):
         output = source.with_suffix(".html")
 
         def run_conv(temp_src, temp_out):
-            # Try Pandoc first for clean standalone HTML
-            success, err = run_command(["pandoc", "-s", str(temp_src), "-o", str(temp_out)])
+            res_path = str(source.parent.resolve())
+            success, err = run_command(["pandoc", "-s", "--embed-resources", "--standalone", f"--resource-path={res_path}", str(temp_src), "-o", str(temp_out)], cwd=str(source.parent))
             if success:
                 return True, ""
 
@@ -162,7 +163,8 @@ def convert_markdown(source, target_ext, md_pdf_mode=None):
     
     if target_ext == "HTML":
         def run_conv(temp_src, temp_out):
-            return run_command(["pandoc", "-s", str(temp_src), "-o", str(temp_out)])
+            res_path = str(source.parent.resolve())
+            return run_command(["pandoc", "-s", "--embed-resources", "--standalone", f"--resource-path={res_path}", str(temp_src), "-o", str(temp_out)], cwd=str(source.parent))
             
         success, err = convert_with_temp_files(source, output, run_conv)
         if success:
@@ -205,13 +207,14 @@ def convert_markdown(source, target_ext, md_pdf_mode=None):
             return False, f"Raw PDF conversion failed: {err}"
         else:
             def run_conv(temp_src, temp_out):
+                res_path = str(source.parent.resolve())
                 # First try pandoc with typst PDF engine
-                success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst"])
+                success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=str(source.parent))
                 if success:
                     return True, ""
                 
                 # Direct fallback to typst compile
-                success_fb, err_fb = run_command(["typst", "compile", str(temp_src), str(temp_out)])
+                success_fb, err_fb = run_command(["typst", "compile", "--root", res_path, str(temp_src), str(temp_out)], cwd=str(source.parent))
                 if success_fb:
                     return True, ""
                 return False, err or err_fb
@@ -287,7 +290,8 @@ def convert_html(source, target_ext, **kwargs):
                     pass
 
             # 3. Fallback: pandoc with typst PDF engine
-            success_typst, err_typst = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst"])
+            res_path = str(source.parent.resolve())
+            success_typst, err_typst = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=str(source.parent))
             if success_typst and temp_out.exists() and temp_out.stat().st_size > 0:
                 return True, ""
 

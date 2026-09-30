@@ -101,17 +101,18 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
     }
     
     # 1. Target Aspect Ratio Cropping Dimensions
-    if target_aspect in aspect_map:
-        aspect = aspect_map[target_aspect]
-        orig_aspect = w / h
-        if orig_aspect > aspect:
-            # Original is wider than target aspect ratio -> Crop width
-            h_crop = h
-            w_crop = int(round(h * aspect))
+    if target_aspect and str(target_aspect) not in ('5', 'none', 'auto'):
+        if str(target_aspect) in aspect_map:
+            aspect = aspect_map[str(target_aspect)]
+            orig_aspect = w / h
+            if orig_aspect > aspect:
+                h_crop = h
+                w_crop = int(round(h * aspect))
+            else:
+                w_crop = w
+                h_crop = int(round(w / aspect))
         else:
-            # Original is taller than target aspect ratio -> Crop height
-            w_crop = w
-            h_crop = int(round(w / aspect))
+            raise ValueError(f"Invalid target aspect ratio: {target_aspect}. Supported: 16:9, 4:3, 1:1, 9:16")
     else:
         w_crop = w
         h_crop = h
@@ -119,18 +120,26 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
     # 2. Scale Calculations
     if method == '1':
         # Scale by Percentage
+        if scale_val is None or scale_val <= 0:
+            raise ValueError(f"Scale percentage must be greater than 0, got {scale_val}")
         p = scale_val / 100.0
         w_final = int(round(w_crop * p))
         h_final = int(round(h_crop * p))
     elif method == '2':
         # Set Target Height
+        if scale_val is None or scale_val <= 0:
+            raise ValueError(f"Target height must be greater than 0, got {scale_val}")
         h_final = scale_val
         w_final = int(round(scale_val * (w_crop / h_crop)))
     elif method == '3':
         # Custom width and height
-        w_final, h_final = scale_val
+        if not scale_val or len(scale_val) < 2 or scale_val[0] <= 0 or scale_val[1] <= 0:
+            raise ValueError(f"Target dimensions must be greater than 0, got {scale_val}")
+        w_final, h_final = scale_val[0], scale_val[1]
     elif method == 'w':
         # Set Target Width (proportional height)
+        if scale_val is None or scale_val <= 0:
+            raise ValueError(f"Target width must be greater than 0, got {scale_val}")
         w_final = scale_val
         h_final = int(round(scale_val * (h_crop / w_crop)))
     else:
@@ -157,7 +166,11 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
         duration = time.perf_counter() - start_time
         return f.name, False, "Could not determine original dimensions", duration
 
-    w_crop, h_crop, w_final, h_final = calculate_crop_and_scale(w, h, method, scale_val, target_aspect)
+    try:
+        w_crop, h_crop, w_final, h_final = calculate_crop_and_scale(w, h, method, scale_val, target_aspect)
+    except ValueError as e:
+        duration = time.perf_counter() - start_time
+        return f.name, False, str(e), duration
     
     if is_video:
         w_crop = make_even(w_crop)
@@ -178,12 +191,7 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
         output = f.parent / f"{f.stem}_resized{f.suffix}"
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    is_inplace = (output.resolve() == f.resolve())
-    if is_inplace:
-        actual_output = output.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output.name}"
-    else:
-        actual_output = output
-        send_to_trash(output)
+    actual_output = output.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output.name}"
 
     success = False
     error = ""
@@ -223,11 +231,19 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
         cmd.append(str(actual_output))
         success, error = run_command(cmd)
 
-    if success:
-        if is_inplace and actual_output.exists():
+    if success and actual_output.exists():
+        try:
             os.replace(str(actual_output), str(output))
+        except Exception as e:
+            if actual_output.exists():
+                try:
+                    actual_output.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            success = False
+            error = str(e)
     else:
-        if is_inplace and actual_output.exists():
+        if actual_output.exists():
             try:
                 actual_output.unlink(missing_ok=True)
             except Exception:

@@ -163,7 +163,7 @@ def get_expected_output_path(source_file: Path, target_format: str, output_dir: 
     return parent / f"{source_file.stem}.{target_upper.lower()}"
 
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None, explicit_output_file=None):
     """
     Processes a single file conversion using provided Converter instance.
     """
@@ -181,14 +181,13 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
         else:
             return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
-    # Determine whether destination directory is distinct from source directory
-    output_file = get_expected_output_path(f, target_format, output_dir=output_dir)
-    out_dir_resolved = Path(os.path.expanduser(str(output_dir))).resolve() if output_dir else None
-    is_distinct_dest = (out_dir_resolved is not None and out_dir_resolved != f.parent.resolve())
-
-    # Only trash destination file up front if converting within the same folder
-    if not is_distinct_dest and output_file.is_file() and output_file.resolve() != f.resolve():
-        send_to_trash(output_file)
+    if explicit_output_file:
+        output_file = Path(os.path.expanduser(str(explicit_output_file))).resolve()
+        is_distinct_dest = True
+    else:
+        output_file = get_expected_output_path(f, target_format, output_dir=output_dir)
+        out_dir_resolved = Path(os.path.expanduser(str(output_dir))).resolve() if output_dir else None
+        is_distinct_dest = (out_dir_resolved is not None and out_dir_resolved != f.parent.resolve())
 
     success = False
     error = ""
@@ -600,6 +599,22 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         converted_files = []
         failed_files = []
         completed_files = set()
+
+        dest_counts = {}
+        for f in files:
+            target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+            dest_counts[target] = dest_counts.get(target, 0) + 1
+
+        colliding_targets = {t for t, count in dest_counts.items() if count > 1}
+        target_map = {}
+        for f in files:
+            base_target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+            if base_target in colliding_targets:
+                src_ext = f.suffix.lstrip(".").lower()
+                disambiguated_name = f"{f.stem}_{src_ext}{base_target.suffix}"
+                target_map[f] = base_target.parent / disambiguated_name
+            else:
+                target_map[f] = base_target
         
         if HAS_RICH:
             actual_source_formats = sorted(list(set(f.suffix.lower()[1:].upper() for f in files if f.suffix)))
@@ -620,7 +635,14 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
                     proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
-                    futures = {executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **proc_kwargs): f for f in files}
+                    futures = {}
+                    for f in files:
+                        exp_target = target_map.get(f)
+                        kw = dict(proc_kwargs)
+                        if exp_target and exp_target != get_expected_output_path(f, target_format, output_dir=out_dir_path):
+                            kw["explicit_output_file"] = exp_target
+                        fut = executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **kw)
+                        futures[fut] = f
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
@@ -629,7 +651,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             name, success, error, duration = future.result()
                             if success:
                                 success_count += 1
-                                out_path = get_expected_output_path(orig_file, target_format, output_dir=out_dir_path)
+                                out_path = target_map.get(orig_file, get_expected_output_path(orig_file, target_format, output_dir=out_dir_path))
                                 converted_files.append(out_path)
                                 if isinstance(success_map, dict):
                                     if out_path.resolve() != orig_file.resolve():
@@ -679,11 +701,14 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             # Fallback for systems without rich
             for f in files:
                 completed_files.add(f)
+                exp_target = target_map.get(f)
                 proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
+                if exp_target and exp_target != get_expected_output_path(f, target_format, output_dir=out_dir_path):
+                    proc_kwargs["explicit_output_file"] = exp_target
                 name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **proc_kwargs)
                 if success:
                     success_count += 1
-                    out_path = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+                    out_path = exp_target or get_expected_output_path(f, target_format, output_dir=out_dir_path)
                     converted_files.append(out_path)
                     if isinstance(success_map, dict):
                         if out_path.resolve() != f.resolve():

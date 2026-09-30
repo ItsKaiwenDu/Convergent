@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import shutil
 import subprocess
 from pathlib import Path
 from customs.file_process import get_convergent_tmp_dir
@@ -40,12 +41,20 @@ def get_pdf_page_count(path):
 def get_media_duration(path):
     try:
         cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL, text=True)
         if result.returncode == 0 and result.stdout.strip():
             return float(result.stdout.strip())
     except:
         pass
     return 0.0
+
+def has_audio_stream(path):
+    try:
+        cmd = ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path)]
+        result = subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL, text=True)
+        return result.returncode == 0 and "audio" in result.stdout.lower()
+    except:
+        return False
 
 def format_seconds(seconds):
     h = int(seconds // 3600)
@@ -205,14 +214,38 @@ def combine_pdfs(paths, output_path=None, interactive=True):
     else:
         dest_path = resolve_output_path(output_path, base_dir, "combined.pdf")
 
-    send_to_trash(dest_path)
-    cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={dest_path}", "-dBATCH"] + [str(f) for f in pdf_files]
+    dest_path_resolved = dest_path.resolve()
+    if any(f.resolve() == dest_path_resolved for f in pdf_files):
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        if interactive:
+            console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
+        return None
+
+    tmp_dest = dest_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{dest_path.name}"
+    cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={tmp_dest}", "-dBATCH"] + [str(f) for f in pdf_files]
     success, error = run_command(cmd)
-    if success:
+    if success and tmp_dest.exists():
+        try:
+            shutil.move(str(tmp_dest), str(dest_path))
+        except Exception as e:
+            if tmp_dest.exists():
+                try:
+                    tmp_dest.unlink()
+                except Exception:
+                    pass
+            LAST_COMBINE_ERROR = str(e)
+            return None
         if interactive:
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        if tmp_dest.exists():
+            try:
+                tmp_dest.unlink()
+            except Exception:
+                pass
+        LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine PDFs"
         if interactive:
             console.print(f"[bold red]FAILED to combine PDFs[/bold red]")
             if "command not found" in error:
@@ -368,7 +401,47 @@ def combine_videos(paths, output_path=None, interactive=True):
     else:
         dest_path = resolve_output_path(output_path, base_dir, f"combined{out_ext}")
 
-    send_to_trash(dest_path)
+    dest_path_resolved = dest_path.resolve()
+    if any(vf.resolve() == dest_path_resolved for vf in video_files):
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        if interactive:
+            console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
+        return None
+
+    tmp_dest = dest_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{dest_path.name}"
+
+    def run_filter_complex_concat():
+        input_args = []
+        filter_chains = []
+        concat_inputs = []
+        any_audio = any(has_audio_stream(vf) for vf in video_files)
+
+        for idx, vf in enumerate(video_files):
+            input_args.extend(["-i", str(vf.resolve())])
+            filter_chains.append(
+                f"[{idx}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v{idx}]"
+            )
+            if any_audio:
+                if has_audio_stream(vf):
+                    filter_chains.append(f"[{idx}:a]aformat=sample_rates=44100:channel_layouts=stereo[a{idx}]")
+                else:
+                    dur = get_media_duration(str(vf))
+                    dur_val = max(dur, 0.1)
+                    filter_chains.append(f"anullsrc=channel_layout=stereo:sample_rate=44100:d={dur_val:.3f}[a{idx}]")
+                concat_inputs.append(f"[v{idx}][a{idx}]")
+            else:
+                concat_inputs.append(f"[v{idx}]")
+
+        a_flag = 1 if any_audio else 0
+        filter_chains.append(f"{''.join(concat_inputs)}concat=n={len(video_files)}:v=1:a={a_flag}[outv]" + ("[outa]" if any_audio else ""))
+        filter_str = ";".join(filter_chains)
+
+        cmd = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outv]"]
+        if any_audio:
+            cmd += ["-map", "[outa]", "-c:a", "aac"]
+        cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", "-loglevel", "error", str(tmp_dest)]
+        return run_command(cmd)
 
     is_mixed_video = len({vf.suffix.lower() for vf in video_files}) > 1
     temp_txt_path = get_convergent_tmp_dir() / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
@@ -379,7 +452,6 @@ def combine_videos(paths, output_path=None, interactive=True):
                 escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
     except Exception as e:
-        global LAST_COMBINE_ERROR
         LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
         if interactive:
             console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
@@ -387,28 +459,39 @@ def combine_videos(paths, output_path=None, interactive=True):
 
     try:
         if is_mixed_video:
-            # When mixing video formats/containers, re-encode directly to ensure proper stream synchronization
-            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
-            success, error = run_command(cmd)
+            success, error = run_filter_complex_concat()
         else:
-            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
+            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(tmp_dest)]
             success, error = run_command(cmd)
             if not success:
-                # Fallback to re-encoding if stream copy fails (e.g., mixed codecs or differing resolutions)
-                cmd_reencode = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
-                success, error = run_command(cmd_reencode)
+                success, error = run_filter_complex_concat()
     finally:
         if temp_txt_path.exists():
             try:
                 temp_txt_path.unlink()
-            except:
+            except Exception:
                 pass
 
-    if success:
+    if success and tmp_dest.exists():
+        try:
+            shutil.move(str(tmp_dest), str(dest_path))
+        except Exception as e:
+            if tmp_dest.exists():
+                try:
+                    tmp_dest.unlink()
+                except Exception:
+                    pass
+            LAST_COMBINE_ERROR = str(e)
+            return None
         if interactive:
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        if tmp_dest.exists():
+            try:
+                tmp_dest.unlink()
+            except Exception:
+                pass
         LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine videos"
         if interactive:
             console.print(f"[bold red]FAILED to combine videos[/bold red]")
@@ -527,7 +610,15 @@ def combine_audios(paths, output_path=None, interactive=True):
     else:
         dest_path = resolve_output_path(output_path, base_dir, f"combined{out_ext}")
 
-    send_to_trash(dest_path)
+    dest_path_resolved = dest_path.resolve()
+    if any(af.resolve() == dest_path_resolved for af in audio_files):
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        if interactive:
+            console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
+        return None
+
+    tmp_dest = dest_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{dest_path.name}"
 
     is_mixed_audio = len({af.suffix.lower() for af in audio_files}) > 1
     success = False
@@ -541,7 +632,7 @@ def combine_audios(paths, output_path=None, interactive=True):
             input_args.extend(["-i", str(af.resolve())])
             filter_inputs.append(f"[{idx}:a]")
         filter_str = f"{''.join(filter_inputs)}concat=n={len(audio_files)}:v=0:a=1[outa]"
-        cmd = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outa]", "-y", "-loglevel", "error", str(dest_path)]
+        cmd = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outa]", "-y", "-loglevel", "error", str(tmp_dest)]
         success, error = run_command(cmd)
     else:
         # Same format: try concat demuxer with -c copy first for fast lossless concatenation
@@ -553,14 +644,13 @@ def combine_audios(paths, output_path=None, interactive=True):
                     escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
                     f.write(f"file '{escaped_path}'\n")
         except Exception as e:
-            global LAST_COMBINE_ERROR
             LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
             if interactive:
                 console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
             return None
 
         try:
-            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(dest_path)]
+            cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-c", "copy", "-y", "-loglevel", "error", str(tmp_dest)]
             success, error = run_command(cmd)
             if not success:
                 # Fallback to filter_complex concat if demuxer fails
@@ -570,20 +660,35 @@ def combine_audios(paths, output_path=None, interactive=True):
                     input_args.extend(["-i", str(af.resolve())])
                     filter_inputs.append(f"[{idx}:a]")
                 filter_str = f"{''.join(filter_inputs)}concat=n={len(audio_files)}:v=0:a=1[outa]"
-                cmd_reencode = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outa]", "-y", "-loglevel", "error", str(dest_path)]
+                cmd_reencode = ["ffmpeg"] + input_args + ["-filter_complex", filter_str, "-map", "[outa]", "-y", "-loglevel", "error", str(tmp_dest)]
                 success, error = run_command(cmd_reencode)
         finally:
             if temp_txt_path.exists():
                 try:
                     temp_txt_path.unlink()
-                except:
+                except Exception:
                     pass
 
-    if success:
+    if success and tmp_dest.exists():
+        try:
+            shutil.move(str(tmp_dest), str(dest_path))
+        except Exception as e:
+            if tmp_dest.exists():
+                try:
+                    tmp_dest.unlink()
+                except Exception:
+                    pass
+            LAST_COMBINE_ERROR = str(e)
+            return None
         if interactive:
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        if tmp_dest.exists():
+            try:
+                tmp_dest.unlink()
+            except Exception:
+                pass
         LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine audios"
         if interactive:
             console.print(f"[bold red]FAILED to combine audios[/bold red]")
@@ -699,7 +804,15 @@ def combine_gifs(paths, output_path=None, interactive=True):
     else:
         dest_path = resolve_output_path(output_path, base_dir, "combined.gif")
 
-    send_to_trash(dest_path)
+    dest_path_resolved = dest_path.resolve()
+    if any(gf.resolve() == dest_path_resolved for gf in gif_files):
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        if interactive:
+            console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
+        return None
+
+    tmp_dest = dest_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{dest_path.name}"
 
     temp_txt_path = base_dir / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
     try:
@@ -709,27 +822,41 @@ def combine_gifs(paths, output_path=None, interactive=True):
                 escaped_path = abs_path.replace("\\", "\\\\").replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
     except Exception as e:
-        global LAST_COMBINE_ERROR
         LAST_COMBINE_ERROR = f"Failed to create temporary file for combination: {e}"
         if interactive:
             console.print(f"[bold red]FAILED to create temporary file for combination: {e}[/bold red]")
         return None
 
     try:
-        cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(dest_path)]
+        cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", str(temp_txt_path), "-y", "-loglevel", "error", str(tmp_dest)]
         success, error = run_command(cmd)
     finally:
         if temp_txt_path.exists():
             try:
                 temp_txt_path.unlink()
-            except:
+            except Exception:
                 pass
 
-    if success:
+    if success and tmp_dest.exists():
+        try:
+            shutil.move(str(tmp_dest), str(dest_path))
+        except Exception as e:
+            if tmp_dest.exists():
+                try:
+                    tmp_dest.unlink()
+                except Exception:
+                    pass
+            LAST_COMBINE_ERROR = str(e)
+            return None
         if interactive:
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     else:
+        if tmp_dest.exists():
+            try:
+                tmp_dest.unlink()
+            except Exception:
+                pass
         LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine GIFs"
         if interactive:
             console.print(f"[bold red]FAILED to combine GIFs[/bold red]")
@@ -890,16 +1017,40 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
         else:
             dest_path = resolve_output_path(output_path, base_dir, "combined.pdf")
 
-        send_to_trash(dest_path)
+        dest_path_resolved = dest_path.resolve()
+        if any(of.resolve() == dest_path_resolved for of in office_files):
+            global LAST_COMBINE_ERROR
+            LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+            if interactive:
+                console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
+            return None
+
+        tmp_dest = dest_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{dest_path.name}"
         
         pdf_files = [item["temp_pdf"] for item in pdf_details]
-        cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={dest_path}", "-dBATCH"] + [str(f) for f in pdf_files]
+        cmd = ["gs", "-dNOPAUSE", "-sDEVICE=pdfwrite", f"-sOUTPUTFILE={tmp_dest}", "-dBATCH"] + [str(f) for f in pdf_files]
         success, error = run_command(cmd)
-        if success:
+        if success and tmp_dest.exists():
+            try:
+                shutil.move(str(tmp_dest), str(dest_path))
+            except Exception as e:
+                if tmp_dest.exists():
+                    try:
+                        tmp_dest.unlink()
+                    except Exception:
+                        pass
+                LAST_COMBINE_ERROR = str(e)
+                return None
             if interactive:
                 console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
             return dest_path
         else:
+            if tmp_dest.exists():
+                try:
+                    tmp_dest.unlink()
+                except Exception:
+                    pass
+            LAST_COMBINE_ERROR = error.strip() if error else "Failed to combine PDFs"
             if interactive:
                 console.print(f"[bold red]FAILED to combine PDFs[/bold red]")
                 if "command not found" in error:
@@ -1043,20 +1194,35 @@ def combine_txt(paths, output_path=None, interactive=True):
     else:
         dest_path = resolve_output_path(output_path, base_dir, "combined.txt")
 
-    send_to_trash(dest_path)
+    dest_path_resolved = dest_path.resolve()
+    if any(tf.resolve() == dest_path_resolved for tf in txt_files):
+        global LAST_COMBINE_ERROR
+        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        if interactive:
+            console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
+        return None
+
+    tmp_dest = dest_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{dest_path.name}"
 
     try:
-        with open(dest_path, "w", encoding="utf-8") as outfile:
+        with open(tmp_dest, "w", encoding="utf-8") as outfile:
             for tf in txt_files:
                 with open(tf, "r", encoding="utf-8", errors="ignore") as infile:
                     content = infile.read()
                     outfile.write(content)
                     if content and not content.endswith("\n"):
                         outfile.write("\n")
+        shutil.move(str(tmp_dest), str(dest_path))
         if interactive:
             console.print(f"[bold green]Successfully combined into {dest_path.name}[/bold green]")
         return dest_path
     except Exception as e:
+        if tmp_dest.exists():
+            try:
+                tmp_dest.unlink()
+            except Exception:
+                pass
+        LAST_COMBINE_ERROR = f"Failed to combine TXT files: {e}"
         if interactive:
             console.print(f"[bold red]FAILED to combine TXT files: {e}[/bold red]")
         return None

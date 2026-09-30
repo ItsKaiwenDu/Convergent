@@ -1,4 +1,5 @@
 import os
+import uuid
 import subprocess
 import shutil
 from pathlib import Path
@@ -22,6 +23,9 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
     if not valid_paths:
         return False, "No valid paths provided for compression.", None
     
+    if password and format_choice.startswith("TAR"):
+        return False, "TAR archives do not support password encryption. Use ZIP or 7Z for password-protected archives.", None
+
     if format_choice == "ZIP" and not output_name.lower().endswith(".zip"):
         output_name += ".zip"
     elif format_choice == "TAR.GZ" and not (output_name.lower().endswith(".tar.gz") or output_name.lower().endswith(".tgz")):
@@ -40,15 +44,16 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
         output_path = out_name_path
     elif output_dir:
         dest_dir = Path(os.path.expanduser(str(output_dir))).resolve()
-        if dest_dir.is_dir() or str(output_dir).endswith(os.sep) or str(output_dir).endswith("/"):
-            output_path = dest_dir / output_name
-        else:
-            output_path = dest_dir
+        output_path = dest_dir / output_name
     else:
         output_path = valid_paths[0].parent / output_name
 
+    output_path = output_path.resolve()
+    if any(p.resolve() == output_path for p in valid_paths):
+        return False, "Output archive cannot be one of the input files to compress.", None
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    send_to_trash(output_path)
+    tmp_output = output_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output_path.name}"
     cwd = valid_paths[0].parent
     
     # Use relative paths for command to avoid absolute paths in archive
@@ -84,25 +89,46 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
 
     if format_choice == "ZIP":
         if password:
-            cmd = ["zip", "-P", password, "-r", str(output_path)] + rel_paths
+            cmd = ["zip", "-P", password, "-r", str(tmp_output)] + rel_paths
         else:
-            cmd = ["zip", "-r", str(output_path)] + rel_paths
+            cmd = ["zip", "-r", str(tmp_output)] + rel_paths
     elif format_choice == "TAR.GZ":
-        cmd = ["tar", "-czf", str(output_path)] + rel_paths
+        cmd = ["tar", "-czf", str(tmp_output)] + rel_paths
     elif format_choice == "TAR.BZ2":
-        cmd = ["tar", "-cjf", str(output_path)] + rel_paths
+        cmd = ["tar", "-cjf", str(tmp_output)] + rel_paths
     elif format_choice == "TAR.XZ":
-        cmd = ["tar", "-cJf", str(output_path)] + rel_paths
+        cmd = ["tar", "-cJf", str(tmp_output)] + rel_paths
     elif format_choice == "7Z":
-        cmd = [sevenzip_exec, "a", str(output_path)] + rel_paths
+        cmd = [sevenzip_exec, "a", str(tmp_output)] + rel_paths
         if password:
             cmd.insert(2, f"-p{password}")
+        else:
+            cmd.insert(2, "-p-")
     elif format_choice == "RAR":
-        cmd = ["rar", "a", str(output_path)] + rel_paths
+        cmd = ["rar", "a", str(tmp_output)] + rel_paths
         if password:
             cmd.insert(2, f"-p{password}")
+        else:
+            cmd.insert(2, "-p-")
     else:
         return False, f"Unsupported format: {format_choice}", None
 
     success, error = run_command(cmd, cwd=cwd)
-    return success, error, output_path
+    if success and tmp_output.exists():
+        try:
+            shutil.move(str(tmp_output), str(output_path))
+            return True, "", output_path
+        except Exception as e:
+            if tmp_output.exists():
+                try:
+                    tmp_output.unlink()
+                except Exception:
+                    pass
+            return False, str(e), None
+    else:
+        if tmp_output.exists():
+            try:
+                tmp_output.unlink()
+            except Exception:
+                pass
+        return False, error or "Compression failed", None

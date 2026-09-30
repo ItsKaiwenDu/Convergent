@@ -15,11 +15,13 @@ def run_command(cmd, cwd=None):
         tuple: (success (bool), error_message (str))
     """
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+        result = subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL, text=True, cwd=cwd)
         if result.returncode == 0:
             return True, ""
         else:
             err_msg = result.stderr.strip() or result.stdout.strip()
+            if len(err_msg) > 1500:
+                err_msg = err_msg[-1500:]
             return False, err_msg
     except FileNotFoundError:
         return False, f"Command not found: {cmd[0]}"
@@ -49,7 +51,7 @@ def send_to_trash(path):
     if sys.platform == "darwin":
         # Attempt using `trash` CLI utility
         try:
-            result = subprocess.run(["trash", str(path)], capture_output=True, text=True)
+            result = subprocess.run(["trash", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True)
             if result.returncode == 0:
                 try:
                     from customs.console import console
@@ -66,7 +68,7 @@ def send_to_trash(path):
         try:
             escaped_path = str(path).replace('\\', '\\\\').replace('"', '\\"')
             applescript = f'tell application "Finder" to delete POSIX file "{escaped_path}"'
-            result = subprocess.run(["osascript", "-e", applescript], capture_output=True, text=True)
+            result = subprocess.run(["osascript", "-e", applescript], capture_output=True, stdin=subprocess.DEVNULL, text=True)
             if result.returncode == 0:
                 try:
                     from customs.console import console
@@ -82,7 +84,7 @@ def send_to_trash(path):
     elif sys.platform.startswith("linux"):
         # Attempt using `gio trash`
         try:
-            result = subprocess.run(["gio", "trash", str(path)], capture_output=True, text=True)
+            result = subprocess.run(["gio", "trash", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True)
             if result.returncode == 0:
                 try:
                     from customs.console import console
@@ -97,7 +99,7 @@ def send_to_trash(path):
 
         # Fallback to `trash-put` from trash-cli
         try:
-            result = subprocess.run(["trash-put", str(path)], capture_output=True, text=True)
+            result = subprocess.run(["trash-put", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True)
             if result.returncode == 0:
                 try:
                     from customs.console import console

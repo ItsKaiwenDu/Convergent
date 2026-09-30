@@ -13,7 +13,23 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
 
     if target_upper in ("MP4", "MOV", "MKV"):
         encoder, extra_flags, mode_tag = get_video_encoder(target_upper, hwaccel)
+        if bitrate:
+            filtered_flags = []
+            skip_next = False
+            for flag in extra_flags:
+                if skip_next:
+                    skip_next = False
+                    continue
+                if flag == "-b:v":
+                    skip_next = True
+                    continue
+                filtered_flags.append(flag)
+            extra_flags = filtered_flags
         cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "aac"]
+        if fps:
+            cmd += ["-r", str(fps)]
+        if bitrate:
+            cmd += ["-b:v", str(bitrate)]
         cmd.append(str(output))
 
         success, err = run_command(cmd)
@@ -25,8 +41,13 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
             fallback_cmd = [
                 "ffmpeg", "-i", str(source), "-y", "-loglevel", "error",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
-                "-strict", "experimental", str(output)
+                "-strict", "experimental"
             ]
+            if fps:
+                fallback_cmd += ["-r", str(fps)]
+            if bitrate:
+                fallback_cmd += ["-b:v", str(bitrate)]
+            fallback_cmd.append(str(output))
             success_fb, err_fb = run_command(fallback_cmd)
             if success_fb:
                 return True, ""
@@ -34,7 +55,14 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
         return False, err
 
     elif target_upper == "WEBM":
-        cmd += ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-c:a", "libopus"]
+        if bitrate:
+            cmd += ["-c:v", "libvpx-vp9", "-c:a", "libopus"]
+        else:
+            cmd += ["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-c:a", "libopus"]
+        if fps:
+            cmd += ["-r", str(fps)]
+        if bitrate:
+            cmd += ["-b:v", str(bitrate)]
     elif target_upper == "GIF":
         vf = "scale=480:-1:flags=lanczos"
         if fps:
@@ -56,6 +84,8 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
             cmd += ["-vn", "-c:a", "aac", "-b:a", "192k"]
     elif target_upper == "FLAC":
         cmd += ["-vn", "-c:a", "flac"]
+    elif target_upper == "OGG":
+        cmd += ["-vn", "-c:a", "libvorbis"]
 
     cmd.append(str(output))
     return run_command(cmd)

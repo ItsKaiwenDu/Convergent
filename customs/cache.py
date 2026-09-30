@@ -239,6 +239,13 @@ class CacheManager:
                 self.delete_entry(key)
                 return False, "expired"
 
+        if entry.get("out_path"):
+            try:
+                if Path(entry["out_path"]).resolve() != out_path.resolve():
+                    return False, "output path mismatch"
+            except Exception:
+                return False, "output path mismatch"
+
         # Check output existence (file or dir for PDF->images)
         try:
             if not out_path.exists():
@@ -279,7 +286,9 @@ class CacheManager:
                 hash_preview = entry["src_hash"][:8] if entry["src_hash"] else "...."
                 return True, f"blake2b:{hash_preview}..."
 
-        # Slow path: compute current file hash (partial for large)
+        if cur_size > PARTIAL_THRESHOLD and abs((entry.get("src_mtime") or 0.0) - cur_mtime) >= 0.001:
+            return False, "mtime changed"
+
         cur_hash, _, _ = get_file_fingerprint(src_path)
         if not cur_hash:
             return False, "hash fail"
