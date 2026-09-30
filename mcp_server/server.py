@@ -13,16 +13,31 @@ import time
 import json
 import shutil
 import tempfile
+import asyncio
+import zipfile
+import tarfile
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-# Ensure repository root is in sys.path
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 try:
     from mcp.server.fastmcp import FastMCP
+    from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
+    _orig_call_fn = FuncMetadata.call_fn_with_arg_validation
+
+    async def _async_call_fn_with_arg_validation(self, fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
+        if fn_is_async:
+            return await _orig_call_fn(self, fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly)
+        arguments_pre_parsed = self.pre_parse_json(arguments_to_validate)
+        arguments_parsed_model = self.arg_model.model_validate(arguments_pre_parsed)
+        arguments_parsed_dict = arguments_parsed_model.model_dump_one_level()
+        arguments_parsed_dict |= arguments_to_pass_directly or {}
+        return await asyncio.to_thread(fn, **arguments_parsed_dict)
+
+    FuncMetadata.call_fn_with_arg_validation = _async_call_fn_with_arg_validation
 except ModuleNotFoundError as exc:
     if exc.name == "mcp":
         raise SystemExit("MCP support is optional. Install it with: make setup-mcp") from exc
@@ -205,6 +220,15 @@ def convergent_convert(
             pass
 
     if output_path and not is_dest_dir:
+        if dest_target and (dest_target.exists() or dest_target.is_symlink()) and not overwrite:
+            return {
+                "success": False,
+                "error": f"Destination already exists: {dest_target}. Choose another output path or set overwrite=True.",
+                "converted_files": [],
+                "count": 0,
+                "failed_files": [],
+                "target_format": target_fmt,
+            }
         temp_stage_dir = tempfile.TemporaryDirectory()
         conv_output_dir = Path(temp_stage_dir.name)
 
@@ -301,7 +325,7 @@ def convergent_convert(
         return {
             "success": False,
             "error": str(e),
-            "converted_files": [str(p) for p in (converted if 'converted' in locals() and converted else list(success_map.keys()))],
+            "converted_files": [],
             "failed_files": failed_details,
         }
     finally:
@@ -703,7 +727,53 @@ def split_file(
 
     ext = Path(full_path).suffix.lower()
 
-    # Auto-resolve mode if auto or mismatched
+    if mode and mode.lower() not in ('auto', 'pages', 'interval', 'ranges', 'parts', 'frames'):
+        return {"success": False, "error": f"Invalid mode: '{mode}'. Allowed modes: 'auto', 'pages', 'interval', 'ranges', 'parts', 'frames'"}
+
+    if num_parts is not None:
+        try:
+            num_parts_val = int(num_parts)
+            if num_parts_val <= 0:
+                return {"success": False, "error": f"Invalid num_parts: {num_parts}. Must be an integer greater than 0."}
+        except (ValueError, TypeError):
+            return {"success": False, "error": f"Invalid num_parts: {num_parts}. Must be an integer."}
+
+    if interval is not None:
+        try:
+            interval_val = float(interval)
+            if interval_val <= 0:
+                return {"success": False, "error": f"Invalid interval: {interval}. Must be greater than 0."}
+        except (ValueError, TypeError):
+            return {"success": False, "error": f"Invalid interval: {interval}."}
+
+    warnings = []
+    if ranges is not None and ext == ".pdf":
+        from modules.split import get_pdf_page_count
+        total_pages = get_pdf_page_count(full_path)
+        parts = [p.strip() for p in ranges.split(',')] if isinstance(ranges, str) else list(ranges)
+        valid_ranges = []
+        for p in parts:
+            valid_entry = False
+            try:
+                if isinstance(p, (list, tuple)) and len(p) == 2:
+                    s, e = int(p[0]), int(p[1])
+                elif isinstance(p, str) and '-' in p:
+                    s_str, e_str = p.split('-', 1)
+                    s, e = int(s_str.strip()), int(e_str.strip())
+                elif isinstance(p, (int, str)) and str(p).isdigit():
+                    s = e = int(p)
+                else:
+                    s, e = None, None
+                if s is not None and e is not None and 1 <= s <= total_pages and 1 <= e <= total_pages and s <= e:
+                    valid_entry = True
+                    valid_ranges.append((s, e))
+            except Exception:
+                valid_entry = False
+            if not valid_entry:
+                warnings.append(f"Invalid or out-of-bounds range dropped: {p}")
+        if not valid_ranges and parts:
+            return {"success": False, "error": f"No valid ranges provided. Rejected ranges: {', '.join(str(p) for p in parts)}"}
+
     effective_mode = mode.lower() if mode else "auto"
     if effective_mode == "auto":
         if ext in (".mp4", ".mov", ".mkv", ".avi", ".webm", ".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
@@ -778,7 +848,7 @@ def split_file(
 
             is_truncated = total_count > 50
             returned_files = files[:50] if is_truncated else files
-            return {
+            res_dict = {
                 "success": True,
                 "output_dir": str(out_path_obj),
                 "split_files": returned_files,
@@ -786,6 +856,9 @@ def split_file(
                 "truncated": is_truncated,
                 "message": f"Successfully split {file_path} into {total_count} files." + (" (showing first 50)" if is_truncated else ""),
             }
+            if warnings:
+                res_dict["warnings"] = warnings
+            return res_dict
         else:
             return {"success": False, "error": f"Failed to split {file_path}."}
     except Exception as e:
@@ -882,6 +955,17 @@ def decompress_archive(
     if not os.path.exists(full_path):
         return {"success": False, "error": f"Archive file not found: {archive_path}"}
 
+    archive_member_count = None
+    try:
+        if zipfile.is_zipfile(full_path):
+            with zipfile.ZipFile(full_path, 'r') as zf:
+                archive_member_count = len([m for m in zf.namelist() if not m.endswith('/')])
+        elif tarfile.is_tarfile(full_path):
+            with tarfile.open(full_path, 'r') as tf:
+                archive_member_count = len([m for m in tf.getmembers() if m.isfile()])
+    except Exception:
+        archive_member_count = None
+
     start_decompress = time.time()
     dest_path_obj = Path(os.path.expanduser(output_dir)).resolve() if output_dir else Path(full_path).parent / Path(full_path).stem
     pre_existing_extracted = {}
@@ -898,7 +982,10 @@ def decompress_archive(
             out_p = Path(out_dir)
             all_files = [f for f in sorted(out_p.rglob("*")) if f.is_file()]
             new_extracted = [f for f in all_files if f.resolve() not in pre_existing_extracted or f.stat().st_mtime > pre_existing_extracted[f.resolve()]]
-            count = len(new_extracted) if new_extracted else len(all_files)
+            if archive_member_count is not None:
+                count = archive_member_count
+            else:
+                count = len(new_extracted)
             return {
                 "success": True,
                 "output_dir": str(out_p),
@@ -943,21 +1030,43 @@ def resize_media(
     if not full_path.exists():
         return {"success": False, "error": f"File not found: {file_path}"}
 
-    # Determine method and scale_val
-    if width and height:
+    if width is not None:
+        try:
+            width_val = int(width)
+            if width_val <= 0:
+                return {"success": False, "error": f"Invalid width: {width}. Width must be greater than 0."}
+        except (ValueError, TypeError):
+            return {"success": False, "error": f"Invalid width: {width}."}
+    if height is not None:
+        try:
+            height_val = int(height)
+            if height_val <= 0:
+                return {"success": False, "error": f"Invalid height: {height}. Height must be greater than 0."}
+        except (ValueError, TypeError):
+            return {"success": False, "error": f"Invalid height: {height}."}
+    if scale_percent is not None:
+        try:
+            scale_val_num = float(scale_percent)
+            if scale_val_num <= 0:
+                return {"success": False, "error": f"Invalid scale_percent: {scale_percent}. Must be greater than 0."}
+        except (ValueError, TypeError):
+            return {"success": False, "error": f"Invalid scale_percent: {scale_percent}."}
+    if aspect_ratio is not None and aspect_ratio not in ("16:9", "4:3", "1:1", "9:16", "5"):
+        return {"success": False, "error": f"Unsupported aspect ratio: {aspect_ratio}. Allowed: '16:9', '4:3', '1:1', '9:16'"}
+
+    if width is not None and height is not None:
         method = '3'
         scale_val = (int(width), int(height))
-    elif height and not width:
+    elif height is not None and width is None:
         method = '2'
         scale_val = int(height)
-    elif width and not height:
+    elif width is not None and height is None:
         method = 'w'
         scale_val = int(width)
     elif scale_percent is not None:
         method = '1'
         scale_val = float(scale_percent)
     else:
-        # Aspect crop only or strip metadata only
         method = '4'
         scale_val = None
 

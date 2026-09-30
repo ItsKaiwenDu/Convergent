@@ -95,20 +95,20 @@ FORMAT_REGISTRY = [
     FormatDef("WEBP", "2", ["JPG", "PNG", "PDF", "TIF", "BMP", "HEIC", "HEIF", "AVIF", "TXT", "MD", "DOCX"], "convert_image"),
 
     # Video Category ("3")
-    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("AVI", "3", ["MOV", "MP4", "WEBM", "GIF", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_video"),
     FormatDef("GIF", "3", ["MOV", "MP4", "WEBM", "AVI", "MKV"], "convert_video"),
-    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
-    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
-    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
-    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MKV", "3", ["MOV", "MP4", "WEBM", "GIF", "AVI", "MP3", "WAV", "AAC", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MOV", "3", ["MP4", "WEBM", "GIF", "AVI", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("MP4", "3", ["MOV", "WEBM", "GIF", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_video"),
+    FormatDef("WEBM", "3", ["MOV", "MP4", "GIF", "AVI", "MKV", "MP3", "WAV", "AAC", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_video"),
 
     # Audio Category ("4")
-    FormatDef("AAC", "4", ["MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
-    FormatDef("FLAC", "4", ["MP3", "WAV", "M4A", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
-    FormatDef("M4A", "4", ["MP3", "WAV", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
-    FormatDef("MP3", "4", ["WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("AAC", "4", ["MP3", "WAV", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("FLAC", "4", ["MP3", "WAV", "M4A", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("M4A", "4", ["MP3", "WAV", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("MP3", "4", ["WAV", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
     FormatDef("OGG", "4", ["MP3", "WAV", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
-    FormatDef("WAV", "4", ["MP3", "M4A", "FLAC", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
+    FormatDef("WAV", "4", ["MP3", "M4A", "FLAC", "OGG", "TXT", "SRT", "VTT", "MD"], "convert_audio"),
 
     # Document Category ("5")
     FormatDef("DOCX", "5", ["PDF", "HTML"], "convert_office"),
@@ -194,12 +194,13 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     extra_kwargs = {}
     if output_dir:
         extra_kwargs["output_dir"] = output_dir
+    if source_fmt in ("MD", "HTML"):
+        extra_kwargs["resource_dir"] = f.parent
 
     fmt_def = next((fd for fd in FORMAT_REGISTRY if fd.name == source_fmt), None)
     if fmt_def:
         handler = getattr(conv, fmt_def.handler_method, None)
         if handler:
-            # Check if this is PDF to images where handler natively uses output_dir
             is_pdf_to_images = (source_fmt == "PDF" and target_format in ("JPG", "PNG", "TIF", "BMP"))
             
             if is_distinct_dest and not is_pdf_to_images:
@@ -225,6 +226,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                         language=language,
                         hwaccel=hwaccel,
                         dpi=dpi,
+                        **extra_kwargs
                     )
                     if success:
                         if staged_out.exists():

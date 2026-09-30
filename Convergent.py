@@ -146,7 +146,7 @@ class Converter:
         return pdf_manip.convert_pdf_to_image(source, target_ext, dpi=dpi, output_dir=output_dir)
 
     def convert_markdown(self, source, target_ext, md_pdf_mode=None, **kwargs):
-        return doc.convert_markdown(source, target_ext, md_pdf_mode)
+        return doc.convert_markdown(source, target_ext, md_pdf_mode, **kwargs)
 
     def convert_html(self, source, target_ext, **kwargs):
         return doc.convert_html(source, target_ext, **kwargs)

@@ -157,14 +157,15 @@ def convert_office(source, target_ext):
 
     return False, f"Unsupported target format: {target_ext}"
 
-def convert_markdown(source, target_ext, md_pdf_mode=None):
+def convert_markdown(source, target_ext, md_pdf_mode=None, **kwargs):
     target_ext = target_ext.upper()
     output = source.with_suffix(f".{target_ext.lower()}")
+    resource_dir = kwargs.get("resource_dir")
+    res_path = str(Path(resource_dir).resolve() if resource_dir else source.parent.resolve())
     
     if target_ext == "HTML":
         def run_conv(temp_src, temp_out):
-            res_path = str(source.parent.resolve())
-            return run_command(["pandoc", "-s", "--embed-resources", "--standalone", f"--resource-path={res_path}", str(temp_src), "-o", str(temp_out)], cwd=str(source.parent))
+            return run_command(["pandoc", "-s", "--embed-resources", "--standalone", f"--resource-path={res_path}", str(temp_src), "-o", str(temp_out)], cwd=res_path)
             
         success, err = convert_with_temp_files(source, output, run_conv)
         if success:
@@ -178,7 +179,6 @@ def convert_markdown(source, target_ext, md_pdf_mode=None):
         success, err = convert_with_temp_files(source, output, run_conv)
         if success:
             return True, ""
-        # Fallback to copy file if pandoc fails or is missing
         try:
             shutil.copy2(source, output)
             return True, ""
@@ -187,7 +187,6 @@ def convert_markdown(source, target_ext, md_pdf_mode=None):
             
     elif target_ext == "PDF":
         if md_pdf_mode == "raw":
-            # Convert raw markdown text to PDF using macOS cupsfilter
             if sys.platform != "darwin":
                 return False, "Raw PDF conversion is only supported on macOS."
             
@@ -207,14 +206,11 @@ def convert_markdown(source, target_ext, md_pdf_mode=None):
             return False, f"Raw PDF conversion failed: {err}"
         else:
             def run_conv(temp_src, temp_out):
-                res_path = str(source.parent.resolve())
-                # First try pandoc with typst PDF engine
-                success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=str(source.parent))
+                success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=res_path)
                 if success:
                     return True, ""
                 
-                # Direct fallback to typst compile
-                success_fb, err_fb = run_command(["typst", "compile", "--root", res_path, str(temp_src), str(temp_out)], cwd=str(source.parent))
+                success_fb, err_fb = run_command(["typst", "compile", "--root", res_path, str(temp_src), str(temp_out)], cwd=res_path)
                 if success_fb:
                     return True, ""
                 return False, err or err_fb
@@ -245,10 +241,25 @@ def _get_chrome_path():
 def convert_html(source, target_ext, **kwargs):
     target_ext = target_ext.upper()
     output = source.with_suffix(f".{target_ext.lower()}")
+    resource_dir = kwargs.get("resource_dir")
+    res_path = str(Path(resource_dir).resolve() if resource_dir else source.parent.resolve())
 
     if target_ext == "PDF":
         def run_conv(temp_src, temp_out):
-            # 1. Try LibreOffice headless with Web/Writer filter (fast, high-fidelity CSS layout)
+            if res_path and temp_src.exists():
+                try:
+                    html_text = temp_src.read_text(encoding="utf-8", errors="ignore")
+                    if "<base " not in html_text.lower():
+                        base_tag = f'<base href="file://{res_path}/">\n'
+                        if "<head>" in html_text.lower():
+                            idx = html_text.lower().find("<head>") + 6
+                            html_text = html_text[:idx] + "\n" + base_tag + html_text[idx:]
+                        else:
+                            html_text = base_tag + html_text
+                        temp_src.write_text(html_text, encoding="utf-8")
+                except Exception:
+                    pass
+
             soffice_path = _get_soffice_path()
             if soffice_path:
                 outdir = str(temp_out.parent)
@@ -261,7 +272,7 @@ def convert_html(source, target_ext, **kwargs):
                     "--outdir", outdir,
                     str(temp_src)
                 ]
-                success_lo, err_lo = run_command(cmd)
+                success_lo, err_lo = run_command(cmd, cwd=res_path)
                 if prof_dir.exists():
                     shutil.rmtree(prof_dir, ignore_errors=True)
                 if success_lo:
@@ -271,27 +282,25 @@ def convert_html(source, target_ext, **kwargs):
                     if temp_out.exists() and temp_out.stat().st_size > 0:
                         return True, ""
 
-            # 2. Try headless Chromium / Chrome browser with timeout
             chrome_path = _get_chrome_path()
             if chrome_path:
                 cmd = [
                     chrome_path,
                     "--headless=new",
                     "--disable-gpu",
+                    "--allow-file-access-from-files",
                     "--no-pdf-header-footer",
                     f"--print-to-pdf={temp_out}",
                     str(temp_src)
                 ]
                 try:
-                    res = subprocess.run(cmd, capture_output=True, timeout=5)
+                    res = subprocess.run(cmd, capture_output=True, timeout=5, cwd=res_path)
                     if res.returncode == 0 and temp_out.exists() and temp_out.stat().st_size > 0:
                         return True, ""
                 except Exception:
                     pass
 
-            # 3. Fallback: pandoc with typst PDF engine
-            res_path = str(source.parent.resolve())
-            success_typst, err_typst = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=str(source.parent))
+            success_typst, err_typst = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=res_path)
             if success_typst and temp_out.exists() and temp_out.stat().st_size > 0:
                 return True, ""
 

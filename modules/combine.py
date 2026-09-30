@@ -56,6 +56,52 @@ def has_audio_stream(path):
     except:
         return False
 
+def get_video_stream_info(path):
+    try:
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=codec_name,width,height,r_frame_rate,pix_fmt",
+            "-of", "csv=s=,:p=0",
+            str(path)
+        ]
+        result = subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            parts = result.stdout.strip().split(",")
+            if len(parts) >= 3:
+                return {
+                    "codec": parts[0].strip(),
+                    "width": parts[1].strip(),
+                    "height": parts[2].strip(),
+                    "fps": parts[3].strip() if len(parts) > 3 else "",
+                    "pix_fmt": parts[4].strip() if len(parts) > 4 else "",
+                    "has_audio": has_audio_stream(path),
+                }
+    except Exception:
+        pass
+    return None
+
+def are_videos_stream_compatible(video_files):
+    if len(video_files) <= 1:
+        return True
+    first_info = None
+    for vf in video_files:
+        info = get_video_stream_info(vf)
+        if not info:
+            return False
+        if first_info is None:
+            first_info = info
+        else:
+            if (
+                info["width"] != first_info["width"]
+                or info["height"] != first_info["height"]
+                or info["codec"] != first_info["codec"]
+                or info["pix_fmt"] != first_info["pix_fmt"]
+                or info["has_audio"] != first_info["has_audio"]
+            ):
+                return False
+    return True
+
 def format_seconds(seconds):
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
@@ -443,7 +489,7 @@ def combine_videos(paths, output_path=None, interactive=True):
         cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", "-loglevel", "error", str(tmp_dest)]
         return run_command(cmd)
 
-    is_mixed_video = len({vf.suffix.lower() for vf in video_files}) > 1
+    is_mixed_video = (len({vf.suffix.lower() for vf in video_files}) > 1) or not are_videos_stream_compatible(video_files)
     temp_txt_path = get_convergent_tmp_dir() / f"temp_ffmpeg_concat_{uuid.uuid4().hex[:8]}.txt"
     try:
         with open(temp_txt_path, "w", encoding="utf-8") as f:

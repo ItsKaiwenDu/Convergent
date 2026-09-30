@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS entries (
     out_path TEXT,
     out_mtime REAL,
     out_size INTEGER,
+    out_hash TEXT,
     params_hash TEXT,
     created_at REAL,
     last_accessed_at REAL
@@ -171,6 +172,12 @@ class CacheManager:
         except Exception:
             pass
 
+        try:
+            self.conn.execute("ALTER TABLE entries ADD COLUMN out_hash TEXT;")
+            self.conn.commit()
+        except Exception:
+            pass
+
         self.conn.commit()
 
         # Opportunistic prune on startup (clean up expired & keep size bounded)
@@ -198,7 +205,7 @@ class CacheManager:
         try:
             cur = self.conn.cursor()
             cur.execute(
-                "SELECT key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, out_size, params_hash, created_at, last_accessed_at FROM entries WHERE key=?",
+                "SELECT key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, out_size, out_hash, params_hash, created_at, last_accessed_at FROM entries WHERE key=?",
                 (key,),
             )
             row = cur.fetchone()
@@ -212,9 +219,10 @@ class CacheManager:
                     "out_path": row[5],
                     "out_mtime": row[6],
                     "out_size": row[7],
-                    "params_hash": row[8],
-                    "created_at": row[9],
-                    "last_accessed_at": row[10] if len(row) > 10 and row[10] is not None else row[9],
+                    "out_hash": row[8],
+                    "params_hash": row[9],
+                    "created_at": row[10],
+                    "last_accessed_at": row[11] if len(row) > 11 and row[11] is not None else row[10],
                 }
         except Exception:
             pass
@@ -262,13 +270,25 @@ class CacheManager:
                 if entry.get("out_size") is not None and entry["out_size"] > 0:
                     if cur_out_stat.st_size != entry["out_size"]:
                         return False, "output size mismatch"
+                if entry.get("out_hash"):
+                    cur_out_hash, _, _ = get_file_fingerprint(out_path)
+                    if cur_out_hash != entry["out_hash"]:
+                        return False, "output content modified"
+                elif entry.get("out_mtime") is not None:
+                    if abs(cur_out_stat.st_mtime - entry["out_mtime"]) >= 0.001:
+                        return False, "output mtime changed"
             elif out_path.is_dir():
-                dir_items = list(out_path.iterdir())
+                dir_items = [f for f in out_path.iterdir() if f.is_file()]
                 if not dir_items:
                     return False, "output empty dir"
                 if entry.get("out_size") is not None and entry["out_size"] > 0:
                     if len(dir_items) != entry["out_size"]:
                         return False, "output item count mismatch"
+                if entry.get("out_hash"):
+                    manifest = sorted(f"{f.name}:{f.stat().st_size}" for f in dir_items)
+                    cur_dir_hash = _blake2b_hex(";".join(manifest).encode("utf-8"), digest_size=16)
+                    if cur_dir_hash != entry["out_hash"]:
+                        return False, "output content modified"
         except Exception:
             return False, "output stat failed"
 
@@ -321,19 +341,27 @@ class CacheManager:
                 new_mtime = stat.st_mtime
                 if new_out_path.is_file():
                     new_size = stat.st_size
+                    new_hash, _, _ = get_file_fingerprint(new_out_path)
                 elif new_out_path.is_dir():
-                    new_size = len(list(new_out_path.iterdir()))
+                    dir_files = [f for f in new_out_path.iterdir() if f.is_file()]
+                    new_size = len(dir_files)
+                    manifest = sorted(f"{f.name}:{f.stat().st_size}" for f in dir_files)
+                    new_hash = _blake2b_hex(";".join(manifest).encode("utf-8"), digest_size=16)
+                else:
+                    new_size = None
+                    new_hash = None
+            else:
+                new_hash = None
 
             self.conn.execute(
-                "UPDATE entries SET out_path = ?, out_mtime = ?, out_size = ? WHERE out_path = ?",
-                (new_str, new_mtime, new_size, old_str),
+                "UPDATE entries SET out_path = ?, out_mtime = ?, out_size = ?, out_hash = ? WHERE out_path = ?",
+                (new_str, new_mtime, new_size, new_hash, old_str),
             )
             self.conn.commit()
         except Exception:
             pass
 
     def save(self, src_path: Path, out_path: Path, params: Dict):
-        """Upsert cache entry after successful conversion."""
         try:
             src_hash, src_mtime, src_size = get_file_fingerprint(src_path)
             if not src_hash:
@@ -343,13 +371,19 @@ class CacheManager:
                 out_mtime = out_stat.st_mtime
                 if out_path.is_file():
                     out_size = out_stat.st_size
+                    out_hash, _, _ = get_file_fingerprint(out_path)
                 elif out_path.is_dir():
-                    out_size = len(list(out_path.iterdir()))
+                    dir_files = [f for f in out_path.iterdir() if f.is_file()]
+                    out_size = len(dir_files)
+                    manifest = sorted(f"{f.name}:{f.stat().st_size}" for f in dir_files)
+                    out_hash = _blake2b_hex(";".join(manifest).encode("utf-8"), digest_size=16)
                 else:
                     out_size = None
+                    out_hash = None
             except Exception:
                 out_mtime = time.time()
                 out_size = None
+                out_hash = None
 
             key = make_cache_key(src_path, params)
             params_hash = get_params_hash(params)
@@ -366,14 +400,13 @@ class CacheManager:
             self.conn.execute(
                 """
                 INSERT OR REPLACE INTO entries
-                (key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, out_size, params_hash, created_at, last_accessed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (key, src_path, src_hash, src_mtime, src_size, out_path, out_mtime, out_size, out_hash, params_hash, created_at, last_accessed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (key, resolved_src, src_hash, src_mtime, src_size, resolved_out, out_mtime, out_size, params_hash, now, now),
+                (key, resolved_src, src_hash, src_mtime, src_size, resolved_out, out_mtime, out_size, out_hash, params_hash, now, now),
             )
             self.conn.commit()
         except Exception:
-            # Cache failures should never break conversion
             pass
 
     def prune(self, ttl_days: Optional[float] = None, max_entries: int = MAX_CACHE_ENTRIES) -> int:

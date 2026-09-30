@@ -73,17 +73,20 @@ def parse_page_ranges(input_ranges, total_pages):
         return []
 
     for part in parts:
-        if isinstance(part, (list, tuple)) and len(part) == 2:
-            start, end = int(part[0]), int(part[1])
-        elif isinstance(part, str) and '-' in part:
-            s_str, e_str = part.split('-', 1)
-            start, end = int(s_str.strip()), int(e_str.strip())
-        elif isinstance(part, (int, str)) and str(part).isdigit():
-            start = end = int(part)
-        else:
+        try:
+            if isinstance(part, (list, tuple)) and len(part) == 2:
+                start, end = int(part[0]), int(part[1])
+            elif isinstance(part, str) and '-' in part:
+                s_str, e_str = part.split('-', 1)
+                start, end = int(s_str.strip()), int(e_str.strip())
+            elif isinstance(part, (int, str)) and str(part).isdigit():
+                start = end = int(part)
+            else:
+                continue
+            if 1 <= start <= total_pages and 1 <= end <= total_pages and start <= end:
+                ranges.append((start, end))
+        except (ValueError, TypeError):
             continue
-        if 1 <= start <= total_pages and 1 <= end <= total_pages and start <= end:
-            ranges.append((start, end))
     return ranges
 
 def parse_time_ranges(input_ranges, duration):
@@ -223,10 +226,12 @@ def split_pdf(
         else:
             try:
                 parts_count = int(num_parts) if num_parts is not None else 2
-                if parts_count < 1 or parts_count > total_pages:
-                    parts_count = min(max(parts_count, 1), total_pages)
+                if parts_count < 1:
+                    return None
+                if parts_count > total_pages:
+                    parts_count = total_pages
             except (ValueError, TypeError):
-                parts_count = 2
+                return None
 
         base_size = total_pages // parts_count
         remainder = total_pages % parts_count
@@ -397,9 +402,9 @@ def split_video(
             try:
                 parts_count = int(num_parts) if num_parts is not None else 2
                 if parts_count < 1:
-                    parts_count = 2
+                    return None
             except (ValueError, TypeError):
-                parts_count = 2
+                return None
             
         split_interval = duration / parts_count
         if interactive and parts_count > 50:
@@ -577,9 +582,9 @@ def split_audio(
             try:
                 parts_count = int(num_parts) if num_parts is not None else 2
                 if parts_count < 1:
-                    parts_count = 2
+                    return None
             except (ValueError, TypeError):
-                parts_count = 2
+                return None
             
         split_interval = duration / parts_count
         if interactive and parts_count > 50:
@@ -805,9 +810,9 @@ def split_gif(
                 try:
                     parts_count = int(num_parts) if num_parts is not None else 2
                     if parts_count < 1:
-                        parts_count = 2
+                        return None
                 except (ValueError, TypeError):
-                    parts_count = 2
+                    return None
                     
             split_interval = duration / parts_count
             if interactive and parts_count > 50:

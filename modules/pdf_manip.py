@@ -23,7 +23,11 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
     output_dir.mkdir(parents=True, exist_ok=True)
     
     target_ext = target_ext.lower()
-    # Ghostscript devices: jpeg, png16m (24-bit color), tiff24nc (24-bit color TIFF), bmp16m (24-bit color BMP)
+    for old_f in output_dir.glob(f"page_*.{target_ext}"):
+        try:
+            old_f.unlink(missing_ok=True)
+        except Exception:
+            pass
     device = "jpeg" if target_ext == "jpg" else "tiff24nc" if target_ext == "tif" else "bmp16m" if target_ext == "bmp" else "png16m"
     output_pattern = output_dir / f"page_%03d.{target_ext}"
     

@@ -19,6 +19,8 @@ def convert_audio(source, target_ext, bitrate=None):
         cmd += ["-acodec", "pcm_s16le"]
     elif target_ext.upper() == "FLAC":
         cmd += ["-acodec", "flac"]
+    elif target_ext.upper() == "OGG":
+        cmd += ["-acodec", "libvorbis"]
     
     cmd.append(str(output))
     return run_command(cmd)

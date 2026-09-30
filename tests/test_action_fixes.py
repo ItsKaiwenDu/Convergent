@@ -26,6 +26,9 @@ from mcp_server.server import (
     compress_files,
     split_file,
     list_supported_formats,
+    decompress_archive,
+    resize_media,
+    extract_audio,
 )
 
 
@@ -203,7 +206,7 @@ class TestActionFixes(unittest.TestCase):
             cmd_args = mock_cmd.call_args[0][0]
             cwd_arg = mock_cmd.call_args[1].get("cwd")
             self.assertIn(f"--resource-path={self.dir_path.resolve()}", cmd_args)
-            self.assertEqual(cwd_arg, str(self.dir_path))
+            self.assertEqual(Path(cwd_arg).resolve(), self.dir_path.resolve())
 
         with patch("modules.doc.run_command", side_effect=fake_pandoc) as mock_cmd:
             success, _ = doc.convert_markdown(md_file, "HTML")
@@ -325,6 +328,200 @@ class TestActionFixes(unittest.TestCase):
         self.assertNotIn("EPUB", source_fmts)
         self.assertIn("PDF", source_fmts)
         self.assertIn("PNG", source_fmts)
+
+    def test_cache_output_corruption_rejection(self):
+        cache_mgr = CacheManager(db_path=self.dir_path / "cache.db")
+        src = self.dir_path / "sample.jpg"
+        src.write_bytes(b"image_bytes_12345")
+        out = self.dir_path / "sample.png"
+        out.write_bytes(b"A" * 100)
+        params = {"target": "PNG"}
+        cache_mgr.save(src, out, params)
+        valid, msg = cache_mgr.is_cached_valid(src, out, params)
+        self.assertTrue(valid)
+
+        out.write_bytes(b"B" * 100)
+        valid_corrupt, msg_corrupt = cache_mgr.is_cached_valid(src, out, params)
+        self.assertFalse(valid_corrupt)
+        self.assertIn("content modified", msg_corrupt)
+
+    def test_document_staging_preserves_resource_dir(self):
+        from customs.file_process import process_single_file
+        from Convergent import Converter
+        conv = Converter()
+        md_file = self.dir_path / "notes.md"
+        md_file.write_text("# Notes\n![img](sub/img.png)")
+        out_dir = self.dir_path / "custom_out"
+        out_dir.mkdir()
+
+        with patch.object(conv, "convert_markdown") as mock_conv_md:
+            mock_conv_md.return_value = (True, "")
+            process_single_file(conv, md_file, "PDF", output_dir=str(out_dir))
+            self.assertTrue(mock_conv_md.called)
+            self.assertEqual(mock_conv_md.call_args[1].get("resource_dir"), self.dir_path)
+
+    def test_same_extension_video_stream_incompatibility_checks(self):
+        from modules.combine import are_videos_stream_compatible
+        v1 = self.dir_path / "v1.mp4"
+        v2 = self.dir_path / "v2.mp4"
+        v1.touch()
+        v2.touch()
+
+        info1 = {"codec": "h264", "width": 1280, "height": 720, "fps": "24/1", "pix_fmt": "yuv420p", "has_audio": True}
+        info2 = {"codec": "h264", "width": 640, "height": 480, "fps": "15/1", "pix_fmt": "yuv420p", "has_audio": True}
+        info3 = {"codec": "h264", "width": 1280, "height": 720, "fps": "24/1", "pix_fmt": "yuv420p", "has_audio": False}
+
+        with patch("modules.combine.get_video_stream_info", side_effect=[info1, info2]):
+            self.assertFalse(are_videos_stream_compatible([v1, v2]))
+
+        with patch("modules.combine.get_video_stream_info", side_effect=[info1, info3]):
+            self.assertFalse(are_videos_stream_compatible([v1, v2]))
+
+        with patch("modules.combine.get_video_stream_info", side_effect=[info1, info1]):
+            self.assertTrue(are_videos_stream_compatible([v1, v2]))
+
+    def test_pdf_to_images_cleans_stale_pages(self):
+        from modules import pdf_manip
+        dummy_pdf = self.dir_path / "doc.pdf"
+        dummy_pdf.touch()
+        img_dir = self.dir_path / "doc_images"
+        img_dir.mkdir()
+        stale1 = img_dir / "page_001.jpg"
+        stale2 = img_dir / "page_002.jpg"
+        stale3 = img_dir / "page_003.jpg"
+        stale1.touch()
+        stale2.touch()
+        stale3.touch()
+
+        def fake_gs(cmd):
+            (img_dir / "page_001.jpg").touch()
+            return True, ""
+
+        with patch("modules.pdf_manip.run_command", side_effect=fake_gs):
+            pdf_manip.convert_pdf_to_image(str(dummy_pdf), "jpg", output_dir=str(img_dir))
+            self.assertTrue(stale1.exists())
+            self.assertFalse(stale2.exists())
+            self.assertFalse(stale3.exists())
+
+    def test_decompress_archive_accurate_member_count(self):
+        import zipfile
+        zip_path = self.dir_path / "archive.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("file1.txt", "hello")
+            zf.writestr("file2.txt", "world")
+
+        out_dir = self.dir_path / "extracted"
+        out_dir.mkdir()
+        unrelated = out_dir / "unrelated.txt"
+        unrelated.write_text("other")
+
+        res1 = decompress_archive(str(zip_path), output_dir=str(out_dir))
+        self.assertTrue(res1["success"])
+        self.assertEqual(res1["extracted_files_count"], 2)
+
+        res2 = decompress_archive(str(zip_path), output_dir=str(out_dir))
+        self.assertTrue(res2["success"])
+        self.assertEqual(res2["extracted_files_count"], 2)
+
+    def test_convergent_convert_preflight_destination_conflict(self):
+        src = self.dir_path / "item.jpg"
+        src.write_bytes(b"data")
+        dest = self.dir_path / "existing.png"
+        dest.write_bytes(b"existing_content")
+
+        res = convergent_convert(str(src), "PNG", output_path=str(dest), overwrite=False, use_cache=False)
+        self.assertFalse(res["success"])
+        self.assertIn("Destination already exists", res["error"])
+        self.assertEqual(res["converted_files"], [])
+        self.assertEqual(dest.read_bytes(), b"existing_content")
+
+    def test_strict_parameter_bounds_and_mode_validation(self):
+        src = self.dir_path / "media.mp4"
+        src.touch()
+
+        res_w0 = resize_media(str(src), width=0)
+        self.assertFalse(res_w0["success"])
+        self.assertIn("Invalid width", res_w0["error"])
+
+        res_h0 = resize_media(str(src), height=-5)
+        self.assertFalse(res_h0["success"])
+        self.assertIn("Invalid height", res_h0["error"])
+
+        res_scale0 = resize_media(str(src), scale_percent=0)
+        self.assertFalse(res_scale0["success"])
+        self.assertIn("Invalid scale_percent", res_scale0["error"])
+
+        res_aspect = resize_media(str(src), aspect_ratio="bad_aspect")
+        self.assertFalse(res_aspect["success"])
+        self.assertIn("Unsupported aspect ratio", res_aspect["error"])
+
+        res_parts0 = split_file(str(src), num_parts=0)
+        self.assertFalse(res_parts0["success"])
+        self.assertIn("Invalid num_parts", res_parts0["error"])
+
+        res_inv0 = split_file(str(src), interval=0)
+        self.assertFalse(res_inv0["success"])
+        self.assertIn("Invalid interval", res_inv0["error"])
+
+        res_mode = split_file(str(src), mode="invalid_mode")
+        self.assertFalse(res_mode["success"])
+        self.assertIn("Invalid mode", res_mode["error"])
+
+    def test_split_file_pdf_ranges_warning_and_rejection(self):
+        pdf_file = self.dir_path / "doc.pdf"
+        pdf_file.touch()
+
+        with patch("modules.split.get_pdf_page_count", return_value=3):
+            res_all_bad = split_file(str(pdf_file), ranges="bad,9-12")
+            self.assertFalse(res_all_bad["success"])
+            self.assertIn("No valid ranges provided", res_all_bad["error"])
+
+        out_split = self.dir_path / "split_res"
+        out_split.mkdir()
+        (out_split / "part_1_1-1.pdf").touch()
+
+        with patch("modules.split.get_pdf_page_count", return_value=3), \
+             patch("mcp_server.server.conv.split_pdf", return_value=out_split):
+            res_partial = split_file(str(pdf_file), ranges="1-1,bad,9-12", output_dir=str(out_split))
+            self.assertTrue(res_partial["success"])
+            self.assertIn("warnings", res_partial)
+            self.assertEqual(len(res_partial["warnings"]), 2)
+
+    def test_ogg_audio_extraction_supported(self):
+        from customs.file_process import FORMAT_REGISTRY
+        video_fmts = ["MP4", "MKV", "MOV", "AVI", "WEBM"]
+        for vf in video_fmts:
+            fdef = next(fd for fd in FORMAT_REGISTRY if fd.name == vf)
+            self.assertIn("OGG", fdef.targets)
+
+        dummy_vid = self.dir_path / "sample.mp4"
+        dummy_vid.touch()
+
+        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": ["sample.ogg"]}):
+            res = extract_audio(str(dummy_vid), target_format="OGG")
+            self.assertTrue(res["success"])
+
+    def test_mcp_concurrency_non_blocking(self):
+        import asyncio
+        import time
+        from mcp_server.server import mcp
+
+        async def check_concurrency():
+            task_slow = asyncio.create_task(
+                mcp._tool_manager.get_tool("convergent_convert").run({
+                    "input_path": str(self.dir_path / "nonexistent.jpg"),
+                    "target_format": "PNG",
+                })
+            )
+            task_fast = asyncio.create_task(
+                mcp._tool_manager.get_tool("list_supported_formats").run({})
+            )
+            res_fast = await task_fast
+            res_slow = await task_slow
+            self.assertIn("format_mapping", res_fast)
+            self.assertFalse(res_slow["success"])
+
+        asyncio.run(check_concurrency())
 
 
 if __name__ == "__main__":
