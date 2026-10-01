@@ -660,6 +660,14 @@ def combine_files(
             "error": f"Cannot combine mismatched file types: found {', '.join(distinct_exts)}. All files must be compatible {group_name} files.",
         }
 
+    if output_path:
+        out_p_resolved = Path(os.path.expanduser(str(output_path))).resolve()
+        if any(Path(p).resolve() == out_p_resolved for p in expanded_paths):
+            return {
+                "success": False,
+                "error": "Output destination cannot be one of the input files to combine.",
+            }
+
     try:
         out_file = None
         if first_ext in pdf_exts:

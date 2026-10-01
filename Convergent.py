@@ -151,37 +151,66 @@ class Converter:
     def convert_html(self, source, target_ext, **kwargs):
         return doc.convert_html(source, target_ext, **kwargs)
 
+    @staticmethod
+    def _is_input_collision(paths, output_path, interactive=True):
+        if not output_path:
+            return False
+        try:
+            out_p = Path(os.path.expanduser(str(output_path))).resolve()
+            if any(Path(os.path.expanduser(str(p))).resolve() == out_p for p in paths):
+                combine.LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+                if interactive:
+                    console.print(f"[bold red]{combine.LAST_COMBINE_ERROR}[/bold red]")
+                return True
+        except Exception:
+            pass
+        return False
+
     def combine_pdfs(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("pdf"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_pdfs(paths, output_path=output_path, interactive=interactive)
 
     def combine_videos(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("video"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_videos(paths, output_path=output_path, interactive=interactive)
 
     def combine_audios(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("audio"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_audios(paths, output_path=output_path, interactive=interactive)
 
     def combine_gifs(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("gif"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_gifs(paths, output_path=output_path, interactive=interactive)
 
     def combine_docx(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("docx"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_docx(paths, output_path=output_path, interactive=interactive)
 
     def combine_pptx(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("pptx"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_pptx(paths, output_path=output_path, interactive=interactive)
 
     def combine_txt(self, paths, output_path=None, interactive=True):
+        if self._is_input_collision(paths, output_path, interactive=interactive):
+            return None
         if not ensure_dependencies(combine.required_dependencies("txt"), interactive=interactive, install=self.install_deps):
             return None
         return combine.combine_txt(paths, output_path=output_path, interactive=interactive)

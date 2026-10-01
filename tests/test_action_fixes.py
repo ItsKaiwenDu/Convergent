@@ -66,6 +66,10 @@ class TestActionFixes(unittest.TestCase):
         res = combine_pdfs([str(pdf1), str(pdf2)], output_path=str(pdf1), interactive=False)
         self.assertIsNone(res)
 
+        from Convergent import Converter
+        conv = Converter()
+        self.assertIsNone(conv.combine_pdfs([str(pdf1), str(pdf2)], output_path=str(pdf1), interactive=False))
+
         # Via MCP tool
         mcp_res = combine_files([str(pdf1), str(pdf2)], output_path=str(pdf1))
         self.assertFalse(mcp_res["success"])
@@ -176,7 +180,8 @@ class TestActionFixes(unittest.TestCase):
             out_p.write_bytes(b"webp data")
             return True, ""
 
-        with patch.object(conv, "convert_image", side_effect=fake_convert_image):
+        with patch.object(conv, "prepare_conversion", return_value=True), \
+             patch.object(conv, "convert_image", side_effect=fake_convert_image):
             converted = conv.process(
                 source_formats=["JPG", "PNG"],
                 target_format="WEBP",
