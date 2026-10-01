@@ -1,7 +1,29 @@
 import os
 import sys
 import subprocess
+import threading
 from pathlib import Path
+
+_ACTIVE_PROCESSES = set()
+_PROCESSES_LOCK = threading.Lock()
+
+def terminate_active_processes():
+    """
+    Terminates and kills all active child processes spawned by run_command.
+    Useful for clean cancellation handling in MCP servers or signals.
+    """
+    with _PROCESSES_LOCK:
+        procs = list(_ACTIVE_PROCESSES)
+    for p in procs:
+        try:
+            p.terminate()
+        except Exception:
+            pass
+    for p in procs:
+        try:
+            p.kill()
+        except Exception:
+            pass
 
 def run_command(cmd, cwd=None):
     """
@@ -15,11 +37,26 @@ def run_command(cmd, cwd=None):
         tuple: (success (bool), error_message (str))
     """
     try:
-        result = subprocess.run(cmd, capture_output=True, stdin=subprocess.DEVNULL, text=True, cwd=cwd)
-        if result.returncode == 0:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            cwd=cwd,
+        )
+        with _PROCESSES_LOCK:
+            _ACTIVE_PROCESSES.add(proc)
+        try:
+            stdout, stderr = proc.communicate()
+        finally:
+            with _PROCESSES_LOCK:
+                _ACTIVE_PROCESSES.discard(proc)
+
+        if proc.returncode == 0:
             return True, ""
         else:
-            err_msg = result.stderr.strip() or result.stdout.strip()
+            err_msg = stderr.strip() or stdout.strip()
             if len(err_msg) > 1500:
                 err_msg = err_msg[-1500:]
             return False, err_msg
@@ -27,6 +64,7 @@ def run_command(cmd, cwd=None):
         return False, f"Command not found: {cmd[0]}"
     except Exception as e:
         return False, str(e)
+
 
 def send_to_trash(path):
     """

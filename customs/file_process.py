@@ -171,16 +171,6 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     source_fmt = normalize_format_alias(f.suffix.lower()[1:])
     target_format = normalize_format_alias(target_format)
     
-    if target_format not in conv.formats.get(source_fmt, []):
-        duration = time.perf_counter() - start_time
-        if source_fmt == target_format:
-            if strip_metadata and source_fmt in ("JPG", "PNG", "WEBP", "TIF", "BMP", "HEIC", "HEIF", "AVIF"):
-                pass
-            else:
-                return f.name, True, "Skipped (Same format)", duration
-        else:
-            return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
-
     if explicit_output_file:
         output_file = Path(os.path.expanduser(str(explicit_output_file))).resolve()
         is_distinct_dest = True
@@ -188,6 +178,23 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
         output_file = get_expected_output_path(f, target_format, output_dir=output_dir)
         out_dir_resolved = Path(os.path.expanduser(str(output_dir))).resolve() if output_dir else None
         is_distinct_dest = (out_dir_resolved is not None and out_dir_resolved != f.parent.resolve())
+
+    if target_format not in conv.formats.get(source_fmt, []):
+        duration = time.perf_counter() - start_time
+        if source_fmt == target_format:
+            if strip_metadata and source_fmt in ("JPG", "PNG", "WEBP", "TIF", "BMP", "HEIC", "HEIF", "AVIF"):
+                pass
+            elif is_distinct_dest:
+                try:
+                    output_file.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, output_file)
+                    return f.name, True, "", duration
+                except Exception as e:
+                    return f.name, False, f"Failed to copy file to destination: {e}", duration
+            else:
+                return f.name, True, "Skipped (Same format)", duration
+        else:
+            return f.name, False, f"Target {target_format} not supported for {source_fmt}", duration
 
     success = False
     error = ""

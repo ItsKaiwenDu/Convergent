@@ -69,8 +69,10 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
             vf = f"fps={fps}," + vf
         cmd += ["-vf", vf]
     elif target_upper == "MP3":
-        if bitrate in ["128k", "192k", "320k"]:
-            cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", bitrate]
+        import re
+        if bitrate and re.match(r"^\d+k?$", str(bitrate).lower()):
+            b_val = str(bitrate).lower() if str(bitrate).lower().endswith("k") else f"{bitrate}k"
+            cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", b_val]
         else:
             cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
     elif target_upper == "WAV":
@@ -78,14 +80,17 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
     elif target_upper == "M4A":
         cmd += ["-vn", "-acodec", "aac", "-q:a", "2"]
     elif target_upper == "AAC":
-        if bitrate in ["128k", "192k", "320k"]:
-            cmd += ["-vn", "-c:a", "aac", "-b:a", bitrate]
+        import re
+        if bitrate and re.match(r"^\d+k?$", str(bitrate).lower()):
+            b_val = str(bitrate).lower() if str(bitrate).lower().endswith("k") else f"{bitrate}k"
+            cmd += ["-vn", "-c:a", "aac", "-b:a", b_val]
         else:
             cmd += ["-vn", "-c:a", "aac", "-b:a", "192k"]
     elif target_upper == "FLAC":
         cmd += ["-vn", "-c:a", "flac"]
     elif target_upper == "OGG":
-        cmd += ["-vn", "-c:a", "libvorbis"]
+        from modules.audio import get_ogg_audio_encoder_args
+        cmd += ["-vn"] + get_ogg_audio_encoder_args()
 
     cmd.append(str(output))
     return run_command(cmd)

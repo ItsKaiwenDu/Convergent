@@ -32,10 +32,24 @@ try:
         if fn_is_async:
             return await _orig_call_fn(self, fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly)
         arguments_pre_parsed = self.pre_parse_json(arguments_to_validate)
+        if isinstance(arguments_pre_parsed, dict) and hasattr(self.arg_model, "model_fields"):
+            allowed_fields = set(self.arg_model.model_fields.keys())
+            unexpected = set(arguments_pre_parsed.keys()) - allowed_fields
+            if unexpected:
+                fn_name = getattr(fn, "__name__", str(fn))
+                raise ValueError(
+                    f"Unexpected argument(s) for tool '{fn_name}': {', '.join(sorted(unexpected))}. "
+                    f"Allowed arguments: {', '.join(sorted(allowed_fields))}"
+                )
         arguments_parsed_model = self.arg_model.model_validate(arguments_pre_parsed)
         arguments_parsed_dict = arguments_parsed_model.model_dump_one_level()
         arguments_parsed_dict |= arguments_to_pass_directly or {}
-        return await asyncio.to_thread(fn, **arguments_parsed_dict)
+        try:
+            return await asyncio.to_thread(fn, **arguments_parsed_dict)
+        except asyncio.CancelledError:
+            from customs.run_command import terminate_active_processes
+            terminate_active_processes()
+            raise
 
     FuncMetadata.call_fn_with_arg_validation = _async_call_fn_with_arg_validation
 except ModuleNotFoundError as exc:
@@ -300,12 +314,35 @@ def convergent_convert(
             converted_list = final_converted_list
 
         if converted_list:
+            is_all_cached = False
+            if use_cache:
+                try:
+                    cache_mgr = CacheManager()
+                    all_valid = True
+                    for out_item in converted_list:
+                        out_p = Path(out_item)
+                        if not out_p.exists():
+                            all_valid = False
+                            break
+                        src_item = path_obj if path_obj.is_file() else success_map.get(str(out_p)) or success_map.get(out_p)
+                        if not src_item:
+                            all_valid = False
+                            break
+                        valid, _ = cache_mgr.is_cached_valid(Path(src_item), out_p, params_for_cache)
+                        if not valid:
+                            all_valid = False
+                            break
+                    is_all_cached = all_valid
+                    cache_mgr.close()
+                except Exception:
+                    is_all_cached = False
+
             res: Dict[str, Any] = {
                 "success": True,
                 "count": len(converted_list),
                 "converted_files": converted_list,
                 "target_format": target_fmt,
-                "cached": False,
+                "cached": is_all_cached,
             }
             if failed_details:
                 res["partial_success"] = True
@@ -590,6 +627,7 @@ def combine_files(
 ) -> Dict[str, Any]:
     """
     Combine multiple PDF, video, audio, GIF, or document files into a single merged file non-interactively.
+    Note: When combining mixed-resolution or mixed-format videos, clips are normalized to standard 1080p canvas at 30 FPS to ensure valid stream concatenation.
 
     Args:
         file_paths: List of file paths to combine (must all share compatible file types).
@@ -710,6 +748,7 @@ def split_file(
     num_parts: Optional[int] = None,
     frame_format: str = "png",
     output_dir: Optional[str] = None,
+    accurate: bool = False,
 ) -> Dict[str, Any]:
     """
     Split a PDF, video, audio, GIF, or document into individual pages, segments, frames, or parts non-interactively.
@@ -725,6 +764,7 @@ def split_file(
         num_parts: Total number of parts to split into equally.
         frame_format: Image format for GIF frame extraction ('png', 'jpg'). Default 'png'.
         output_dir: Optional target directory path to save split files.
+        accurate: If True, performs frame-accurate video splitting by re-encoding rather than fast keyframe stream copy. Default False.
 
     Returns:
         Dictionary with status, output directory, and list of generated files.
@@ -781,6 +821,16 @@ def split_file(
                 warnings.append(f"Invalid or out-of-bounds range dropped: {p}")
         if not valid_ranges and parts:
             return {"success": False, "error": f"No valid ranges provided. Rejected ranges: {', '.join(str(p) for p in parts)}"}
+    elif ranges is not None and ext in (".mp4", ".mov", ".mkv", ".avi", ".webm", ".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
+        from modules.split import get_media_duration, parse_time_ranges
+        duration = get_media_duration(full_path)
+        if duration > 0:
+            parsed = parse_time_ranges(ranges, duration)
+            raw_parts = [p.strip() for p in ranges.split(',')] if isinstance(ranges, str) else list(ranges)
+            if not parsed and raw_parts:
+                return {"success": False, "error": f"No valid time ranges provided for media duration ({duration:.1f}s). Rejected ranges: {', '.join(str(p) for p in raw_parts)}"}
+            elif len(parsed) < len(raw_parts):
+                warnings.append(f"Some requested time ranges were out-of-bounds (media duration: {duration:.1f}s) and were dropped.")
 
     effective_mode = mode.lower() if mode else "auto"
     if effective_mode == "auto":
@@ -833,7 +883,7 @@ def split_file(
         if ext == ".pdf":
             out_dir = conv.split_pdf(full_path, mode=effective_mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext in (".mp4", ".mov", ".mkv", ".avi", ".webm"):
-            out_dir = conv.split_video(full_path, mode=effective_mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
+            out_dir = conv.split_video(full_path, mode=effective_mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False, accurate=accurate)
         elif ext in (".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"):
             out_dir = conv.split_audio(full_path, mode=effective_mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=False)
         elif ext == ".gif":
@@ -948,6 +998,7 @@ def compress_files(
 def decompress_archive(
     archive_path: str,
     output_dir: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Decompress/extract an archive file (ZIP, TAR.GZ, TGZ, TAR.BZ2, TAR.XZ, 7Z, RAR).
@@ -955,6 +1006,7 @@ def decompress_archive(
     Args:
         archive_path: Path to archive file to extract.
         output_dir: Optional target directory to extract files into. Defaults to a folder named after the archive stem.
+        password: Optional password for extracting password-protected ZIP, 7Z, or RAR archives.
 
     Returns:
         Dictionary with status, output directory, and extracted file count.
@@ -967,10 +1019,16 @@ def decompress_archive(
     try:
         if zipfile.is_zipfile(full_path):
             with zipfile.ZipFile(full_path, 'r') as zf:
-                archive_member_count = len([m for m in zf.namelist() if not m.endswith('/')])
+                archive_member_count = len([
+                    m for m in zf.namelist()
+                    if not m.endswith('/') and not m.startswith('__MACOSX/') and not Path(m).name.startswith('._')
+                ])
         elif tarfile.is_tarfile(full_path):
             with tarfile.open(full_path, 'r') as tf:
-                archive_member_count = len([m for m in tf.getmembers() if m.isfile()])
+                archive_member_count = len([
+                    m for m in tf.getmembers()
+                    if m.isfile() and not m.name.startswith("._") and "/._" not in m.name
+                ])
     except Exception:
         archive_member_count = None
 
@@ -985,15 +1043,18 @@ def decompress_archive(
             path=full_path,
             output_dir=output_dir,
             interactive=False,
+            password=password,
         )
         if success and out_dir and Path(out_dir).exists():
             out_p = Path(out_dir)
-            all_files = [f for f in sorted(out_p.rglob("*")) if f.is_file()]
+            all_files = [f for f in sorted(out_p.rglob("*")) if f.is_file() and not f.name.startswith("._")]
             new_extracted = [f for f in all_files if f.resolve() not in pre_existing_extracted or f.stat().st_mtime > pre_existing_extracted[f.resolve()]]
-            if archive_member_count is not None:
+            if new_extracted:
+                count = len(new_extracted)
+            elif archive_member_count is not None:
                 count = archive_member_count
             else:
-                count = len(new_extracted)
+                count = len(all_files)
             return {
                 "success": True,
                 "output_dir": str(out_p),

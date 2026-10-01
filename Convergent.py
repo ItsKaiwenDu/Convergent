@@ -223,10 +223,10 @@ class Converter:
             return None
         return split.split_pdf(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive, display_name=display_name)
 
-    def split_video(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
+    def split_video(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True, accurate=False):
         if not ensure_dependencies(split.required_dependencies("video"), interactive=interactive, install=self.install_deps):
             return None
-        return split.split_video(path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
+        return split.split_video(path, mode=mode, interval=interval, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive, accurate=accurate)
 
     def split_audio(self, path, mode="interval", interval=None, ranges=None, num_parts=None, output_dir=None, interactive=True):
         if not ensure_dependencies(split.required_dependencies("audio"), interactive=interactive, install=self.install_deps):
@@ -253,10 +253,10 @@ class Converter:
             return False, "Installation cancelled.", None
         return compress.compress(paths, output_name, format_choice, password=password, output_dir=output_dir)
 
-    def decompress(self, path, output_dir=None, interactive=True):
+    def decompress(self, path, output_dir=None, interactive=True, password=None):
         if not ensure_dependencies(decompress.required_dependencies(path), interactive=interactive, install=self.install_deps):
             return False, "Installation cancelled.", None
-        return decompress.decompress(path, output_dir)
+        return decompress.decompress(path, output_dir, password=password)
 
     def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None):
         return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir)

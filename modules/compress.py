@@ -54,81 +54,104 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_output = output_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output_path.name}"
-    cwd = valid_paths[0].parent
     
-    # Use relative paths for command to avoid absolute paths in archive
-    rel_paths = []
-    for p in valid_paths:
+    staging_temp_dir = None
+    try:
         try:
-            rel_paths.append(str(p.relative_to(cwd)))
-        except ValueError:
-            # If not in same directory tree, use absolute path (less ideal but necessary)
-            rel_paths.append(str(p))
-    
-    sevenzip_exec = "7z"
-    if not shutil.which("7z") and shutil.which("7zz"):
-        sevenzip_exec = "7zz"
-
-    required_exec = {
-        "ZIP": "zip",
-        "TAR.GZ": "tar",
-        "TAR.BZ2": "tar",
-        "TAR.XZ": "tar",
-        "7Z": sevenzip_exec,
-        "RAR": "rar",
-    }.get(format_choice)
-
-    if required_exec:
-        if not shutil.which(required_exec):
-            if format_choice == "7Z":
-                return False, "7-Zip is not installed on your system.\nTo install it, run:\n   brew install sevenzip", None
-            elif required_exec == "rar":
-                return False, "RAR archiver is not installed on your system.\nTo install it, run:\n   brew install --cask rar\nOr download it from: https://www.rarlab.com/download.htm", None
+            common_root = Path(os.path.commonpath([p.parent.resolve() for p in valid_paths]))
+            if common_root != Path(common_root.anchor):
+                cwd = common_root
+                rel_paths = [str(p.resolve().relative_to(cwd)) for p in valid_paths]
             else:
-                return False, f"Required utility '{required_exec}' is not installed on your system.", None
+                raise ValueError("Common root is root directory")
+        except Exception:
+            import tempfile
+            staging_temp_dir = tempfile.TemporaryDirectory()
+            staging_path = Path(staging_temp_dir.name)
+            cwd = staging_path
+            rel_paths = []
+            used_names = set()
+            for p in valid_paths:
+                target_name = p.name
+                if target_name in used_names:
+                    counter = 1
+                    while f"{p.stem}_{counter}{p.suffix}" in used_names:
+                        counter += 1
+                    target_name = f"{p.stem}_{counter}{p.suffix}"
+                used_names.add(target_name)
+                staged_dest = staging_path / target_name
+                if p.is_dir():
+                    shutil.copytree(p, staged_dest)
+                else:
+                    try:
+                        os.link(p, staged_dest)
+                    except Exception:
+                        shutil.copy2(p, staged_dest)
+                rel_paths.append(target_name)
+        
+        sevenzip_exec = "7z"
+        if not shutil.which("7z") and shutil.which("7zz"):
+            sevenzip_exec = "7zz"
 
-    if format_choice == "ZIP":
-        if password:
-            cmd = ["zip", "-P", password, "-r", str(tmp_output)] + rel_paths
-        else:
-            cmd = ["zip", "-r", str(tmp_output)] + rel_paths
-    elif format_choice == "TAR.GZ":
-        cmd = ["tar", "-czf", str(tmp_output)] + rel_paths
-    elif format_choice == "TAR.BZ2":
-        cmd = ["tar", "-cjf", str(tmp_output)] + rel_paths
-    elif format_choice == "TAR.XZ":
-        cmd = ["tar", "-cJf", str(tmp_output)] + rel_paths
-    elif format_choice == "7Z":
-        cmd = [sevenzip_exec, "a", str(tmp_output)] + rel_paths
-        if password:
-            cmd.insert(2, f"-p{password}")
-        else:
-            cmd.insert(2, "-p-")
-    elif format_choice == "RAR":
-        cmd = ["rar", "a", str(tmp_output)] + rel_paths
-        if password:
-            cmd.insert(2, f"-p{password}")
-        else:
-            cmd.insert(2, "-p-")
-    else:
-        return False, f"Unsupported format: {format_choice}", None
+        required_exec = {
+            "ZIP": "zip",
+            "TAR.GZ": "tar",
+            "TAR.BZ2": "tar",
+            "TAR.XZ": "tar",
+            "7Z": sevenzip_exec,
+            "RAR": "rar",
+        }.get(format_choice)
 
-    success, error = run_command(cmd, cwd=cwd)
-    if success and tmp_output.exists():
-        try:
-            shutil.move(str(tmp_output), str(output_path))
-            return True, "", output_path
-        except Exception as e:
+        if required_exec:
+            if not shutil.which(required_exec):
+                if format_choice == "7Z":
+                    return False, "7-Zip is not installed on your system.\nTo install it, run:\n   brew install sevenzip", None
+                elif required_exec == "rar":
+                    return False, "RAR archiver is not installed on your system.\nTo install it, run:\n   brew install --cask rar\nOr download it from: https://www.rarlab.com/download.htm", None
+                else:
+                    return False, f"Required utility '{required_exec}' is not installed on your system.", None
+
+        if format_choice == "ZIP":
+            if password:
+                cmd = ["zip", "-P", password, "-r", str(tmp_output)] + rel_paths
+            else:
+                cmd = ["zip", "-r", str(tmp_output)] + rel_paths
+        elif format_choice == "TAR.GZ":
+            cmd = ["tar", "-czf", str(tmp_output)] + rel_paths
+        elif format_choice == "TAR.BZ2":
+            cmd = ["tar", "-cjf", str(tmp_output)] + rel_paths
+        elif format_choice == "TAR.XZ":
+            cmd = ["tar", "-cJf", str(tmp_output)] + rel_paths
+        elif format_choice == "7Z":
+            cmd = [sevenzip_exec, "a", str(tmp_output)] + rel_paths
+            if password:
+                cmd.insert(2, f"-p{password}")
+        elif format_choice == "RAR":
+            cmd = ["rar", "a", str(tmp_output)] + rel_paths
+            if password:
+                cmd.insert(2, f"-p{password}")
+        else:
+            return False, f"Unsupported format: {format_choice}", None
+
+        success, error = run_command(cmd, cwd=cwd)
+        if success and tmp_output.exists():
+            try:
+                shutil.move(str(tmp_output), str(output_path))
+                return True, "", output_path
+            except Exception as e:
+                if tmp_output.exists():
+                    try:
+                        tmp_output.unlink()
+                    except Exception:
+                        pass
+                return False, str(e), None
+        else:
             if tmp_output.exists():
                 try:
                     tmp_output.unlink()
                 except Exception:
                     pass
-            return False, str(e), None
-    else:
-        if tmp_output.exists():
-            try:
-                tmp_output.unlink()
-            except Exception:
-                pass
-        return False, error or "Compression failed", None
+            return False, error or "Compression failed", None
+    finally:
+        if staging_temp_dir:
+            staging_temp_dir.cleanup()

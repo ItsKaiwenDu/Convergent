@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -133,8 +134,9 @@ class TestActionFixes(unittest.TestCase):
         with patch("modules.compress.shutil.which", return_value="/usr/local/bin/7z"), \
              patch("modules.compress.run_command") as mock_cmd:
             def fake_run(cmd, cwd=None):
-                tmp_out = Path(cmd[3])
-                tmp_out.touch()
+                tmp_candidates = [a for a in cmd if a.endswith(".7z") or ".tmp_" in a]
+                if tmp_candidates:
+                    Path(tmp_candidates[0]).touch()
                 return True, ""
             mock_cmd.side_effect = fake_run
 
@@ -146,7 +148,7 @@ class TestActionFixes(unittest.TestCase):
             )
             self.assertTrue(success)
             cmd_args = mock_cmd.call_args[0][0]
-            self.assertIn("-p-", cmd_args)
+            self.assertNotIn("-p-", cmd_args)
 
     # 7. Resize: Validation for dimensions & aspect ratio
     def test_resize_validation(self):
@@ -278,7 +280,7 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(success)
             cmd_args = mock_cmd.call_args[0][0]
             self.assertIn("-vn", cmd_args)
-            self.assertIn("libvorbis", cmd_args)
+            self.assertTrue("libvorbis" in cmd_args or "libopus" in cmd_args)
 
     # 12. MCP server tools: edge cases and schema sanity
     def test_mcp_pdf_to_images_unsupported_format(self):
@@ -349,6 +351,7 @@ class TestActionFixes(unittest.TestCase):
         valid_corrupt, msg_corrupt = cache_mgr.is_cached_valid(src, out, params)
         self.assertFalse(valid_corrupt)
         self.assertIn("content modified", msg_corrupt)
+        cache_mgr.close()
 
     def test_document_staging_preserves_resource_dir(self):
         from customs.file_process import process_single_file
@@ -399,7 +402,13 @@ class TestActionFixes(unittest.TestCase):
         stale3.touch()
 
         def fake_gs(cmd):
-            (img_dir / "page_001.jpg").touch()
+            out_patt = next((a.split("=", 1)[1] for a in cmd if a.startswith("-sOUTPUTFILE=")), None)
+            if out_patt:
+                p = Path(out_patt.replace("%03d", "001"))
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.touch()
+            else:
+                (img_dir / "page_001.jpg").touch()
             return True, ""
 
         with patch("modules.pdf_manip.run_command", side_effect=fake_gs):
@@ -528,6 +537,194 @@ class TestActionFixes(unittest.TestCase):
 
         asyncio.run(check_concurrency())
 
+    # 14. Robustness: PDF failure preserves existing pages (Finding 1)
+    def test_pdf_to_images_failure_preserves_existing_pages(self):
+        from modules import pdf_manip
+        dummy_pdf = self.dir_path / "broken.pdf"
+        dummy_pdf.touch()
+        img_dir = self.dir_path / "preserved_images"
+        img_dir.mkdir()
+        existing_page = img_dir / "page_001.jpg"
+        existing_page.write_text("pre-existing good image content")
+
+        with patch("modules.pdf_manip.run_command", return_value=(False, "Ghostscript syntax error")):
+            success, err = pdf_manip.convert_pdf_to_image(str(dummy_pdf), "jpg", output_dir=str(img_dir))
+            self.assertFalse(success)
+            self.assertTrue(existing_page.exists())
+            self.assertEqual(existing_page.read_text(), "pre-existing good image content")
+
+    # 15. Robustness: Cache invalidation on directory mtime edit & large file mtime (Finding 2)
+    def test_cache_directory_manifest_mtime_invalidation(self):
+        cache_mgr = CacheManager(db_path=self.dir_path / ".cache.sqlite")
+        src = self.dir_path / "in.pdf"
+        src.write_text("pdf-content")
+        out_dir = self.dir_path / "out_pages"
+        out_dir.mkdir()
+        p1 = out_dir / "page_001.jpg"
+        p1.write_bytes(b"image-data-1")
+        params = {"target": "JPG"}
+
+        cache_mgr.save(src, out_dir, params)
+        is_valid, _ = cache_mgr.is_cached_valid(src, out_dir, params)
+        self.assertTrue(is_valid)
+
+        # Overwrite file with exact same size (zero byte replacement) but updated mtime
+        time.sleep(0.01)
+        p1.write_bytes(b"image-data-2")  # Same length (12 bytes)
+        is_valid, reason = cache_mgr.is_cached_valid(src, out_dir, params)
+        self.assertFalse(is_valid)
+        self.assertEqual(reason, "output content modified")
+        cache_mgr.close()
+
+    def test_cache_large_file_mtime_invalidation(self):
+        cache_mgr = CacheManager(db_path=self.dir_path / ".cache.sqlite")
+        src = self.dir_path / "in.mov"
+        src.write_bytes(b"A" * 100)
+        out_file = self.dir_path / "out.mp4"
+        out_file.write_bytes(b"B" * (PARTIAL_THRESHOLD + 100))
+        params = {"target": "MP4"}
+
+        cache_mgr.save(src, out_file, params)
+        is_valid, _ = cache_mgr.is_cached_valid(src, out_file, params)
+        self.assertTrue(is_valid)
+
+        # Touch file to change mtime
+        time.sleep(0.01)
+        os.utime(out_file, None)
+        is_valid, reason = cache_mgr.is_cached_valid(src, out_file, params)
+        self.assertFalse(is_valid)
+        self.assertEqual(reason, "output mtime changed")
+        cache_mgr.close()
+
+    # 16. Robustness: Image -auto-orient before -strip (Finding 3)
+    def test_image_strip_metadata_auto_orient(self):
+        from modules import image
+        src_img = self.dir_path / "rotated.jpg"
+        src_img.write_bytes(b"\xFF\xD8\xFF\xE0\x00\x10JFIF")
+
+        with patch("sys.platform", "darwin"), \
+             patch("shutil.which", return_value="/usr/local/bin/magick"), \
+             patch("modules.image.run_command") as mock_cmd:
+            # First command is sips, second is magick strip
+            mock_cmd.side_effect = [(True, ""), (True, "")]
+            success, _ = image.convert_image(src_img, "JPG", strip_metadata=True)
+            self.assertTrue(success)
+            self.assertEqual(mock_cmd.call_count, 2)
+            strip_call_args = mock_cmd.call_args_list[1][0][0]
+            self.assertIn("-auto-orient", strip_call_args)
+            self.assertIn("-strip", strip_call_args)
+            self.assertLess(strip_call_args.index("-auto-orient"), strip_call_args.index("-strip"))
+
+    # 17. Robustness: 7z password handling & Decompress password support (Finding 4)
+    def test_compress_7z_password_parameter_no_dash(self):
+        f = self.dir_path / "doc.txt"
+        f.write_text("data")
+
+        with patch("modules.compress.shutil.which", return_value="/usr/local/bin/7z"), \
+             patch("modules.compress.run_command") as mock_cmd:
+            def fake_run(cmd, cwd=None):
+                tmp_candidates = [a for a in cmd if ".tmp_" in a or a.endswith(".7z")]
+                if tmp_candidates:
+                    Path(tmp_candidates[0]).touch()
+                return True, ""
+            mock_cmd.side_effect = fake_run
+
+            # Without password: no -p- flag
+            success, _, _ = compress([f], "test.7z", "7Z", output_dir=self.dir_path)
+            self.assertTrue(success)
+            cmd_args = mock_cmd.call_args[0][0]
+            self.assertNotIn("-p-", cmd_args)
+
+            # With password: has -psecret
+            success2, _, _ = compress([f], "test.7z", "7Z", password="secret", output_dir=self.dir_path)
+            self.assertTrue(success2)
+            cmd_args2 = mock_cmd.call_args[0][0]
+            self.assertIn("-psecret", cmd_args2)
+
+    def test_decompress_password_support(self):
+        from modules import decompress
+        dummy_zip = self.dir_path / "secure.zip"
+        dummy_zip.touch()
+
+        with patch("shutil.which", return_value="/usr/bin/unzip"), \
+             patch("modules.decompress.run_command") as mock_cmd:
+            mock_cmd.return_value = (True, "")
+            success, _, _ = decompress.decompress(dummy_zip, output_dir=self.dir_path / "out", password="my_password")
+            self.assertTrue(success)
+            cmd_args = mock_cmd.call_args[0][0]
+            self.assertIn("-P", cmd_args)
+            self.assertEqual(cmd_args[cmd_args.index("-P") + 1], "my_password")
+
+    # 18. Robustness: Strict argument validation rejecting typos (Finding 7)
+    def test_mcp_strict_arg_validation_rejects_typos(self):
+        import asyncio
+        from mcp.server.fastmcp.exceptions import ToolError
+        from mcp_server.server import mcp
+
+        async def check_typo_rejection():
+            tool = mcp._tool_manager.get_tool("convergent_convert")
+            with self.assertRaises((ValueError, ToolError)) as cm:
+                await tool.run({
+                    "input_path": str(self.dir_path / "test.png"),
+                    "target_format": "JPG",
+                    "overwite": False,  # Typo for overwrite
+                })
+            self.assertIn("Unexpected argument(s)", str(cm.exception))
+            self.assertIn("overwite", str(cm.exception))
+
+        asyncio.run(check_typo_rejection())
+
+    # 19. Robustness: Same-format conversion to distinct destination copies file (Finding 8)
+    def test_same_format_distinct_destination_copies_file(self):
+        from Convergent import Converter
+        from customs.file_process import process_single_file
+        conv = Converter()
+        src_png = self.dir_path / "icon.png"
+        src_png.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        dest_dir = self.dir_path / "copied_dir"
+
+        name, success, err, _ = process_single_file(conv, src_png, "PNG", output_dir=dest_dir)
+        self.assertTrue(success)
+        self.assertEqual(err, "")
+        self.assertTrue((dest_dir / "icon.png").exists())
+        self.assertEqual((dest_dir / "icon.png").read_bytes(), src_png.read_bytes())
+
+    # 20. Robustness: Video accurate split option (Finding 6)
+    def test_split_video_accurate_option(self):
+        from modules import split
+        sample_vid = self.dir_path / "sample.mp4"
+        sample_vid.touch()
+
+        with patch("modules.split.get_media_duration", return_value=120.0), \
+             patch("modules.split.run_command") as mock_cmd:
+            mock_cmd.return_value = (True, "")
+
+            # Default: fast stream copy (-c copy)
+            split.split_video(sample_vid, mode="interval", interval=60, output_dir=self.dir_path / "split_fast", interactive=False)
+            cmd_fast = mock_cmd.call_args[0][0]
+            self.assertIn("-c", cmd_fast)
+            self.assertEqual(cmd_fast[cmd_fast.index("-c") + 1], "copy")
+
+            # Accurate: re-encodes, omits -c copy
+            split.split_video(sample_vid, mode="interval", interval=60, output_dir=self.dir_path / "split_acc", interactive=False, accurate=True)
+            cmd_acc = mock_cmd.call_args[0][0]
+            self.assertNotIn("copy", cmd_acc)
+
+    # 21. Robustness: Decompress excludes AppleDouble metadata (Finding 10)
+    def test_tar_decompress_excludes_appledouble(self):
+        import zipfile
+        zip_path = self.dir_path / "sample.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("real.txt", "real content")
+            zf.writestr("__MACOSX/._real.txt", "apple double metadata")
+            zf.writestr("._real2.txt", "apple double metadata")
+
+        res = decompress_archive(str(zip_path), output_dir=str(self.dir_path / "zip_out"))
+        self.assertTrue(res["success"])
+        # Should count 1 real extracted file, excluding AppleDouble and __MACOSX
+        self.assertEqual(res["extracted_files_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -268,6 +268,7 @@ def split_video(
     num_parts=None,
     output_dir=None,
     interactive=True,
+    accurate=False,
 ):
     path_obj = Path(os.path.expanduser(path)).resolve()
     video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
@@ -336,11 +337,12 @@ def split_video(
         if interactive:
             console.print(f"[bold cyan]Splitting into segments of {split_interval}s...[/bold cyan]")
         
+        copy_args = [] if accurate else ["-c", "copy"]
         any_success = False
         for i in range(num_segments):
             start = i * split_interval
             out_file = out_directory / f"part_{i+1:03d}{out_ext}"
-            cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
+            cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
             if success:
                 if interactive:
@@ -369,10 +371,11 @@ def split_video(
             if not time_ranges:
                 return None
             
+        copy_args = [] if accurate else ["-c", "copy"]
         any_success = False
         for idx, (start, end) in enumerate(time_ranges, 1):
             out_file = out_directory / f"part_{idx}_{int(start)}-{int(end)}{out_ext}"
-            cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
+            cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
             if success:
                 if interactive:
@@ -418,11 +421,12 @@ def split_video(
         if interactive:
             console.print(f"[bold cyan]Splitting into {parts_count} equal parts (~{split_interval:.2f}s each)...[/bold cyan]")
         
+        copy_args = [] if accurate else ["-c", "copy"]
         any_success = False
         for i in range(parts_count):
             start = i * split_interval
             out_file = out_directory / f"part_{i+1:03d}{out_ext}"
-            cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
+            cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
             success, _ = run_command(cmd)
             if success:
                 if interactive:

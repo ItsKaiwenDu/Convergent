@@ -270,6 +270,9 @@ class CacheManager:
                 if entry.get("out_size") is not None and entry["out_size"] > 0:
                     if cur_out_stat.st_size != entry["out_size"]:
                         return False, "output size mismatch"
+                if cur_out_stat.st_size > PARTIAL_THRESHOLD and entry.get("out_mtime") is not None:
+                    if abs(cur_out_stat.st_mtime - entry["out_mtime"]) >= 0.001:
+                        return False, "output mtime changed"
                 if entry.get("out_hash"):
                     cur_out_hash, _, _ = get_file_fingerprint(out_path)
                     if cur_out_hash != entry["out_hash"]:
@@ -285,7 +288,7 @@ class CacheManager:
                     if len(dir_items) != entry["out_size"]:
                         return False, "output item count mismatch"
                 if entry.get("out_hash"):
-                    manifest = sorted(f"{f.name}:{f.stat().st_size}" for f in dir_items)
+                    manifest = sorted(f"{f.name}:{f.stat().st_size}:{int(f.stat().st_mtime_ns)}" for f in dir_items)
                     cur_dir_hash = _blake2b_hex(";".join(manifest).encode("utf-8"), digest_size=16)
                     if cur_dir_hash != entry["out_hash"]:
                         return False, "output content modified"
@@ -345,7 +348,7 @@ class CacheManager:
                 elif new_out_path.is_dir():
                     dir_files = [f for f in new_out_path.iterdir() if f.is_file()]
                     new_size = len(dir_files)
-                    manifest = sorted(f"{f.name}:{f.stat().st_size}" for f in dir_files)
+                    manifest = sorted(f"{f.name}:{f.stat().st_size}:{int(f.stat().st_mtime_ns)}" for f in dir_files)
                     new_hash = _blake2b_hex(";".join(manifest).encode("utf-8"), digest_size=16)
                 else:
                     new_size = None
@@ -375,7 +378,7 @@ class CacheManager:
                 elif out_path.is_dir():
                     dir_files = [f for f in out_path.iterdir() if f.is_file()]
                     out_size = len(dir_files)
-                    manifest = sorted(f"{f.name}:{f.stat().st_size}" for f in dir_files)
+                    manifest = sorted(f"{f.name}:{f.stat().st_size}:{int(f.stat().st_mtime_ns)}" for f in dir_files)
                     out_hash = _blake2b_hex(";".join(manifest).encode("utf-8"), digest_size=16)
                 else:
                     out_size = None
