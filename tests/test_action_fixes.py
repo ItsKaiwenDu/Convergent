@@ -913,7 +913,7 @@ class TestActionFixes(unittest.TestCase):
             out_d = self.dir_path / "partial_out"
             out_d.mkdir(parents=True, exist_ok=True)
             (out_d / "part_001.mp4").touch()
-            split.LAST_SPLIT_FAILED_PARTS = [{"part": 2, "error": "Destination was a directory"}]
+            split.record_split_failed_parts([{"part": 2, "error": "Destination was a directory"}])
             return out_d
 
         with patch.object(Converter, "split_video", side_effect=fake_split):
@@ -981,17 +981,17 @@ class TestActionFixes(unittest.TestCase):
                 return True, ""
             mock_cmd.side_effect = fake_gs
 
-            orig_move = shutil.move
+            orig_replace = os.replace
             call_count = [0]
-            def faulty_move(src_p, dst_p):
+            def faulty_replace(src_p, dst_p):
                 # Fault when moving new page 2 to output_dir
                 if "old_backup" not in str(src_p) and "old_backup" not in str(dst_p):
                     call_count[0] += 1
                     if call_count[0] == 2:
                         raise OSError("Simulated disk error or locked destination")
-                return orig_move(src_p, dst_p)
+                return orig_replace(src_p, dst_p)
 
-            with patch("shutil.move", side_effect=faulty_move):
+            with patch("modules.pdf_manip.os.replace", side_effect=faulty_replace):
                 success, err = pdf_manip.convert_pdf_to_image(src, "JPG", output_dir=out_dir)
                 self.assertFalse(success)
                 self.assertIn("Failed to publish new pages", err)
@@ -1071,6 +1071,147 @@ class TestActionFixes(unittest.TestCase):
         res_bad = convergent_convert(str(src_md), "PDF", md_pdf_mode="wkhtmltopdf")
         self.assertFalse(res_bad["success"])
         self.assertIn("Allowed modes: standard, formatted, raw, typst", res_bad["error"])
+
+    # 34. Audio and GIF split failure tracking
+    def test_audio_and_gif_split_failure_tracking(self):
+        from modules import split
+        wav_file = self.dir_path / "audio.wav"
+        wav_file.touch()
+
+        # Audio split: part 1 succeeds, part 2 fails
+        call_count = [0]
+        def fake_audio_run_cmd(cmd, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # part 1 output
+                out_p = Path(cmd[-1])
+                out_p.touch()
+                return True, ""
+            return False, "Target blocked by directory"
+
+        with patch("modules.split.get_media_duration", return_value=60.0), \
+             patch("modules.split.run_command", side_effect=fake_audio_run_cmd):
+            res = split_file(str(wav_file), mode="parts", num_parts=2)
+            self.assertTrue(res["success"])
+            self.assertTrue(res.get("partial_success", False))
+            self.assertEqual(len(res.get("failed_parts", [])), 1)
+            self.assertEqual(res["failed_parts"][0]["part"], 2)
+            self.assertIn("Target blocked by directory", res["failed_parts"][0]["error"])
+
+        # GIF split: part 1 succeeds, part 2 fails
+        gif_file = self.dir_path / "anim.gif"
+        gif_file.touch()
+        call_count[0] = 0
+        def fake_gif_run_cmd(cmd, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                out_p = Path(cmd[-1])
+                out_p.touch()
+                return True, ""
+            return False, "Output write permission denied"
+
+        with patch("modules.split.get_media_duration", return_value=10.0), \
+             patch("modules.split.run_command", side_effect=fake_gif_run_cmd):
+            res = split_file(str(gif_file), mode="parts", num_parts=2)
+            self.assertTrue(res["success"])
+            self.assertTrue(res.get("partial_success", False))
+            self.assertEqual(len(res.get("failed_parts", [])), 1)
+            self.assertEqual(res["failed_parts"][0]["part"], 2)
+            self.assertIn("Output write permission denied", res["failed_parts"][0]["error"])
+
+    # 35. Stem collision batch cache hits on repeat
+    def test_stem_collision_batch_cache_hit_on_repeat(self):
+        from customs import file_process
+        from Convergent import Converter
+
+        same_jpg = self.dir_path / "same.jpg"
+        same_webp = self.dir_path / "same.webp"
+        same_jpg.write_text("fake jpeg content")
+        same_webp.write_text("fake webp content")
+
+        out_dir = self.dir_path / "out_collision_test"
+        out_dir.mkdir()
+
+        process_count = [0]
+        def fake_process_single(conv, f, target_format, *args, **kwargs):
+            process_count[0] += 1
+            exp_file = kwargs.get("explicit_output_file")
+            if not exp_file:
+                exp_file = file_process.get_expected_output_path(f, target_format, output_dir=out_dir)
+            exp_file.write_text("fake converted png content")
+            return exp_file.name, True, "", 0.01
+
+        with patch.object(Converter, "prepare_conversion", return_value=True), \
+             patch("customs.file_process.process_single_file", side_effect=fake_process_single):
+            # First conversion: cache misses, converts both files to disambiguated names
+            res1 = convergent_convert(
+                input_path=str(self.dir_path), target_format="PNG",
+                output_path=str(out_dir), use_cache=True, overwrite=True
+            )
+            self.assertEqual(process_count[0], 2)
+            self.assertEqual(res1["count"], 2)
+            self.assertTrue((out_dir / "same_jpg.png").exists())
+            self.assertTrue((out_dir / "same_webp.png").exists())
+
+            # Repeat identical conversion: both must hit cache and trigger ZERO conversions!
+            process_count[0] = 0
+            res2 = convergent_convert(
+                input_path=str(self.dir_path), target_format="PNG",
+                output_path=str(out_dir), use_cache=True, overwrite=True
+            )
+            self.assertEqual(process_count[0], 0, "Repeat stem-collision batch should hit cache without re-converting!")
+            self.assertEqual(res2["count"], 2)
+            self.assertTrue(res2.get("cached", False))
+
+    # 36. STT canonical model resolution and stderr error detail
+    def test_stt_canonical_model_resolution_and_err_detail(self):
+        from mcp_server.server import perform_stt
+        from modules import stt
+
+        # Model "standard" resolved to "base"
+        audio_f = self.dir_path / "speech.wav"
+        audio_f.touch()
+
+        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}) as mock_cc:
+            res = perform_stt(input_path=str(audio_f), model="standard")
+            self.assertTrue(res["success"])
+            self.assertEqual(res["model_used"], "base")
+            self.assertEqual(res["model_requested"], "standard")
+            self.assertEqual(mock_cc.call_args[1]["model"], "base")
+
+        # convert_audio_to_text preserves Whisper stderr when transcript file is not produced
+        with patch("modules.stt.find_whisper_binary", return_value="/usr/bin/whisper-cli"), \
+             patch("modules.stt.extract_audio_for_stt", return_value=audio_f), \
+             patch("modules.stt.get_model_path", return_value=Path("/tmp/model.bin")), \
+             patch("modules.stt.run_command", return_value=(True, "error: unknown language 'invalid_lang'")):
+            ok, err = stt.convert_audio_to_text(audio_f, target_ext="TXT", model="base", language="invalid_lang")
+            self.assertFalse(ok)
+            self.assertIn("error: unknown language 'invalid_lang'", err)
+
+    # 37. PDF staging cleanup force-removes immutable and read-only files
+    def test_pdf_staging_cleanup_force_removes_immutable_files(self):
+        from modules.pdf_manip import _force_remove_staging
+        import stat
+
+        staging_dir = self.dir_path / ".tmp_staging_test_cleanup"
+        staging_dir.mkdir()
+        page_file = staging_dir / "page_001.jpg"
+        page_file.write_text("test page bytes")
+
+        # Set read-only / immutable flags if supported
+        try:
+            page_file.chmod(stat.S_IREAD)
+            if hasattr(os, "chflags") and hasattr(stat, "UF_IMMUTABLE"):
+                try:
+                    os.chflags(str(page_file), stat.UF_IMMUTABLE)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Cleanup should succeed without throwing and completely remove the staging directory
+        _force_remove_staging(staging_dir)
+        self.assertFalse(staging_dir.exists())
 
 
 if __name__ == "__main__":

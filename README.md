@@ -212,7 +212,7 @@ In interactive mode, a **Collision Preview** table lists existing outputs and of
 - `[k]`: Keep both (auto-rename) once | `[Shift] + [k]`: Keep all
 - `[c]`: Cancel entire operation
 
-**Automation:** CLI skips existing outputs unless `--overwrite` is set. MCP `overwrite=False` rejects destination conflicts and leaves generated outputs in place.
+**Automation:** CLI skips existing outputs unless `--overwrite` is set. For MCP, `overwrite=False` rejects destination conflicts on single-file/custom targets and safely skips existing outputs on batch/directory conversions while reporting `skipped_files`.
 
 ## Post-Conversion Actions
 

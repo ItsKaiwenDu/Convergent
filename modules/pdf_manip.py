@@ -8,6 +8,46 @@ def required_dependencies(source_format, target_format, **options):
     return ["ghostscript"]
 
 
+def _force_remove_staging(staging_path: Path):
+    if not staging_path.exists():
+        return
+    for root, dirs, files in os.walk(staging_path, topdown=False):
+        for f in files:
+            fp = Path(root) / f
+            try:
+                if hasattr(os, "chflags"):
+                    try:
+                        os.chflags(fp, 0)
+                    except Exception:
+                        pass
+                fp.chmod(0o777)
+                fp.unlink(missing_ok=True)
+            except Exception:
+                pass
+        for d in dirs:
+            dp = Path(root) / d
+            try:
+                if hasattr(os, "chflags"):
+                    try:
+                        os.chflags(dp, 0)
+                    except Exception:
+                        pass
+                dp.chmod(0o777)
+                dp.rmdir()
+            except Exception:
+                pass
+    try:
+        if hasattr(os, "chflags"):
+            try:
+                os.chflags(staging_path, 0)
+            except Exception:
+                pass
+        staging_path.chmod(0o777)
+        staging_path.rmdir()
+    except Exception:
+        pass
+
+
 def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
     path_obj = Path(os.path.expanduser(source))
     if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
@@ -64,14 +104,14 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
                 try:
                     for old_f in old_pages:
                         bak_p = backup_dir / old_f.name
-                        shutil.move(str(old_f), str(bak_p))
+                        os.replace(str(old_f), str(bak_p))
                         moved_to_backup.append((old_f, bak_p))
                 except Exception as e:
                     # Rollback moving to backup
                     for orig_p, bak_p in moved_to_backup:
                         if bak_p.exists():
                             try:
-                                shutil.move(str(bak_p), str(orig_p))
+                                os.replace(str(bak_p), str(orig_p))
                             except Exception:
                                 pass
                     return False, f"Failed to prepare destination page updates: {e}"
@@ -81,7 +121,7 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
                 try:
                     for p in new_pages:
                         target_p = output_dir / p.name
-                        shutil.move(str(p), str(target_p))
+                        os.replace(str(p), str(target_p))
                         moved_new.append(target_p)
                 except Exception as e:
                     # Rollback: remove partially placed new pages and restore original old pages
@@ -94,12 +134,12 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
                     for orig_p, bak_p in moved_to_backup:
                         if bak_p.exists():
                             try:
-                                shutil.move(str(bak_p), str(orig_p))
+                                os.replace(str(bak_p), str(orig_p))
                             except Exception:
                                 pass
                     return False, f"Failed to publish new pages: {e}"
             return True, ""
         return False, error
     finally:
-        shutil.rmtree(staging_dir, ignore_errors=True)
+        _force_remove_staging(staging_dir)
 

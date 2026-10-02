@@ -339,23 +339,24 @@ def convert_audio_to_text(
         generated_srt = Path(f"{temp_out_prefix}.srt")
         generated_vtt = Path(f"{temp_out_prefix}.vtt")
 
+        err_detail = f": {err_msg.strip()}" if err_msg and err_msg.strip() else ""
         if target_ext == "TXT":
             if generated_txt.exists():
                 shutil.move(str(generated_txt), str(output))
                 return True, ""
-            return False, "Whisper failed to produce TXT output"
+            return False, f"Whisper failed to produce TXT output{err_detail}"
 
         elif target_ext == "SRT":
             if generated_srt.exists():
                 shutil.move(str(generated_srt), str(output))
                 return True, ""
-            return False, "Whisper failed to produce SRT output"
+            return False, f"Whisper failed to produce SRT output{err_detail}"
 
         elif target_ext == "VTT":
             if generated_vtt.exists():
                 shutil.move(str(generated_vtt), str(output))
                 return True, ""
-            return False, "Whisper failed to produce VTT output"
+            return False, f"Whisper failed to produce VTT output{err_detail}"
 
         elif target_ext == "MD":
             # Compose a formatted Markdown transcript with title & content

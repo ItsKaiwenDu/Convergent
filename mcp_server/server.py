@@ -619,16 +619,20 @@ def perform_stt(
         warning = f"Model '{model}' is not a recognized Whisper model name ({', '.join(valid_models)}). Falling back to 'base'."
         actual_model = "base"
 
+    resolved_model = "base" if actual_model.lower() == "standard" else actual_model
+
     res = convergent_convert(
         input_path=full_path,
         target_format=target_format.upper(),
         output_path=output_path,
         stt=True,
-        model=actual_model,
+        model=resolved_model,
         language=language,
         overwrite=True,
     )
-    res["model_used"] = actual_model
+    res["model_used"] = resolved_model
+    if resolved_model.lower() != model.lower():
+        res["model_requested"] = model
     if warning:
         res["warning"] = warning
 

@@ -338,6 +338,23 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             failed_details.append({"file": "", "name": "", "error": msg})
         return []
 
+    # Pre-compute stem disambiguation target_map before cache pre-filtering and conflict detection
+    dest_counts = {}
+    for f in files:
+        target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+        dest_counts[target] = dest_counts.get(target, 0) + 1
+
+    colliding_targets = {t for t, count in dest_counts.items() if count > 1}
+    target_map = {}
+    for f in files:
+        base_target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+        if base_target in colliding_targets:
+            src_ext = f.suffix.lstrip(".").lower()
+            disambiguated_name = f"{f.stem}_{src_ext}{base_target.suffix}"
+            target_map[f] = base_target.parent / disambiguated_name
+        else:
+            target_map[f] = base_target
+
     # Content-Addressable Cache pre-filter (automatic by default, bypass via --no-cache)
     cached_count = 0
     cached_skipped_files = []  # list of (src, out, reason)
@@ -360,7 +377,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             }
             remaining_after_cache = []
             for f in files:
-                out_path = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+                out_path = target_map.get(f, get_expected_output_path(f, target_format, output_dir=out_dir_path))
                 is_valid, reason = cache_mgr.is_cached_valid(f, out_path, params_for_cache)
                 if is_valid:
                     cached_count += 1
@@ -418,7 +435,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     # 1. Identify conflicts
     conflicts = []
     for f in files:
-        output = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+        output = target_map.get(f, get_expected_output_path(f, target_format, output_dir=out_dir_path))
         if output.exists() and output.resolve() != f.resolve():
             conflicts.append((f, output))
 
@@ -478,7 +495,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
 
 
         for f in files:
-            output = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+            output = target_map.get(f, get_expected_output_path(f, target_format, output_dir=out_dir_path))
             if output.exists() and output.resolve() != f.resolve() and not overwrite and not skip and not keep_all:
                 console.print(f"\n[bold yellow]⚠  File already exists: {output.name}[/bold yellow]")
                 console.print("   [bold]\\[o][/bold] Overwrite   [bold]\\[s][/bold] Skip   [bold]\\[k][/bold] Keep both   [bold]\\[c][/bold] Cancel")
@@ -521,6 +538,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             os.symlink(f.name, str(temp_source))
                             final_files.append(temp_source)
                             temp_symlinks[temp_source] = f
+                            target_map[temp_source] = candidate_output
                             console.print(f"   [dim]Will save as: {candidate_output.name}[/dim]")
                         except Exception as e:
                             console.print(f"   [bold red]Error creating temporary file: {e}[/bold red]")
@@ -545,6 +563,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             os.symlink(f.name, str(temp_source))
                             final_files.append(temp_source)
                             temp_symlinks[temp_source] = f
+                            target_map[temp_source] = candidate_output
                             console.print(f"   [dim]Will save as: {candidate_output.name}[/dim]")
                         except Exception as e:
                             console.print(f"   [bold red]Error creating temporary file: {e}[/bold red]")
@@ -578,6 +597,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             os.symlink(f.name, str(temp_source))
                             final_files.append(temp_source)
                             temp_symlinks[temp_source] = f
+                            target_map[temp_source] = candidate_output
                         except Exception as e:
                             console.print(f"   [bold red]Error creating temporary file: {e}[/bold red]")
                 else:
@@ -624,21 +644,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         failed_files = []
         completed_files = set()
 
-        dest_counts = {}
         for f in files:
-            target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
-            dest_counts[target] = dest_counts.get(target, 0) + 1
-
-        colliding_targets = {t for t, count in dest_counts.items() if count > 1}
-        target_map = {}
-        for f in files:
-            base_target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
-            if base_target in colliding_targets:
-                src_ext = f.suffix.lstrip(".").lower()
-                disambiguated_name = f"{f.stem}_{src_ext}{base_target.suffix}"
-                target_map[f] = base_target.parent / disambiguated_name
-            else:
-                target_map[f] = base_target
+            if f not in target_map:
+                target_map[f] = get_expected_output_path(f, target_format, output_dir=out_dir_path)
         
         if HAS_RICH:
             actual_source_formats = sorted(list(set(f.suffix.lower()[1:].upper() for f in files if f.suffix)))

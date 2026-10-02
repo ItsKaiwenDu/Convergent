@@ -5,11 +5,11 @@ import shutil
 import subprocess
 from pathlib import Path
 import contextvars
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from customs.console import console, get_input, get_char
 from customs.run_command import run_command, send_to_trash, is_current_request_cancelled
 
-CURRENT_SPLIT_FAILED_PARTS: contextvars.ContextVar[List[Dict[str, Any]]] = contextvars.ContextVar("CURRENT_SPLIT_FAILED_PARTS", default=[])
+CURRENT_SPLIT_FAILED_PARTS: contextvars.ContextVar[Optional[List[Dict[str, Any]]]] = contextvars.ContextVar("CURRENT_SPLIT_FAILED_PARTS", default=None)
 LAST_SPLIT_FAILED_PARTS = []
 
 def reset_split_diagnostics():
@@ -198,6 +198,7 @@ def split_pdf(
                 console.print(f"[bold green]Successfully split into {out_directory.name}/[/bold green]")
             return out_directory
         else:
+            record_split_failed_parts([{"part": 1, "error": error or "Failed to split PDF"}])
             if interactive:
                 console.print(f"[bold red]FAILED to split PDF[/bold red]")
             return None
@@ -216,17 +217,24 @@ def split_pdf(
                 return None
 
         any_success = False
+        failed_parts = []
         for idx, (start, end) in enumerate(page_ranges, 1):
+            if is_current_request_cancelled():
+                break
             out_file = out_directory / f"part_{idx}_{start}-{end}.pdf"
             cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), f"-dFirstPage={start}", f"-dLastPage={end}", str(path_obj)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {idx} (Pages {start}-{end}): [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": idx, "error": err or "Failed to extract page range"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {idx} (Pages {start}-{end}): [bold red]FAILED[/bold red]")
+            if is_current_request_cancelled():
+                break
+        record_split_failed_parts(failed_parts)
 
         if any_success:
             if interactive:
@@ -258,20 +266,27 @@ def split_pdf(
         remainder = total_pages % parts_count
         current_page = 1
         any_success = False
+        failed_parts = []
         for i in range(parts_count):
+            if is_current_request_cancelled():
+                break
             count = base_size + (1 if i < remainder else 0)
             end_page = current_page + count - 1
             out_file = out_directory / f"part_{i+1}_{current_page}-{end_page}.pdf"
             cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": i + 1, "error": err or "Failed to extract page segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {i+1} (Pages {current_page}-{end_page}): [bold red]FAILED[/bold red]")
             current_page = end_page + 1
+            if is_current_request_cancelled():
+                break
+        record_split_failed_parts(failed_parts)
 
         if any_success:
             if interactive:
@@ -565,18 +580,25 @@ def split_audio(
             console.print(f"[bold cyan]Splitting into segments of {split_interval}s...[/bold cyan]")
         
         any_success = False
+        failed_parts = []
         for i in range(num_segments):
+            if is_current_request_cancelled():
+                break
             start = i * split_interval
             out_file = out_directory / f"part_{i+1:03d}{out_ext}"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": i + 1, "error": err or "Failed to generate segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
+            if is_current_request_cancelled():
+                break
+        record_split_failed_parts(failed_parts)
             
         if any_success:
             if interactive:
@@ -598,17 +620,24 @@ def split_audio(
                 return None
             
         any_success = False
+        failed_parts = []
         for idx, (start, end) in enumerate(time_ranges, 1):
+            if is_current_request_cancelled():
+                break
             out_file = out_directory / f"part_{idx}_{int(start)}-{int(end)}{out_ext}"
             cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": idx, "error": err or "Failed to generate segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold red]FAILED[/bold red]")
+            if is_current_request_cancelled():
+                break
+        record_split_failed_parts(failed_parts)
             
         if any_success:
             if interactive:
@@ -647,18 +676,25 @@ def split_audio(
             console.print(f"[bold cyan]Splitting into {parts_count} equal parts (~{split_interval:.2f}s each)...[/bold cyan]")
         
         any_success = False
+        failed_parts = []
         for i in range(parts_count):
+            if is_current_request_cancelled():
+                break
             start = i * split_interval
             out_file = out_directory / f"part_{i+1:03d}{out_ext}"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": i + 1, "error": err or "Failed to generate segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
+            if is_current_request_cancelled():
+                break
+        record_split_failed_parts(failed_parts)
             
         if any_success:
             if interactive:
@@ -752,6 +788,7 @@ def split_gif(
                 console.print(f"[bold green]Successfully extracted frames to {out_directory.name}/[/bold green]")
             return out_directory
         else:
+            record_split_failed_parts([{"part": 1, "error": error or "Failed to extract GIF frames"}])
             if interactive:
                 console.print(f"[bold red]FAILED to extract frames[/bold red]")
                 if error:
@@ -794,18 +831,25 @@ def split_gif(
             if interactive:
                 console.print(f"[bold cyan]Splitting into segments of {split_interval}s...[/bold cyan]")
             any_success = False
+            failed_parts = []
             for i in range(num_segments):
+                if is_current_request_cancelled():
+                    break
                 start = i * split_interval
                 out_file = out_directory / f"part_{i+1:03d}.gif"
                 cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-y", "-loglevel", "error", str(out_file)]
-                success, _ = run_command(cmd)
-                if success:
+                success, err = run_command(cmd)
+                if success and out_file.exists():
                     if interactive:
                         console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                     any_success = True
                 else:
+                    failed_parts.append({"part": i + 1, "error": err or "Failed to generate segment"})
                     if interactive:
                         console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
+                if is_current_request_cancelled():
+                    break
+            record_split_failed_parts(failed_parts)
                     
             if any_success:
                 if interactive:
@@ -827,17 +871,24 @@ def split_gif(
                     return None
                     
             any_success = False
+            failed_parts = []
             for idx, (start, end) in enumerate(time_ranges, 1):
+                if is_current_request_cancelled():
+                    break
                 out_file = out_directory / f"part_{idx}_{int(start)}-{int(end)}.gif"
                 cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-y", "-loglevel", "error", str(out_file)]
-                success, _ = run_command(cmd)
-                if success:
+                success, err = run_command(cmd)
+                if success and out_file.exists():
                     if interactive:
                         console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
                     any_success = True
                 else:
+                    failed_parts.append({"part": idx, "error": err or "Failed to generate segment"})
                     if interactive:
                         console.print(f" [bold red]✗[/bold red] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold red]FAILED[/bold red]")
+                if is_current_request_cancelled():
+                    break
+            record_split_failed_parts(failed_parts)
                     
             if any_success:
                 if interactive:
@@ -873,18 +924,25 @@ def split_gif(
             if interactive:
                 console.print(f"[bold cyan]Splitting into {parts_count} equal parts (~{split_interval:.2f}s each)...[/bold cyan]")
             any_success = False
+            failed_parts = []
             for i in range(parts_count):
+                if is_current_request_cancelled():
+                    break
                 start = i * split_interval
                 out_file = out_directory / f"part_{i+1:03d}.gif"
                 cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-y", "-loglevel", "error", str(out_file)]
-                success, _ = run_command(cmd)
-                if success:
+                success, err = run_command(cmd)
+                if success and out_file.exists():
                     if interactive:
                         console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                     any_success = True
                 else:
+                    failed_parts.append({"part": i + 1, "error": err or "Failed to generate segment"})
                     if interactive:
                         console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
+                if is_current_request_cancelled():
+                    break
+            record_split_failed_parts(failed_parts)
                     
             if any_success:
                 if interactive:
