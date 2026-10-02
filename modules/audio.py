@@ -21,28 +21,49 @@ def get_ogg_audio_encoder_args():
 
 def parse_audio_bitrate(bitrate):
     """
-    Parses and normalizes audio bitrate strings.
+    Parses and normalizes audio bitrate strings to standard ffmpeg kbps format.
     Accepts:
       - '256k', '256K' -> '256k'
-      - '1M', '1m' -> '1m'
+      - '1M', '1m', '0.256M' -> '1000k', '256k'
       - '256000' (raw bps) -> '256k'
       - '256' (kbps shorthand) -> '256k'
+    Rejects:
+      - 0, 0k, 0M, negative values, non-numeric strings
     Returns:
       (is_valid: bool, normalized_value: Optional[str])
     """
     if not bitrate:
         return True, None
     b_str = str(bitrate).strip()
+
+    # Megabit format: 1M, 0.256M, 1m, 1.5M -> convert to integer kbps
+    m_match = re.match(r"^(\d+(?:\.\d+)?)[mM]$", b_str)
+    if m_match:
+        val_m = float(m_match.group(1))
+        if val_m <= 0:
+            return False, None
+        kbps = int(round(val_m * 1000))
+        return True, f"{kbps}k"
+
+    # Kilobit format: 256k, 256K, 128.5k
+    k_match = re.match(r"^(\d+(?:\.\d+)?)[kK]$", b_str)
+    if k_match:
+        val_k = float(k_match.group(1))
+        if val_k <= 0:
+            return False, None
+        kbps = int(round(val_k))
+        return True, f"{kbps}k"
+
+    # Raw integer without suffix: raw bps (>= 1000) or kbps shorthand (< 1000)
     if re.match(r"^\d+$", b_str):
         num = int(b_str)
+        if num <= 0:
+            return False, None
         if num >= 1000:
             return True, f"{num // 1000}k" if num % 1000 == 0 else f"{num}"
         else:
             return True, f"{num}k"
-    if re.match(r"^\d+(?:\.\d+)?[kK]$", b_str):
-        return True, b_str.lower()
-    if re.match(r"^\d+(?:\.\d+)?[mM]$", b_str):
-        return True, b_str.lower()
+
     return False, None
 
 

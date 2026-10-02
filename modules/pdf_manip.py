@@ -56,18 +56,48 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
                     if target_p.is_dir() or target_p.is_symlink():
                         return False, f"Destination conflict: '{target_p}' is an existing directory or symlink."
 
-                # Safe publication: remove existing regular page files
-                for old_f in output_dir.glob(f"page_*.{target_ext}"):
-                    if old_f.is_file():
-                        try:
-                            old_f.unlink()
-                        except Exception as e:
-                            return False, f"Failed to clear existing page file {old_f}: {e}"
+                # Staging backup of existing page files for rollback protection
+                old_pages = [f for f in output_dir.glob(f"page_*.{target_ext}") if f.is_file()]
+                backup_dir = staging_dir / "old_backup"
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                moved_to_backup = []
+                try:
+                    for old_f in old_pages:
+                        bak_p = backup_dir / old_f.name
+                        shutil.move(str(old_f), str(bak_p))
+                        moved_to_backup.append((old_f, bak_p))
+                except Exception as e:
+                    # Rollback moving to backup
+                    for orig_p, bak_p in moved_to_backup:
+                        if bak_p.exists():
+                            try:
+                                shutil.move(str(bak_p), str(orig_p))
+                            except Exception:
+                                pass
+                    return False, f"Failed to prepare destination page updates: {e}"
 
                 # Move new pages into place
-                for p in new_pages:
-                    target_p = output_dir / p.name
-                    shutil.move(str(p), str(target_p))
+                moved_new = []
+                try:
+                    for p in new_pages:
+                        target_p = output_dir / p.name
+                        shutil.move(str(p), str(target_p))
+                        moved_new.append(target_p)
+                except Exception as e:
+                    # Rollback: remove partially placed new pages and restore original old pages
+                    for np in moved_new:
+                        if np.exists():
+                            try:
+                                np.unlink()
+                            except Exception:
+                                pass
+                    for orig_p, bak_p in moved_to_backup:
+                        if bak_p.exists():
+                            try:
+                                shutil.move(str(bak_p), str(orig_p))
+                            except Exception:
+                                pass
+                    return False, f"Failed to publish new pages: {e}"
             return True, ""
         return False, error
     finally:

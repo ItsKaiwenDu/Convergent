@@ -4,10 +4,28 @@ import uuid
 import shutil
 import subprocess
 from pathlib import Path
+import contextvars
+from typing import List, Dict, Any
 from customs.console import console, get_input, get_char
 from customs.run_command import run_command, send_to_trash, is_current_request_cancelled
 
+CURRENT_SPLIT_FAILED_PARTS: contextvars.ContextVar[List[Dict[str, Any]]] = contextvars.ContextVar("CURRENT_SPLIT_FAILED_PARTS", default=[])
 LAST_SPLIT_FAILED_PARTS = []
+
+def reset_split_diagnostics():
+    global LAST_SPLIT_FAILED_PARTS
+    LAST_SPLIT_FAILED_PARTS = []
+    CURRENT_SPLIT_FAILED_PARTS.set([])
+
+def record_split_failed_parts(failed_parts):
+    global LAST_SPLIT_FAILED_PARTS
+    parts = list(failed_parts)
+    LAST_SPLIT_FAILED_PARTS = parts
+    CURRENT_SPLIT_FAILED_PARTS.set(parts)
+
+def get_split_failed_parts() -> List[Dict[str, Any]]:
+    parts = CURRENT_SPLIT_FAILED_PARTS.get()
+    return list(parts) if parts else list(LAST_SPLIT_FAILED_PARTS)
 
 def required_dependencies(kind):
     if kind in ("docx", "pptx"):
@@ -127,6 +145,7 @@ def split_pdf(
     interactive=True,
     display_name=None,
 ):
+    reset_split_diagnostics()
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.is_file() or path_obj.suffix.lower() != ".pdf":
         if interactive:
@@ -272,7 +291,7 @@ def split_video(
     interactive=True,
     accurate=False,
 ):
-    global LAST_SPLIT_FAILED_PARTS
+    reset_split_diagnostics()
     path_obj = Path(os.path.expanduser(path)).resolve()
     video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
     if not path_obj.is_file() or path_obj.suffix.lower() not in video_exts:
@@ -360,7 +379,7 @@ def split_video(
                     console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
             if is_current_request_cancelled():
                 break
-        LAST_SPLIT_FAILED_PARTS = failed_parts
+        record_split_failed_parts(failed_parts)
 
         if any_success:
             if interactive:
@@ -400,7 +419,7 @@ def split_video(
                     console.print(f" [bold red]✗[/bold red] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold red]FAILED[/bold red]")
             if is_current_request_cancelled():
                 break
-        LAST_SPLIT_FAILED_PARTS = failed_parts
+        record_split_failed_parts(failed_parts)
 
         if any_success:
             if interactive:
@@ -458,7 +477,7 @@ def split_video(
                     console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
             if is_current_request_cancelled():
                 break
-        LAST_SPLIT_FAILED_PARTS = failed_parts
+        record_split_failed_parts(failed_parts)
 
         if any_success:
             if interactive:
@@ -477,6 +496,7 @@ def split_audio(
     output_dir=None,
     interactive=True,
 ):
+    reset_split_diagnostics()
     path_obj = Path(os.path.expanduser(path)).resolve()
     audio_exts = {".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"}
     if not path_obj.is_file() or path_obj.suffix.lower() not in audio_exts:
@@ -658,6 +678,7 @@ def split_gif(
     output_dir=None,
     interactive=True,
 ):
+    reset_split_diagnostics()
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.is_file() or path_obj.suffix.lower() != ".gif":
         if interactive:
@@ -882,6 +903,7 @@ def split_office(
     output_dir=None,
     interactive=True,
 ):
+    reset_split_diagnostics()
     path_obj = Path(os.path.expanduser(path)).resolve()
     if not path_obj.is_file() or path_obj.suffix.lower() != f".{file_type}":
         if interactive:

@@ -925,6 +925,155 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("warnings", res)
 
 
+    # 29. ThreadPoolExecutor propagates request context to worker threads
+    def test_executor_propagates_request_context_and_cancels(self):
+        from customs.run_command import set_request_context, CURRENT_REQUEST_ID, is_current_request_cancelled
+        from customs import file_process
+        from Convergent import Converter
+        import threading
+
+        cancel_evt = threading.Event()
+        set_request_context("req_pool_123", cancel_evt)
+
+        observed_req_ids = []
+        def fake_worker(conv, f, *args, **kwargs):
+            observed_req_ids.append(CURRENT_REQUEST_ID.get())
+            return (f.name, True, "", 0.01)
+
+        f1 = self.dir_path / "f1.txt"
+        f1.touch()
+        conv = Converter()
+
+        from customs.console import console
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("customs.file_process.process_single_file", side_effect=fake_worker):
+            file_process.process(conv, console, None, ["TXT"], "PDF", [str(f1)], overwrite=True, interactive=False)
+
+        # Worker must have inherited "req_pool_123" contextvar!
+        self.assertEqual(observed_req_ids, ["req_pool_123"])
+        set_request_context(None, None)
+
+    # 30. PDF publication rollback on move failure preserves all old pages
+    def test_pdf_publication_rollback_on_failure(self):
+        import shutil
+        from modules import pdf_manip
+        src = self.dir_path / "doc.pdf"
+        src.touch()
+        out_dir = self.dir_path / "rollback_pages"
+        out_dir.mkdir()
+
+        p1 = out_dir / "page_001.jpg"
+        p2 = out_dir / "page_002.jpg"
+        p1.write_text("orig page 1")
+        p2.write_text("orig page 2")
+
+        with patch("modules.pdf_manip.run_command") as mock_cmd:
+            def fake_gs(cmd):
+                # Ghostscript succeeds and writes 2 pages to staging
+                out_part = next((a for a in cmd if "-sOUTPUTFILE=" in a), None)
+                if out_part:
+                    pat = out_part.split("-sOUTPUTFILE=")[1]
+                    s1 = Path(pat.replace("%03d", "001"))
+                    s2 = Path(pat.replace("%03d", "002"))
+                    s1.parent.mkdir(parents=True, exist_ok=True)
+                    s1.write_text("new page 1")
+                    s2.write_text("new page 2")
+                return True, ""
+            mock_cmd.side_effect = fake_gs
+
+            orig_move = shutil.move
+            call_count = [0]
+            def faulty_move(src_p, dst_p):
+                # Fault when moving new page 2 to output_dir
+                if "old_backup" not in str(src_p) and "old_backup" not in str(dst_p):
+                    call_count[0] += 1
+                    if call_count[0] == 2:
+                        raise OSError("Simulated disk error or locked destination")
+                return orig_move(src_p, dst_p)
+
+            with patch("shutil.move", side_effect=faulty_move):
+                success, err = pdf_manip.convert_pdf_to_image(src, "JPG", output_dir=out_dir)
+                self.assertFalse(success)
+                self.assertIn("Failed to publish new pages", err)
+
+                # Rollback must restore original old pages!
+                self.assertTrue(p1.exists())
+                self.assertEqual(p1.read_text(), "orig page 1")
+                self.assertTrue(p2.exists())
+                self.assertEqual(p2.read_text(), "orig page 2")
+
+    # 31. Split diagnostics isolation: video failure does not leak into PDF split
+    def test_split_diagnostics_isolation(self):
+        from modules import split
+        from Convergent import Converter
+
+        # 1. Simulate a failed video split recording a failed part
+        split.record_split_failed_parts([{"part": 2, "error": "Disk full"}])
+        self.assertEqual(len(split.get_split_failed_parts()), 1)
+
+        # 2. Run a valid PDF split
+        pdf_f = self.dir_path / "valid.pdf"
+        pdf_f.touch()
+        out_split = self.dir_path / "pdf_split_out"
+        out_split.mkdir()
+        (out_split / "part_1.pdf").touch()
+
+        with patch("modules.split.get_pdf_page_count", return_value=1), \
+             patch.object(Converter, "split_pdf", return_value=out_split):
+            res = split_file(str(pdf_f), mode="pages")
+            self.assertTrue(res["success"])
+            # Must NOT inherit previous video failure!
+            self.assertFalse(res.get("partial_success", False))
+            self.assertNotIn("failed_parts", res)
+
+    # 32. Bitrate normalization: megabit and nonpositive values
+    def test_bitrate_megabit_and_zero_normalization(self):
+        from modules.audio import parse_audio_bitrate
+
+        # Megabit values converted to kbps
+        ok, val = parse_audio_bitrate("0.256M")
+        self.assertTrue(ok)
+        self.assertEqual(val, "256k")
+
+        ok, val = parse_audio_bitrate("1M")
+        self.assertTrue(ok)
+        self.assertEqual(val, "1000k")
+
+        ok, val = parse_audio_bitrate("1m")
+        self.assertTrue(ok)
+        self.assertEqual(val, "1000k")
+
+        # Nonpositive values rejected
+        ok, val = parse_audio_bitrate("0k")
+        self.assertFalse(ok)
+        self.assertIsNone(val)
+
+        ok, val = parse_audio_bitrate("0")
+        self.assertFalse(ok)
+        self.assertIsNone(val)
+
+        ok, val = parse_audio_bitrate("-128k")
+        self.assertFalse(ok)
+        self.assertIsNone(val)
+
+    # 33. Markdown mode normalization: uppercase "RAW" accepted, invalid rejected
+    def test_markdown_mode_case_normalization(self):
+        src_md = self.dir_path / "intro.md"
+        src_md.write_text("# Welcome")
+
+        # "RAW" uppercase accepted and normalized to "raw"
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("customs.file_process.process", return_value=["intro.pdf"]):
+            res = convergent_convert(str(src_md), "PDF", md_pdf_mode="RAW")
+            self.assertTrue(res["success"])
+
+        # "wkhtmltopdf" rejected
+        res_bad = convergent_convert(str(src_md), "PDF", md_pdf_mode="wkhtmltopdf")
+        self.assertFalse(res_bad["success"])
+        self.assertIn("Allowed modes: standard, formatted, raw, typst", res_bad["error"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

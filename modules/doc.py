@@ -186,7 +186,7 @@ def convert_markdown(source, target_ext, md_pdf_mode=None, **kwargs):
             return False, f"Failed to copy plain text file: {e}"
             
     elif target_ext == "PDF":
-        if md_pdf_mode == "raw":
+        if md_pdf_mode and str(md_pdf_mode).lower() == "raw":
             if sys.platform != "darwin":
                 return False, "Raw PDF conversion is only supported on macOS."
             

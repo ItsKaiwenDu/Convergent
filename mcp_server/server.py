@@ -186,14 +186,16 @@ def convergent_convert(
             "converted_files": [],
         }
 
-    if md_pdf_mode is not None and str(md_pdf_mode).lower() not in (
-        "standard", "formatted", "raw", "wkhtmltopdf", "typst", "libreoffice", "browser"
-    ):
-        return {
-            "success": False,
-            "error": f"Invalid md_pdf_mode: '{md_pdf_mode}'. Allowed modes: standard, formatted, raw, wkhtmltopdf, typst, libreoffice, browser.",
-            "converted_files": [],
-        }
+    md_pdf_mode_val = None
+    if md_pdf_mode is not None:
+        mode_str = str(md_pdf_mode).lower().strip()
+        if mode_str not in ("standard", "formatted", "raw", "typst"):
+            return {
+                "success": False,
+                "error": f"Invalid md_pdf_mode: '{md_pdf_mode}'. Allowed modes: standard, formatted, raw, typst.",
+                "converted_files": [],
+            }
+        md_pdf_mode_val = mode_str
 
     fps_val = str(fps) if fps is not None else None
     bitrate_val = None
@@ -241,7 +243,7 @@ def convergent_convert(
         "target": target_fmt,
         "fps": fps_val,
         "bitrate": bitrate_val,
-        "md_pdf_mode": md_pdf_mode,
+        "md_pdf_mode": md_pdf_mode_val,
         "strip_metadata": strip_metadata,
         "ocr": ocr,
         "stt": stt,
@@ -294,7 +296,7 @@ def convergent_convert(
             bitrate=bitrate_val,
             overwrite=overwrite,
             skip=not overwrite,
-            md_pdf_mode=md_pdf_mode,
+            md_pdf_mode=md_pdf_mode_val,
             strip_metadata=strip_metadata,
             interactive=False,
             ocr=ocr,
@@ -825,6 +827,9 @@ def split_file(
         except (ValueError, TypeError):
             return {"success": False, "error": f"Invalid interval: {interval}."}
 
+    from modules.split import reset_split_diagnostics, get_split_failed_parts
+    reset_split_diagnostics()
+
     warnings = []
     if ranges is not None and ext == ".pdf":
         from modules.split import get_pdf_page_count
@@ -945,21 +950,23 @@ def split_file(
                 "truncated": is_truncated,
                 "message": f"Successfully split {file_path} into {total_count} files." + (" (showing first 50)" if is_truncated else ""),
             }
-            from modules.split import LAST_SPLIT_FAILED_PARTS
-            if LAST_SPLIT_FAILED_PARTS:
+            failed_parts = get_split_failed_parts()
+            if failed_parts:
                 res_dict["partial_success"] = True
-                res_dict["failed_parts"] = list(LAST_SPLIT_FAILED_PARTS)
+                res_dict["failed_parts"] = failed_parts
                 if warnings is None:
                     warnings = []
-                warnings.append(f"{len(LAST_SPLIT_FAILED_PARTS)} segment(s) failed during splitting.")
+                warnings.append(f"{len(failed_parts)} segment(s) failed during splitting.")
             if warnings:
                 res_dict["warnings"] = warnings
+            reset_split_diagnostics()
             return res_dict
         else:
-            from modules.split import LAST_SPLIT_FAILED_PARTS
+            failed_parts = get_split_failed_parts()
             err_msg = f"Failed to split {file_path}."
-            if LAST_SPLIT_FAILED_PARTS:
-                err_msg += f" {len(LAST_SPLIT_FAILED_PARTS)} segment(s) failed."
+            if failed_parts:
+                err_msg += f" {len(failed_parts)} segment(s) failed."
+            reset_split_diagnostics()
             return {"success": False, "error": err_msg}
     except Exception as e:
         return {"success": False, "error": str(e)}

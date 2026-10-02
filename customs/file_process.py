@@ -9,10 +9,11 @@ import shlex
 import shutil
 import concurrent.futures
 import multiprocessing
+import contextvars
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List
-from customs.run_command import send_to_trash
+from customs.run_command import send_to_trash, is_current_request_cancelled
 from customs.check_deps import MissingDependencyError
 
 FAILED_RUN_FILE = Path.home() / ".convergent_failed.json"
@@ -235,6 +236,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                         dpi=dpi,
                         **extra_kwargs
                     )
+                    if is_current_request_cancelled():
+                        return f.name, False, "Operation cancelled.", time.perf_counter() - start_time
                     if success:
                         if staged_out.exists():
                             if output_file.exists() and output_file.resolve() != f.resolve():
@@ -273,10 +276,15 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                     dpi=dpi,
                     **extra_kwargs
                 )
+                if is_current_request_cancelled():
+                    return f.name, False, "Operation cancelled.", time.perf_counter() - start_time
         else:
             error = f"Handler method {fmt_def.handler_method} not found on Converter"
     else:
         error = f"Source format {source_fmt} not supported"
+    
+    if is_current_request_cancelled():
+        return f.name, False, "Operation cancelled.", time.perf_counter() - start_time
     
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
@@ -653,17 +661,20 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
                     futures = {}
                     for f in files:
+                        ctx = contextvars.copy_context()
                         exp_target = target_map.get(f)
                         kw = dict(proc_kwargs)
                         if exp_target and exp_target != get_expected_output_path(f, target_format, output_dir=out_dir_path):
                             kw["explicit_output_file"] = exp_target
-                        fut = executor.submit(process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **kw)
+                        fut = executor.submit(ctx.run, process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **kw)
                         futures[fut] = f
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
                             from customs.run_command import is_current_request_cancelled
                             if is_current_request_cancelled():
+                                for remaining_fut in futures:
+                                    remaining_fut.cancel()
                                 break
                             orig_file = futures[future]
                             completed_files.add(orig_file)

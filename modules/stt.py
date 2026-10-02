@@ -331,6 +331,9 @@ def convert_audio_to_text(
         if not success:
             return False, f"Whisper transcription failed: {err_msg}"
 
+        if is_current_request_cancelled():
+            return False, "Operation cancelled."
+
         # 5. Move or format generated output to destination
         generated_txt = Path(f"{temp_out_prefix}.txt")
         generated_srt = Path(f"{temp_out_prefix}.srt")
