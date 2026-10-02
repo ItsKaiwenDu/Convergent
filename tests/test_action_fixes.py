@@ -835,7 +835,8 @@ class TestActionFixes(unittest.TestCase):
             out_f.write_bytes(b"converted-jpg")
             return (f.name, True, "", 0.01)
 
-        with patch("customs.file_process.process_single_file", side_effect=fake_make_out):
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("customs.file_process.process_single_file", side_effect=fake_make_out):
             res1 = convergent_convert(
                 input_path=str(src_img),
                 target_format="JPG",
