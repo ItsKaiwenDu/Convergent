@@ -69,9 +69,11 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
             vf = f"fps={fps}," + vf
         cmd += ["-vf", vf]
     elif target_upper == "MP3":
-        import re
-        if bitrate and re.match(r"^\d+k?$", str(bitrate).lower()):
-            b_val = str(bitrate).lower() if str(bitrate).lower().endswith("k") else f"{bitrate}k"
+        from modules.audio import parse_audio_bitrate
+        if bitrate is not None:
+            valid, b_val = parse_audio_bitrate(bitrate)
+            if not valid or not b_val:
+                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
             cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", b_val]
         else:
             cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
@@ -80,9 +82,11 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
     elif target_upper == "M4A":
         cmd += ["-vn", "-acodec", "aac", "-q:a", "2"]
     elif target_upper == "AAC":
-        import re
-        if bitrate and re.match(r"^\d+k?$", str(bitrate).lower()):
-            b_val = str(bitrate).lower() if str(bitrate).lower().endswith("k") else f"{bitrate}k"
+        from modules.audio import parse_audio_bitrate
+        if bitrate is not None:
+            valid, b_val = parse_audio_bitrate(bitrate)
+            if not valid or not b_val:
+                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
             cmd += ["-vn", "-c:a", "aac", "-b:a", b_val]
         else:
             cmd += ["-vn", "-c:a", "aac", "-b:a", "192k"]

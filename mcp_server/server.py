@@ -44,11 +44,19 @@ try:
         arguments_parsed_model = self.arg_model.model_validate(arguments_pre_parsed)
         arguments_parsed_dict = arguments_parsed_model.model_dump_one_level()
         arguments_parsed_dict |= arguments_to_pass_directly or {}
+
+        import uuid
+        import threading
+        from customs.run_command import set_request_context, terminate_active_processes
+        request_id = str(uuid.uuid4())
+        cancel_event = threading.Event()
+        set_request_context(request_id, cancel_event)
+
         try:
             return await asyncio.to_thread(fn, **arguments_parsed_dict)
         except asyncio.CancelledError:
-            from customs.run_command import terminate_active_processes
-            terminate_active_processes()
+            cancel_event.set()
+            terminate_active_processes(request_id=request_id)
             raise
 
     FuncMetadata.call_fn_with_arg_validation = _async_call_fn_with_arg_validation
@@ -171,8 +179,34 @@ def convergent_convert(
         }
 
     target_fmt = target_format.upper().lstrip(".")
+    if dpi is not None and dpi <= 0:
+        return {
+            "success": False,
+            "error": f"Invalid dpi: {dpi}. Must be a positive integer.",
+            "converted_files": [],
+        }
+
+    if md_pdf_mode is not None and str(md_pdf_mode).lower() not in (
+        "standard", "formatted", "raw", "wkhtmltopdf", "typst", "libreoffice", "browser"
+    ):
+        return {
+            "success": False,
+            "error": f"Invalid md_pdf_mode: '{md_pdf_mode}'. Allowed modes: standard, formatted, raw, wkhtmltopdf, typst, libreoffice, browser.",
+            "converted_files": [],
+        }
+
     fps_val = str(fps) if fps is not None else None
-    bitrate_val = str(bitrate) if bitrate is not None else None
+    bitrate_val = None
+    if bitrate is not None:
+        from modules.audio import parse_audio_bitrate
+        valid_b, b_norm = parse_audio_bitrate(bitrate)
+        if not valid_b or not b_norm:
+            return {
+                "success": False,
+                "error": f"Invalid bitrate: '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'.",
+                "converted_files": [],
+            }
+        bitrate_val = b_norm
 
     # Determine source format and gather original input set for safety
     path_obj = Path(cleaned_input).resolve()
@@ -248,6 +282,8 @@ def convergent_convert(
 
     success_map: Dict[str, str] = {}
     failed_details: List[Dict[str, Any]] = []
+    cached_out_list: List[str] = []
+    skipped_out_list: List[str] = []
 
     try:
         converted = conv.process(
@@ -270,6 +306,8 @@ def convergent_convert(
             dpi=dpi,
             output_dir=str(conv_output_dir) if conv_output_dir else None,
             failed_details=failed_details,
+            cached_out_list=cached_out_list,
+            skipped_out_list=skipped_out_list,
         )
 
         converted_list = [str(p) for p in (converted or list(success_map.keys()))]
@@ -314,28 +352,9 @@ def convergent_convert(
             converted_list = final_converted_list
 
         if converted_list:
-            is_all_cached = False
-            if use_cache:
-                try:
-                    cache_mgr = CacheManager()
-                    all_valid = True
-                    for out_item in converted_list:
-                        out_p = Path(out_item)
-                        if not out_p.exists():
-                            all_valid = False
-                            break
-                        src_item = path_obj if path_obj.is_file() else success_map.get(str(out_p)) or success_map.get(out_p)
-                        if not src_item:
-                            all_valid = False
-                            break
-                        valid, _ = cache_mgr.is_cached_valid(Path(src_item), out_p, params_for_cache)
-                        if not valid:
-                            all_valid = False
-                            break
-                    is_all_cached = all_valid
-                    cache_mgr.close()
-                except Exception:
-                    is_all_cached = False
+            is_all_cached = bool(converted_list) and bool(cached_out_list) and all(
+                str(Path(out_item).resolve()) in cached_out_list for out_item in converted_list
+            )
 
             res: Dict[str, Any] = {
                 "success": True,
@@ -344,10 +363,22 @@ def convergent_convert(
                 "target_format": target_fmt,
                 "cached": is_all_cached,
             }
+            if skipped_out_list:
+                res["skipped_files"] = [str(f) for f in skipped_out_list]
             if failed_details:
                 res["partial_success"] = True
                 res["failed_files"] = failed_details
             return res
+        elif skipped_out_list:
+            return {
+                "success": True,
+                "count": 0,
+                "converted_files": [],
+                "target_format": target_fmt,
+                "cached": False,
+                "skipped_files": [str(f) for f in skipped_out_list],
+                "message": f"All {len(skipped_out_list)} file(s) already exist and were skipped.",
+            }
         else:
             error_msg = failed_details[0]["error"] if failed_details else f"No matching files found or conversion failed for: {input_path}"
             return {
@@ -914,11 +945,22 @@ def split_file(
                 "truncated": is_truncated,
                 "message": f"Successfully split {file_path} into {total_count} files." + (" (showing first 50)" if is_truncated else ""),
             }
+            from modules.split import LAST_SPLIT_FAILED_PARTS
+            if LAST_SPLIT_FAILED_PARTS:
+                res_dict["partial_success"] = True
+                res_dict["failed_parts"] = list(LAST_SPLIT_FAILED_PARTS)
+                if warnings is None:
+                    warnings = []
+                warnings.append(f"{len(LAST_SPLIT_FAILED_PARTS)} segment(s) failed during splitting.")
             if warnings:
                 res_dict["warnings"] = warnings
             return res_dict
         else:
-            return {"success": False, "error": f"Failed to split {file_path}."}
+            from modules.split import LAST_SPLIT_FAILED_PARTS
+            err_msg = f"Failed to split {file_path}."
+            if LAST_SPLIT_FAILED_PARTS:
+                err_msg += f" {len(LAST_SPLIT_FAILED_PARTS)} segment(s) failed."
+            return {"success": False, "error": err_msg}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

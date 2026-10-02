@@ -724,6 +724,205 @@ class TestActionFixes(unittest.TestCase):
         # Should count 1 real extracted file, excluding AppleDouble and __MACOSX
         self.assertEqual(res["extracted_files_count"], 1)
 
+    # 22. Request-scoped cancellation preserves concurrent requests
+    def test_request_scoped_cancellation_preserves_concurrent_requests(self):
+        from customs.run_command import set_request_context, terminate_active_processes, _REQUEST_PROCESSES
+        import threading
+        from unittest.mock import MagicMock
+
+        proc_a = MagicMock()
+        proc_b = MagicMock()
+
+        # Simulate Request A
+        cancel_evt_a = threading.Event()
+        set_request_context("req_A", cancel_evt_a)
+        _REQUEST_PROCESSES["req_A"].add(proc_a)
+
+        # Simulate Request B
+        cancel_evt_b = threading.Event()
+        set_request_context("req_B", cancel_evt_b)
+        _REQUEST_PROCESSES["req_B"].add(proc_b)
+
+        # Cancel Request A only
+        terminate_active_processes(request_id="req_A")
+
+        # Process A was terminated/killed
+        proc_a.terminate.assert_called_once()
+        proc_a.kill.assert_called_once()
+
+        # Process B was NOT touched!
+        proc_b.terminate.assert_not_called()
+        proc_b.kill.assert_not_called()
+
+        # Clean up
+        _REQUEST_PROCESSES.clear()
+        set_request_context(None, None)
+
+    # 23. Split loop stops subsequent segments upon cancellation
+    def test_split_loop_stops_subsequent_segments_on_cancellation(self):
+        from modules import split
+        from customs.run_command import set_request_context
+        import threading
+
+        sample_vid = self.dir_path / "cancel_loop.mp4"
+        sample_vid.touch()
+
+        cancel_evt = threading.Event()
+        set_request_context("test_cancel", cancel_evt)
+
+        call_count = [0]
+        def fake_run(cmd, cwd=None):
+            call_count[0] += 1
+            # Signal cancellation on first part
+            cancel_evt.set()
+            return True, ""
+
+        with patch("modules.split.get_media_duration", return_value=120.0), \
+             patch("modules.split.run_command", side_effect=fake_run):
+            split.split_video(sample_vid, mode="parts", num_parts=5, output_dir=self.dir_path / "cancel_out", interactive=False)
+
+        # Loop must stop after part 1, NOT proceed to 5 parts!
+        self.assertEqual(call_count[0], 1)
+        set_request_context(None, None)
+
+    # 24. PDF publication directory collision aborts without deleting existing pages
+    def test_pdf_publication_directory_collision_preserves_pages(self):
+        from modules import pdf_manip
+        src = self.dir_path / "book.pdf"
+        src.write_text("dummy-pdf")
+        out_dir = self.dir_path / "book_images"
+        out_dir.mkdir()
+
+        p1 = out_dir / "page_001.jpg"
+        p1.write_text("original page 1")
+        # page_002.jpg is a directory containing sentinel
+        p2_dir = out_dir / "page_002.jpg"
+        p2_dir.mkdir()
+        (p2_dir / "sentinel.txt").write_text("sentinel content")
+
+        with patch("modules.pdf_manip.run_command") as mock_cmd:
+            def fake_gs(cmd, cwd=None):
+                # Ghostscript succeeds and writes 2 pages into staging
+                for part in cmd:
+                    if "-sOUTPUTFILE=" in part:
+                        pat = part.split("-sOUTPUTFILE=")[1]
+                        staging_p1 = Path(pat.replace("%03d", "001"))
+                        staging_p2 = Path(pat.replace("%03d", "002"))
+                        staging_p1.parent.mkdir(parents=True, exist_ok=True)
+                        staging_p1.write_text("new page 1")
+                        staging_p2.write_text("new page 2")
+                return True, ""
+            mock_cmd.side_effect = fake_gs
+
+            success, err = pdf_manip.convert_pdf_to_image(src, "JPG", output_dir=out_dir)
+            self.assertFalse(success)
+            self.assertIn("Destination conflict", err)
+            # p1 original file must still be intact!
+            self.assertTrue(p1.exists())
+            self.assertEqual(p1.read_text(), "original page 1")
+            # Sentinel inside p2_dir must also survive
+            self.assertTrue((p2_dir / "sentinel.txt").exists())
+
+    # 25. Fresh conversion reports cached=False and repeat reports cached=True
+    def test_fresh_conversion_reports_cached_false_and_repeat_reports_cached_true(self):
+        src_img = self.dir_path / "raw.png"
+        src_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+        out_target = self.dir_path / "fresh_out.jpg"
+
+        def fake_make_out(conv, f, target_fmt, *args, **kwargs):
+            out_d = kwargs.get("output_dir") or f.parent
+            out_f = Path(out_d) / f"{f.stem}.{target_fmt.lower()}"
+            out_f.write_bytes(b"converted-jpg")
+            return (f.name, True, "", 0.01)
+
+        with patch("customs.file_process.process_single_file", side_effect=fake_make_out):
+            res1 = convergent_convert(
+                input_path=str(src_img),
+                target_format="JPG",
+                output_path=str(out_target),
+                overwrite=True,
+                use_cache=True,
+            )
+            self.assertTrue(res1["success"])
+            # Fresh conversion must NOT be reported as cached!
+            self.assertFalse(res1.get("cached", False))
+
+            # Repeat conversion with identical output in place must be reported as cached
+            res2 = convergent_convert(
+                input_path=str(src_img),
+                target_format="JPG",
+                output_path=str(out_target),
+                overwrite=True,
+                use_cache=True,
+            )
+            self.assertTrue(res2["success"])
+            self.assertTrue(res2.get("cached", False))
+
+    # 26. Parameter validation: dpi, md_pdf_mode, bitrate
+    def test_parameter_validations(self):
+        src_f = self.dir_path / "test_doc.md"
+        src_f.write_text("# Hello")
+
+        # dpi <= 0 rejection
+        res_dpi = convergent_convert(str(src_f), "PDF", dpi=0)
+        self.assertFalse(res_dpi["success"])
+        self.assertIn("positive integer", res_dpi["error"])
+
+        # invalid md_pdf_mode
+        res_mode = convergent_convert(str(src_f), "PDF", md_pdf_mode="invalid_engine")
+        self.assertFalse(res_mode["success"])
+        self.assertIn("Allowed modes", res_mode["error"])
+
+        # invalid bitrate string
+        res_br = convergent_convert(str(src_f), "MP3", bitrate="nonsense")
+        self.assertFalse(res_br["success"])
+        self.assertIn("Invalid bitrate", res_br["error"])
+
+    # 27. Bitrate normalization: "256000" and "256k"
+    def test_bitrate_normalization(self):
+        from modules import audio
+        src_wav = self.dir_path / "clip.wav"
+        src_wav.touch()
+
+        with patch("modules.audio.run_command") as mock_cmd:
+            mock_cmd.return_value = (True, "")
+
+            # "256000" raw bps -> normalized to 256k
+            success, _ = audio.convert_audio(src_wav, "MP3", bitrate="256000")
+            self.assertTrue(success)
+            cmd1 = mock_cmd.call_args[0][0]
+            self.assertIn("256k", cmd1)
+            self.assertNotIn("256000k", cmd1)
+
+            # "256k" stays 256k
+            success2, _ = audio.convert_audio(src_wav, "MP3", bitrate="256k")
+            self.assertTrue(success2)
+            cmd2 = mock_cmd.call_args[0][0]
+            self.assertIn("256k", cmd2)
+
+    # 28. Split file reports partial_success and failed_parts
+    def test_split_file_reports_partial_success(self):
+        from Convergent import Converter
+        sample_vid = self.dir_path / "split_partial.mp4"
+        sample_vid.touch()
+
+        from modules import split
+        # Simulate part 2 failure in split
+        def fake_split(p, **kwargs):
+            out_d = self.dir_path / "partial_out"
+            out_d.mkdir(parents=True, exist_ok=True)
+            (out_d / "part_001.mp4").touch()
+            split.LAST_SPLIT_FAILED_PARTS = [{"part": 2, "error": "Destination was a directory"}]
+            return out_d
+
+        with patch.object(Converter, "split_video", side_effect=fake_split):
+            res = split_file(str(sample_vid), mode="parts", num_parts=2)
+            self.assertTrue(res["success"])
+            self.assertTrue(res.get("partial_success", False))
+            self.assertEqual(len(res.get("failed_parts", [])), 1)
+            self.assertEqual(res["failed_parts"][0]["part"], 2)
+            self.assertIn("warnings", res)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ import subprocess
 import shutil
 import tempfile
 from pathlib import Path
+from customs.run_command import run_command, run_command_output
 
 # Module-level platform-specific imports
 HAS_MACOS_VISION = False
@@ -90,11 +91,8 @@ def _convert_pdf_to_temp_images(source: Path):
     # 1. pdftoppm (poppler) - fast & native rendering
     if shutil.which("pdftoppm"):
         out_prefix = temp_dir / "page"
-        result = subprocess.run(
-            ["pdftoppm", "-png", "-r", "300", str(source), str(out_prefix)],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
+        success, _ = run_command(["pdftoppm", "-png", "-r", "300", str(source), str(out_prefix)])
+        if success:
             pngs = sorted(list(temp_dir.glob("*.png")))
             if pngs:
                 return temp_dir, pngs
@@ -104,17 +102,14 @@ def _convert_pdf_to_temp_images(source: Path):
         out_pattern = temp_dir / "page_%04d.png"
         resolved_source = Path(source).resolve()
         resolved_temp = Path(temp_dir).resolve()
-        result = subprocess.run(
-            [
-                "gs", "-dNOPAUSE", "-dBATCH", "-dSAFER",
-                f"--permit-file-read={resolved_source}",
-                f"--permit-file-write={resolved_temp}/*",
-                "-sDEVICE=png16m", "-r300",
-                f"-sOUTPUTFILE={out_pattern}", str(resolved_source)
-            ],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
+        success, _ = run_command([
+            "gs", "-dNOPAUSE", "-dBATCH", "-dSAFER",
+            f"--permit-file-read={resolved_source}",
+            f"--permit-file-write={resolved_temp}/*",
+            "-sDEVICE=png16m", "-r300",
+            f"-sOUTPUTFILE={out_pattern}", str(resolved_source)
+        ])
+        if success:
             pngs = sorted(list(temp_dir.glob("*.png")))
             if pngs:
                 return temp_dir, pngs
@@ -122,21 +117,15 @@ def _convert_pdf_to_temp_images(source: Path):
     # 3. ImageMagick (magick / convert)
     if shutil.which("magick"):
         out_pattern = temp_dir / "page_%04d.png"
-        result = subprocess.run(
-            ["magick", "-density", "300", str(source), str(out_pattern)],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
+        success, _ = run_command(["magick", "-density", "300", str(source), str(out_pattern)])
+        if success:
             pngs = sorted(list(temp_dir.glob("*.png")))
             if pngs:
                 return temp_dir, pngs
     elif shutil.which("convert"):
         out_pattern = temp_dir / "page_%04d.png"
-        result = subprocess.run(
-            ["convert", "-density", "300", str(source), str(out_pattern)],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
+        success, _ = run_command(["convert", "-density", "300", str(source), str(out_pattern)])
+        if success:
             pngs = sorted(list(temp_dir.glob("*.png")))
             if pngs:
                 return temp_dir, pngs
@@ -144,11 +133,8 @@ def _convert_pdf_to_temp_images(source: Path):
     # 4. sips (macOS fallback)
     if shutil.which("sips"):
         out_png = temp_dir / "page_0001.png"
-        result = subprocess.run(
-            ["sips", "-s", "format", "png", str(source), "--out", str(out_png)],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0 and out_png.exists():
+        success, _ = run_command(["sips", "-s", "format", "png", str(source), "--out", str(out_png)])
+        if success and out_png.exists():
             return temp_dir, [out_png]
 
     # Cleanup temp dir if conversion failed
@@ -310,15 +296,9 @@ def _ocr_macos_native(image_path: Path) -> str:
     return "\n".join(text_lines)
 
 def _ocr_tesseract(image_path: Path) -> str:
-    try:
-        result = subprocess.run(
-            ["tesseract", str(image_path), "stdout"],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout
-    except FileNotFoundError:
+    if not shutil.which("tesseract"):
         raise FileNotFoundError("Tesseract is not installed. Install via: brew install tesseract")
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Tesseract OCR failed: {e.stderr}")
+    code, stdout, stderr = run_command_output(["tesseract", str(image_path), "stdout"])
+    if code != 0:
+        raise RuntimeError(f"Tesseract OCR failed: {stderr}")
+    return stdout

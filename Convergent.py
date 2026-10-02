@@ -261,8 +261,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None):
         return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir, failed_details=failed_details)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None, cached_out_list=None, skipped_out_list=None):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir, failed_details=failed_details, cached_out_list=cached_out_list, skipped_out_list=skipped_out_list)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:

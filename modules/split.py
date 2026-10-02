@@ -5,7 +5,9 @@ import shutil
 import subprocess
 from pathlib import Path
 from customs.console import console, get_input, get_char
-from customs.run_command import run_command, send_to_trash
+from customs.run_command import run_command, send_to_trash, is_current_request_cancelled
+
+LAST_SPLIT_FAILED_PARTS = []
 
 def required_dependencies(kind):
     if kind in ("docx", "pptx"):
@@ -270,6 +272,7 @@ def split_video(
     interactive=True,
     accurate=False,
 ):
+    global LAST_SPLIT_FAILED_PARTS
     path_obj = Path(os.path.expanduser(path)).resolve()
     video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
     if not path_obj.is_file() or path_obj.suffix.lower() not in video_exts:
@@ -339,19 +342,26 @@ def split_video(
         
         copy_args = [] if accurate else ["-c", "copy"]
         any_success = False
+        failed_parts = []
         for i in range(num_segments):
+            if is_current_request_cancelled():
+                break
             start = i * split_interval
             out_file = out_directory / f"part_{i+1:03d}{out_ext}"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": i + 1, "error": err or "Failed to generate segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
-            
+            if is_current_request_cancelled():
+                break
+        LAST_SPLIT_FAILED_PARTS = failed_parts
+
         if any_success:
             if interactive:
                 console.print(f"\n[bold green]Split finished! Files are in {out_directory.name}/[/bold green]")
@@ -373,18 +383,25 @@ def split_video(
             
         copy_args = [] if accurate else ["-c", "copy"]
         any_success = False
+        failed_parts = []
         for idx, (start, end) in enumerate(time_ranges, 1):
+            if is_current_request_cancelled():
+                break
             out_file = out_directory / f"part_{idx}_{int(start)}-{int(end)}{out_ext}"
             cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": idx, "error": err or "Failed to generate segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold red]FAILED[/bold red]")
-            
+            if is_current_request_cancelled():
+                break
+        LAST_SPLIT_FAILED_PARTS = failed_parts
+
         if any_success:
             if interactive:
                 console.print(f"\n[bold green]Custom split finished! Files are in {out_directory.name}/[/bold green]")
@@ -423,19 +440,26 @@ def split_video(
         
         copy_args = [] if accurate else ["-c", "copy"]
         any_success = False
+        failed_parts = []
         for i in range(parts_count):
+            if is_current_request_cancelled():
+                break
             start = i * split_interval
             out_file = out_directory / f"part_{i+1:03d}{out_ext}"
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
-            success, _ = run_command(cmd)
-            if success:
+            success, err = run_command(cmd)
+            if success and out_file.exists():
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
             else:
+                failed_parts.append({"part": i + 1, "error": err or "Failed to generate segment"})
                 if interactive:
                     console.print(f" [bold red]✗[/bold red] Part {i+1}: [bold red]FAILED[/bold red]")
-            
+            if is_current_request_cancelled():
+                break
+        LAST_SPLIT_FAILED_PARTS = failed_parts
+
         if any_success:
             if interactive:
                 console.print(f"\n[bold green]Split finished! Files are in {out_directory.name}/[/bold green]")

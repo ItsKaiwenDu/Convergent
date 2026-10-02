@@ -48,15 +48,26 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
     try:
         success, error = run_command(cmd)
         if success:
-            new_pages = list(staging_dir.glob(f"page_*.{target_ext}"))
+            new_pages = sorted(list(staging_dir.glob(f"page_*.{target_ext}")))
             if new_pages:
-                for old_f in output_dir.glob(f"page_*.{target_ext}"):
-                    try:
-                        old_f.unlink(missing_ok=True)
-                    except Exception:
-                        pass
+                # Pre-validate all target destinations before deleting or moving anything
                 for p in new_pages:
-                    shutil.move(str(p), str(output_dir / p.name))
+                    target_p = output_dir / p.name
+                    if target_p.is_dir() or target_p.is_symlink():
+                        return False, f"Destination conflict: '{target_p}' is an existing directory or symlink."
+
+                # Safe publication: remove existing regular page files
+                for old_f in output_dir.glob(f"page_*.{target_ext}"):
+                    if old_f.is_file():
+                        try:
+                            old_f.unlink()
+                        except Exception as e:
+                            return False, f"Failed to clear existing page file {old_f}: {e}"
+
+                # Move new pages into place
+                for p in new_pages:
+                    target_p = output_dir / p.name
+                    shutil.move(str(p), str(target_p))
             return True, ""
         return False, error
     finally:

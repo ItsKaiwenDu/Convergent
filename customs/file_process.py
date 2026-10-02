@@ -281,7 +281,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None, cached_out_list=None, skipped_out_list=None):
     """
     Processes a batch of files for conversion.
     """
@@ -357,6 +357,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 if is_valid:
                     cached_count += 1
                     cached_skipped_files.append((f, out_path, reason))
+                    if cached_out_list is not None:
+                        cached_out_list.append(str(out_path.resolve()))
                     # Keep success_map in sync for move/undo flows – treat cached outputs as "converted" for post-actions
                     if isinstance(success_map, dict):
                         if out_path.resolve() != f.resolve():
@@ -574,8 +576,13 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     final_files.append(f)
         
         skipped_count = len(files) - len(final_files)
-        if skipped_count > 0 and skip:
-            console.print(f"[dim]Skipped {skipped_count} already existing files.[/dim]")
+        if skipped_count > 0:
+            if skipped_out_list is not None:
+                for orig_f in files:
+                    if orig_f not in final_files:
+                        skipped_out_list.append(str(orig_f.resolve()))
+            if skip:
+                console.print(f"[dim]Skipped {skipped_count} already existing files.[/dim]")
                 
         files = final_files
         
@@ -655,6 +662,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                     
                     try:
                         for future in concurrent.futures.as_completed(futures):
+                            from customs.run_command import is_current_request_cancelled
+                            if is_current_request_cancelled():
+                                break
                             orig_file = futures[future]
                             completed_files.add(orig_file)
                             name, success, error, duration = future.result()

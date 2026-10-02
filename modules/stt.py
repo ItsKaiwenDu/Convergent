@@ -14,6 +14,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Tuple, Optional, List, Dict
+from customs.run_command import run_command, is_current_request_cancelled
 
 # Local model cache directory
 MODELS_DIR = Path.home() / ".cache" / "convergent" / "models"
@@ -246,11 +247,11 @@ def extract_audio_for_stt(source: Path) -> Path:
         "-loglevel", "error",
         str(temp_wav)
     ]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0 or not temp_wav.exists():
+    success, err = run_command(cmd)
+    if not success or not temp_wav.exists():
         if temp_wav.exists():
             temp_wav.unlink()
-        raise RuntimeError(f"FFmpeg audio extraction failed: {res.stderr.strip() or 'Unknown error'}")
+        raise RuntimeError(f"FFmpeg audio extraction failed: {err or 'Unknown error'}")
 
     return temp_wav
 
@@ -326,9 +327,8 @@ def convert_audio_to_text(
             cmd.extend(["-l", language.lower()])
 
         # Run transcription
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            err_msg = result.stderr.strip() or result.stdout.strip()
+        success, err_msg = run_command(cmd)
+        if not success:
             return False, f"Whisper transcription failed: {err_msg}"
 
         # 5. Move or format generated output to destination
