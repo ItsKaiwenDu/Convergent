@@ -1089,7 +1089,8 @@ class TestActionFixes(unittest.TestCase):
                 return True, ""
             return False, "Target blocked by directory"
 
-        with patch("modules.split.get_media_duration", return_value=60.0), \
+        with patch("Convergent.ensure_dependencies", return_value=True), \
+             patch("modules.split.get_media_duration", return_value=60.0), \
              patch("modules.split.run_command", side_effect=fake_audio_run_cmd):
             res = split_file(str(wav_file), mode="parts", num_parts=2)
             self.assertTrue(res["success"])
@@ -1110,7 +1111,8 @@ class TestActionFixes(unittest.TestCase):
                 return True, ""
             return False, "Output write permission denied"
 
-        with patch("modules.split.get_media_duration", return_value=10.0), \
+        with patch("Convergent.ensure_dependencies", return_value=True), \
+             patch("modules.split.get_media_duration", return_value=10.0), \
              patch("modules.split.run_command", side_effect=fake_gif_run_cmd):
             res = split_file(str(gif_file), mode="parts", num_parts=2)
             self.assertTrue(res["success"])
