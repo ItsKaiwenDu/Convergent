@@ -422,7 +422,16 @@ class TestMCPServer(unittest.TestCase):
         dummy_pdf = self.dir_path / "test.pdf"
         dummy_pdf.touch()
 
-        with patch("modules.pdf_manip.run_command", return_value=(True, "")) as mock_cmd:
+        def fake_gs(cmd, **kwargs):
+            for a in cmd:
+                if a.startswith("-sOUTPUTFILE="):
+                    p_str = a.split("=", 1)[1].replace("%03d", "001")
+                    p = Path(p_str)
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.touch()
+            return True, ""
+
+        with patch("modules.pdf_manip.run_command", side_effect=fake_gs) as mock_cmd:
             success, err = pdf_manip.convert_pdf_to_image(str(dummy_pdf), "jpg", output_dir=str(self.dir_path / "out"))
             self.assertTrue(success)
             cmd_args = mock_cmd.call_args[0][0]

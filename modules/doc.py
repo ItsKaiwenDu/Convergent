@@ -318,7 +318,7 @@ def convert_html(source, target_ext, **kwargs):
 
     elif target_ext == "MD":
         def run_conv(temp_src, temp_out):
-            return run_command(["pandoc", str(temp_src), "-t", "markdown", "-o", str(temp_out)])
+            return run_command(["pandoc", f"--resource-path={res_path}", str(temp_src), "-t", "markdown", "-o", str(temp_out)], cwd=res_path)
 
         success, err = convert_with_temp_files(source, output, run_conv)
         if success:
@@ -327,7 +327,7 @@ def convert_html(source, target_ext, **kwargs):
 
     elif target_ext == "TXT":
         def run_conv(temp_src, temp_out):
-            return run_command(["pandoc", str(temp_src), "-t", "plain", "-o", str(temp_out)])
+            return run_command(["pandoc", f"--resource-path={res_path}", str(temp_src), "-t", "plain", "-o", str(temp_out)], cwd=res_path)
 
         success, err = convert_with_temp_files(source, output, run_conv)
         if success:
@@ -337,7 +337,7 @@ def convert_html(source, target_ext, **kwargs):
     elif target_ext in ("DOCX", "RTF"):
         def run_conv(temp_src, temp_out):
             # Pandoc natively writes docx and rtf
-            success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out)])
+            success, err = run_command(["pandoc", f"--resource-path={res_path}", str(temp_src), "-o", str(temp_out)], cwd=res_path)
             if success:
                 return True, ""
 

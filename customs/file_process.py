@@ -340,20 +340,34 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
 
     # Pre-compute stem disambiguation target_map before cache pre-filtering and conflict detection
     dest_counts = {}
+    natural_targets = {}
     for f in files:
         target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
+        natural_targets[f] = target
         dest_counts[target] = dest_counts.get(target, 0) + 1
 
     colliding_targets = {t for t, count in dest_counts.items() if count > 1}
     target_map = {}
+    claimed_targets = set()
+
     for f in files:
-        base_target = get_expected_output_path(f, target_format, output_dir=out_dir_path)
-        if base_target in colliding_targets:
-            src_ext = f.suffix.lstrip(".").lower()
-            disambiguated_name = f"{f.stem}_{src_ext}{base_target.suffix}"
-            target_map[f] = base_target.parent / disambiguated_name
-        else:
-            target_map[f] = base_target
+        nat = natural_targets[f]
+        if nat not in colliding_targets:
+            target_map[f] = nat
+            claimed_targets.add(nat)
+
+    for f in files:
+        if f in target_map:
+            continue
+        nat = natural_targets[f]
+        src_ext = f.suffix.lstrip(".").lower()
+        candidate = nat.parent / f"{f.stem}_{src_ext}{nat.suffix}"
+        counter = 1
+        while candidate in claimed_targets:
+            candidate = nat.parent / f"{f.stem}_{src_ext}_{counter}{nat.suffix}"
+            counter += 1
+        target_map[f] = candidate
+        claimed_targets.add(candidate)
 
     # Content-Addressable Cache pre-filter (automatic by default, bypass via --no-cache)
     cached_count = 0

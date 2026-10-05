@@ -138,7 +138,8 @@ def convert_pdf_to_image(source, target_ext, dpi=300, output_dir=None):
                             except Exception:
                                 pass
                     return False, f"Failed to publish new pages: {e}"
-            return True, ""
+                return True, ""
+            return False, error or "Ghostscript generated no page images (document may be empty, encrypted, or corrupted)."
         return False, error
     finally:
         _force_remove_staging(staging_dir)

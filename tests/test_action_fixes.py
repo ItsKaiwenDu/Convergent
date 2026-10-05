@@ -1215,6 +1215,220 @@ class TestActionFixes(unittest.TestCase):
         _force_remove_staging(staging_dir)
         self.assertFalse(staging_dir.exists())
 
+    # 38. Batch second-order stem collision disambiguation (Finding #1)
+    def test_batch_second_order_stem_collision_disambiguation(self):
+        from Convergent import Converter
+        conv = Converter()
+
+        img1 = self.dir_path / "asset.jpg"
+        img2 = self.dir_path / "asset.png"
+        img3 = self.dir_path / "asset_jpg.png"
+        img1.write_bytes(b"jpg content")
+        img2.write_bytes(b"png content")
+        img3.write_bytes(b"asset_jpg png content")
+
+        out_dir = self.dir_path / "output_png"
+        out_dir.mkdir()
+
+        def fake_convert_image(source, target_ext, **kwargs):
+            out_p = kwargs.get("output_file")
+            if not out_p:
+                out_p = source.with_suffix(f".{target_ext.lower()}")
+            out_p.write_bytes(b"png data")
+            return True, ""
+
+        with patch.object(conv, "prepare_conversion", return_value=True), \
+             patch.object(conv, "convert_image", side_effect=fake_convert_image):
+            converted = conv.process(
+                source_formats=["JPG", "PNG"],
+                target_format="PNG",
+                paths=[str(self.dir_path)],
+                output_dir=str(out_dir),
+                interactive=False,
+            )
+            self.assertEqual(len(converted), 3)
+            out_names = {Path(p).name for p in converted}
+            self.assertEqual(len(out_names), 3)
+            self.assertIn("asset_jpg.png", out_names)
+            self.assertIn("asset_png.png", out_names)
+            self.assertIn("asset_jpg_1.png", out_names)
+
+    # 39. PDF empty page output rejection and format isolation (Finding #2)
+    def test_pdf_empty_output_and_format_isolation(self):
+        from modules import pdf_manip
+        from mcp_server.server import pdf_to_images
+        dummy_pdf = self.dir_path / "corrupt.pdf"
+        dummy_pdf.touch()
+
+        # When Ghostscript generates no pages, convert_pdf_to_image must return False
+        with patch("modules.pdf_manip.run_command", return_value=(True, "")):
+            ok, err = pdf_manip.convert_pdf_to_image(str(dummy_pdf), "jpg", output_dir=str(self.dir_path / "out"))
+            self.assertFalse(ok)
+            self.assertIn("Ghostscript generated no page images", err)
+
+        # In pdf_to_images, ensure old images of different format are ignored
+        out_images_dir = self.dir_path / "stale_out"
+        out_images_dir.mkdir()
+        (out_images_dir / "old_page.png").touch()
+
+        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": [str(out_images_dir)]}):
+            res = pdf_to_images(pdf_path=str(dummy_pdf), target_format="JPG", output_path=str(out_images_dir))
+            self.assertFalse(res["success"])
+            self.assertEqual(res["count"], 0)
+            self.assertEqual(res["images"], [])
+
+    # 40. All-skipped batch response preserves and surfaces failures (Finding #4)
+    def test_all_skipped_branch_does_not_mask_failures(self):
+        from mcp_server.server import convergent_convert
+
+        failed_file = self.dir_path / "corrupted.png"
+        failed_file.touch()
+
+        def fake_process_with_failures(*args, **kwargs):
+            failed_det = kwargs.get("failed_details")
+            if failed_det is not None:
+                failed_det.append({"file": str(failed_file), "name": "corrupted.png", "error": "Decoding error"})
+            return []
+
+        with patch("mcp_server.server.conv.process", side_effect=fake_process_with_failures):
+            res = convergent_convert(input_path=str(self.dir_path), target_format="JPG", overwrite=False, use_cache=False)
+            self.assertFalse(res["success"])
+            self.assertEqual(res["count"], 0)
+            self.assertTrue(len(res["failed_files"]) > 0)
+            self.assertEqual(res["failed_files"][0]["name"], "corrupted.png")
+
+    # 41. Specialized tools input and target format validation (Finding #8)
+    def test_specialized_tools_input_and_target_validation(self):
+        from mcp_server.server import perform_ocr, perform_stt
+
+        vid_file = self.dir_path / "recording.mp4"
+        vid_file.touch()
+        img_file = self.dir_path / "photo.png"
+        img_file.touch()
+
+        # perform_ocr must reject video
+        res_ocr = perform_ocr(input_path=str(vid_file))
+        self.assertFalse(res_ocr["success"])
+        self.assertIn("perform_stt", res_ocr["error"])
+
+        # perform_ocr must reject invalid target format like PNG
+        res_ocr_target = perform_ocr(input_path=str(img_file), target_format="PNG")
+        self.assertFalse(res_ocr_target["success"])
+        self.assertIn("Supported OCR text targets", res_ocr_target["error"])
+
+        # perform_stt must reject image
+        res_stt = perform_stt(input_path=str(img_file))
+        self.assertFalse(res_stt["success"])
+        self.assertIn("perform_ocr", res_stt["error"])
+
+        # perform_stt must reject invalid target format like DOCX
+        res_stt_target = perform_stt(input_path=str(vid_file), target_format="DOCX")
+        self.assertFalse(res_stt_target["success"])
+        self.assertIn("Supported transcript/subtitle targets", res_stt_target["error"])
+
+    # 42. Non-positive fps validation rejection (Finding #7)
+    def test_convergent_convert_fps_zero_rejected(self):
+        from mcp_server.server import convergent_convert
+
+        vid = self.dir_path / "clip.mp4"
+        vid.touch()
+
+        res_zero = convergent_convert(input_path=str(vid), target_format="GIF", fps=0)
+        self.assertFalse(res_zero["success"])
+        self.assertIn("Invalid fps", res_zero["error"])
+
+        res_neg = convergent_convert(input_path=str(vid), target_format="GIF", fps=-10)
+        self.assertFalse(res_neg["success"])
+        self.assertIn("Invalid fps", res_neg["error"])
+
+    # 43. Batch result capping and manifest generation for large sets (Finding #7)
+    def test_batch_result_capping_and_manifest_generation(self):
+        from mcp_server.server import convergent_convert
+
+        batch_dir = self.dir_path / "bulk"
+        batch_dir.mkdir()
+        for i in range(30):
+            (batch_dir / f"img_{i:02d}.jpg").touch()
+
+        def fake_bulk_process(*args, **kwargs):
+            results = []
+            for i in range(30):
+                p = batch_dir / f"img_{i:02d}.png"
+                p.touch()
+                results.append(str(p))
+            return results
+
+        with patch("mcp_server.server.conv.process", side_effect=fake_bulk_process):
+            res = convergent_convert(input_path=str(batch_dir), target_format="PNG", output_path=str(batch_dir))
+            self.assertTrue(res["success"])
+            self.assertEqual(res["count"], 30)
+            self.assertTrue(res["truncated"])
+            self.assertEqual(len(res["converted_files"]), 10)
+            self.assertIn("manifest_path", res)
+            manifest_file = Path(res["manifest_path"])
+            self.assertTrue(manifest_file.exists())
+            import json
+            data = json.loads(manifest_file.read_text(encoding="utf-8"))
+            self.assertEqual(len(data), 30)
+            manifest_file.unlink(missing_ok=True)
+
+    # 44. Pandoc HTML conversion passes resource-path and cwd (Finding #3)
+    def test_pandoc_html_resource_path_and_cwd(self):
+        from modules import doc
+        html_file = self.dir_path / "document.html"
+        html_file.write_text("<html><body><p>Hello</p></body></html>")
+
+        def fake_pandoc(cmd, cwd=None):
+            if "-o" in cmd:
+                Path(cmd[cmd.index("-o") + 1]).touch()
+            return True, ""
+
+        with patch("modules.doc.run_command", side_effect=fake_pandoc) as mock_cmd:
+            ok, err = doc.convert_html(html_file, target_ext="DOCX")
+            self.assertTrue(ok)
+            cmd_args = mock_cmd.call_args[0][0]
+            cwd_arg = mock_cmd.call_args[1].get("cwd")
+            self.assertEqual(cwd_arg, str(html_file.parent.resolve()))
+            resource_arg = [a for a in cmd_args if a.startswith("--resource-path=")]
+            self.assertTrue(len(resource_arg) > 0)
+            self.assertEqual(resource_arg[0], f"--resource-path={html_file.parent.resolve()}")
+
+    # 45. Archiver path safety and output-in-source directory rejection (Findings #9 & #10)
+    def test_archiver_path_injection_and_output_in_source_rejection(self):
+        from modules.compress import compress
+
+        src_folder = self.dir_path / "my_source_folder"
+        src_folder.mkdir()
+        (src_folder / "file.txt").touch()
+
+        # Reject output archive placed inside source directory being compressed
+        nested_out = src_folder / "backup.zip"
+        ok, err, _ = compress([str(src_folder)], output_name=str(nested_out), format_choice="ZIP")
+        self.assertFalse(ok)
+        self.assertIn("cannot be placed inside source directory", err)
+
+        # Leading hyphen and @ files are prefixed with ./
+        hyphen_f = src_folder / "-flag.txt"
+        hyphen_f.touch()
+        at_f = src_folder / "@list.txt"
+        at_f.touch()
+
+        out_zip = self.dir_path / "clean.zip"
+
+        def fake_compress_cmd(cmd, **kwargs):
+            for a in cmd:
+                if ".tmp_" in a:
+                    Path(a).touch()
+            return True, ""
+
+        with patch("modules.compress.run_command", side_effect=fake_compress_cmd) as mock_cmd, \
+             patch("shutil.move"):
+            ok, err, path = compress([str(hyphen_f), str(at_f)], output_name=str(out_zip), format_choice="ZIP")
+            self.assertTrue(ok)
+            cmd_args = mock_cmd.call_args[0][0]
+            rel_files = [a for a in cmd_args if a.endswith("-flag.txt") or a.endswith("@list.txt")]
+            self.assertTrue(all(a.startswith("./") for a in rel_files))
+
 
 if __name__ == "__main__":
     unittest.main()

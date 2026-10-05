@@ -197,6 +197,13 @@ def convergent_convert(
             }
         md_pdf_mode_val = mode_str
 
+    if fps is not None and fps <= 0:
+        return {
+            "success": False,
+            "error": f"Invalid fps: {fps}. Must be a positive integer.",
+            "converted_files": [],
+        }
+
     fps_val = str(fps) if fps is not None else None
     bitrate_val = None
     if bitrate is not None:
@@ -361,26 +368,86 @@ def convergent_convert(
             res: Dict[str, Any] = {
                 "success": True,
                 "count": len(converted_list),
-                "converted_files": converted_list,
                 "target_format": target_fmt,
                 "cached": is_all_cached,
             }
+            if conv_output_dir:
+                res["output_directory"] = str(conv_output_dir)
+
+            if len(converted_list) > 25:
+                import uuid
+                manifest_dir = conv_output_dir if conv_output_dir and conv_output_dir.is_dir() else Path(tempfile.gettempdir())
+                manifest_file = manifest_dir / f".convergent_manifest_converted_{uuid.uuid4().hex[:8]}.json"
+                try:
+                    manifest_file.write_text(json.dumps(converted_list, indent=2), encoding="utf-8")
+                    res["manifest_path"] = str(manifest_file.resolve())
+                except Exception:
+                    pass
+                res["converted_files"] = converted_list[:10]
+                res["truncated"] = True
+            else:
+                res["converted_files"] = converted_list
+                res["truncated"] = False
+
             if skipped_out_list:
-                res["skipped_files"] = [str(f) for f in skipped_out_list]
+                skipped_strs = [str(f) for f in skipped_out_list]
+                if len(skipped_strs) > 25:
+                    import uuid
+                    manifest_dir = conv_output_dir if conv_output_dir and conv_output_dir.is_dir() else Path(tempfile.gettempdir())
+                    manifest_file = manifest_dir / f".convergent_manifest_skipped_{uuid.uuid4().hex[:8]}.json"
+                    try:
+                        manifest_file.write_text(json.dumps(skipped_strs, indent=2), encoding="utf-8")
+                        res["skipped_manifest_path"] = str(manifest_file.resolve())
+                    except Exception:
+                        pass
+                    res["skipped_files"] = skipped_strs[:10]
+                    res["skipped_truncated"] = True
+                else:
+                    res["skipped_files"] = skipped_strs
+                    res["skipped_truncated"] = False
+
             if failed_details:
                 res["partial_success"] = True
                 res["failed_files"] = failed_details
             return res
+        elif failed_details:
+            error_msg = failed_details[0]["error"] if failed_details else f"Conversion failed for: {input_path}"
+            res_fail: Dict[str, Any] = {
+                "success": False,
+                "error": error_msg,
+                "count": 0,
+                "converted_files": [],
+                "failed_files": failed_details,
+                "target_format": target_fmt,
+            }
+            if skipped_out_list:
+                res_fail["skipped_files"] = [str(f) for f in skipped_out_list]
+            return res_fail
         elif skipped_out_list:
-            return {
+            skipped_strs = [str(f) for f in skipped_out_list]
+            res_skipped: Dict[str, Any] = {
                 "success": True,
                 "count": 0,
                 "converted_files": [],
                 "target_format": target_fmt,
                 "cached": False,
-                "skipped_files": [str(f) for f in skipped_out_list],
                 "message": f"All {len(skipped_out_list)} file(s) already exist and were skipped.",
             }
+            if len(skipped_strs) > 25:
+                import uuid
+                manifest_dir = conv_output_dir if conv_output_dir and conv_output_dir.is_dir() else Path(tempfile.gettempdir())
+                manifest_file = manifest_dir / f".convergent_manifest_skipped_{uuid.uuid4().hex[:8]}.json"
+                try:
+                    manifest_file.write_text(json.dumps(skipped_strs, indent=2), encoding="utf-8")
+                    res_skipped["skipped_manifest_path"] = str(manifest_file.resolve())
+                except Exception:
+                    pass
+                res_skipped["skipped_files"] = skipped_strs[:10]
+                res_skipped["skipped_truncated"] = True
+            else:
+                res_skipped["skipped_files"] = skipped_strs
+                res_skipped["skipped_truncated"] = False
+            return res_skipped
         else:
             error_msg = failed_details[0]["error"] if failed_details else f"No matching files found or conversion failed for: {input_path}"
             return {
@@ -448,26 +515,36 @@ def pdf_to_images(
         dpi=dpi,
     )
 
+    if not res.get("success", False):
+        return {
+            "success": False,
+            "count": 0,
+            "images": [],
+            "error": res.get("error") or "PDF conversion failed.",
+            "truncated": False,
+        }
+
+    norm_target_exts = {"jpg", "jpeg"} if target_fmt in ("JPG", "JPEG") else {"tif", "tiff"} if target_fmt in ("TIF", "TIFF") else {target_fmt.lower()}
     converted_files = res.get("converted_files", [])
     image_files = []
     for item in converted_files:
         p = Path(item)
         if p.is_dir():
             for img in sorted(p.iterdir(), key=natural_sort_key):
-                if img.is_file() and img.suffix.lower().lstrip(".") in ("jpg", "png", "tif", "bmp"):
+                if img.is_file() and img.suffix.lower().lstrip(".") in norm_target_exts:
                     image_files.append(str(img))
-        elif p.is_file():
+        elif p.is_file() and p.suffix.lower().lstrip(".") in norm_target_exts:
             image_files.append(str(p))
 
     image_files.sort(key=natural_sort_key)
     total_count = len(image_files)
 
-    if not res.get("success", False) or total_count == 0:
+    if total_count == 0:
         return {
             "success": False,
             "count": 0,
             "images": [],
-            "error": res.get("error") or "No page images were generated.",
+            "error": "No page images were generated.",
             "truncated": False,
         }
 
@@ -547,9 +624,30 @@ def perform_ocr(
     if not os.path.exists(full_path):
         return {"success": False, "error": f"File not found: {input_path}"}
 
+    audio_video_exts = {
+        ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg", ".wma", ".opus",
+        ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".wmv", ".3gp", ".flv"
+    }
+    input_ext = Path(full_path).suffix.lower()
+    if input_ext in audio_video_exts:
+        return {
+            "success": False,
+            "error": f"Invalid input format '{input_ext}' for OCR. perform_ocr does not accept audio or video files. For speech transcription, use 'perform_stt'.",
+            "converted_files": [],
+        }
+
+    target_upper = target_format.upper().lstrip(".")
+    valid_ocr_targets = {"TXT", "MD", "DOCX", "PDF"}
+    if target_upper not in valid_ocr_targets:
+        return {
+            "success": False,
+            "error": f"Invalid target format '{target_format}' for OCR. Supported OCR text targets: {', '.join(sorted(valid_ocr_targets))}.",
+            "converted_files": [],
+        }
+
     res = convergent_convert(
         input_path=full_path,
-        target_format=target_format.upper(),
+        target_format=target_upper,
         output_path=output_path,
         ocr=True,
         overwrite=True,
@@ -609,6 +707,29 @@ def perform_stt(
     if not os.path.exists(full_path):
         return {"success": False, "error": f"File not found: {input_path}"}
 
+    valid_stt_inputs = {
+        ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg", ".wma", ".opus",
+        ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".wmv"
+    }
+    input_ext = Path(full_path).suffix.lower()
+    if input_ext not in valid_stt_inputs:
+        image_pdf_exts = {".png", ".jpg", ".jpeg", ".pdf", ".tif", ".tiff", ".bmp", ".webp"}
+        hint = " For text extraction from images or scanned PDFs, use 'perform_ocr'." if input_ext in image_pdf_exts else ""
+        return {
+            "success": False,
+            "error": f"Invalid input format '{input_ext}' for Speech-to-Text. perform_stt only accepts audio and video files.{hint}",
+            "converted_files": [],
+        }
+
+    target_upper = target_format.upper().lstrip(".")
+    valid_stt_targets = {"TXT", "SRT", "VTT", "MD"}
+    if target_upper not in valid_stt_targets:
+        return {
+            "success": False,
+            "error": f"Invalid target format '{target_format}' for STT. Supported transcript/subtitle targets: {', '.join(sorted(valid_stt_targets))}.",
+            "converted_files": [],
+        }
+
     valid_models = (
         "tiny", "mini", "base", "standard", "small", "medium",
         "large", "turbo", "large-turbo", "large-v3-turbo", "large-v3"
@@ -623,16 +744,21 @@ def perform_stt(
 
     res = convergent_convert(
         input_path=full_path,
-        target_format=target_format.upper(),
+        target_format=target_upper,
         output_path=output_path,
         stt=True,
         model=resolved_model,
         language=language,
         overwrite=True,
     )
-    res["model_used"] = resolved_model
-    if resolved_model.lower() != model.lower():
+    if res.get("success", False):
+        res["model_used"] = resolved_model
+        if resolved_model.lower() != model.lower():
+            res["model_requested"] = model
+    else:
+        res["model_used"] = None
         res["model_requested"] = model
+        res["model_resolved"] = resolved_model
     if warning:
         res["warning"] = warning
 
@@ -1281,12 +1407,15 @@ def list_supported_formats(
                 "error": f"Category '{category}' not recognized. Available categories: {', '.join(semantic_categories.keys())}",
             }
 
-    merged_categories = dict(conv.categories)
-    merged_categories.update(semantic_categories)
+    category_aliases = {"2": "image", "3": "video", "4": "audio", "5": "document"}
+    categories_output = {
+        **category_aliases,
+        **semantic_categories,
+    }
 
     return {
         "source_formats": conv.source_formats,
-        "categories": merged_categories,
+        "categories": categories_output,
         "format_mapping": formats,
     }
 

@@ -49,8 +49,12 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
         output_path = valid_paths[0].parent / output_name
 
     output_path = output_path.resolve()
-    if any(p.resolve() == output_path for p in valid_paths):
-        return False, "Output archive cannot be one of the input files to compress.", None
+    for p in valid_paths:
+        p_res = p.resolve()
+        if p_res == output_path:
+            return False, "Output archive cannot be one of the input files to compress.", None
+        if p.is_dir() and output_path.is_relative_to(p_res):
+            return False, f"Output archive '{output_path.name}' cannot be placed inside source directory '{p.name}' being compressed.", None
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_output = output_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output_path.name}"
@@ -61,7 +65,7 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
             common_root = Path(os.path.commonpath([p.parent.resolve() for p in valid_paths]))
             if common_root != Path(common_root.anchor):
                 cwd = common_root
-                rel_paths = [str(p.resolve().relative_to(cwd)) for p in valid_paths]
+                rel_paths = [f"./{p.resolve().relative_to(cwd)}" for p in valid_paths]
             else:
                 raise ValueError("Common root is root directory")
         except Exception:
@@ -87,7 +91,7 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
                         os.link(p, staged_dest)
                     except Exception:
                         shutil.copy2(p, staged_dest)
-                rel_paths.append(target_name)
+                rel_paths.append(f"./{target_name}")
         
         sevenzip_exec = "7z"
         if not shutil.which("7z") and shutil.which("7zz"):
@@ -117,13 +121,13 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
             else:
                 cmd = ["zip", "-r", str(tmp_output)] + rel_paths
         elif format_choice == "TAR.GZ":
-            cmd = ["tar", "-czf", str(tmp_output)] + rel_paths
+            cmd = ["tar", "-czf", str(tmp_output), "--"] + rel_paths
         elif format_choice == "TAR.BZ2":
-            cmd = ["tar", "-cjf", str(tmp_output)] + rel_paths
+            cmd = ["tar", "-cjf", str(tmp_output), "--"] + rel_paths
         elif format_choice == "TAR.XZ":
-            cmd = ["tar", "-cJf", str(tmp_output)] + rel_paths
+            cmd = ["tar", "-cJf", str(tmp_output), "--"] + rel_paths
         elif format_choice == "7Z":
-            cmd = [sevenzip_exec, "a", str(tmp_output)] + rel_paths
+            cmd = [sevenzip_exec, "a", str(tmp_output), "--"] + rel_paths
             if password:
                 cmd.insert(2, f"-p{password}")
         elif format_choice == "RAR":
