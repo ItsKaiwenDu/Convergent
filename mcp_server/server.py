@@ -131,6 +131,45 @@ def _relocate_output(source: Path, destination: Path, overwrite: bool, original_
         shutil.move(str(source), str(destination))
 
 
+def _write_manifest_durable(file_list: List[Any], label: str, preferred_dir: Optional[Path]) -> Optional[str]:
+    """
+    Writes full list to a JSON manifest file.
+    Tries preferred_dir first; falls back to tempdir if preferred_dir is read-only or invalid.
+    Returns absolute manifest path string, or None if completely unable to write.
+    """
+    import uuid
+    candidate_dirs = []
+    if preferred_dir and preferred_dir.is_dir():
+        candidate_dirs.append(preferred_dir)
+    temp_dir = Path(tempfile.gettempdir())
+    if temp_dir not in candidate_dirs:
+        candidate_dirs.append(temp_dir)
+
+    for target_dir in candidate_dirs:
+        manifest_file = target_dir / f".convergent_manifest_{label}_{uuid.uuid4().hex[:8]}.json"
+        try:
+            manifest_file.write_text(json.dumps(file_list, indent=2), encoding="utf-8")
+            return str(manifest_file.resolve())
+        except Exception:
+            continue
+    return None
+
+
+def _cap_list(items: List[Any], label: str, preferred_dir: Optional[Path], limit: int = 25, sample_size: int = 10) -> Tuple[List[Any], bool, Optional[str]]:
+    """
+    If items exceed limit:
+      writes durable manifest (falling back to tempdir).
+      If manifest write succeeds: returns (items[:sample_size], True, manifest_path).
+      If manifest write fails: returns (items, False, None) without truncating so data is not lost.
+    """
+    if len(items) <= limit:
+        return items, False, None
+    manifest_path = _write_manifest_durable(items, label, preferred_dir)
+    if manifest_path:
+        return items[:sample_size], True, manifest_path
+    return items, False, None
+
+
 @mcp.tool()
 def convergent_convert(
     input_path: str,
@@ -168,7 +207,8 @@ def convergent_convert(
         dpi: Quality DPI resolution for PDF-to-image conversion (e.g. 150, 300).
 
     Returns:
-        Dictionary containing status, list of converted output files, and any warnings.
+        Dictionary containing status, list of converted output files ('converted_files'),
+        total count ('count'), and optional 'manifest_path' if output count > 25 (with 'truncated': True).
     """
     cleaned_input = os.path.expanduser(input_path)
     if not os.path.exists(cleaned_input):
@@ -245,6 +285,13 @@ def convergent_convert(
         )
         if is_dest_dir:
             conv_output_dir = dest_target
+
+    published_output_dir = dest_target if is_dest_dir else (path_obj if is_dir_input and not output_path else None)
+    manifest_dest_dir = (
+        published_output_dir
+        if (published_output_dir and published_output_dir.is_dir())
+        else (dest_target.parent if dest_target and dest_target.parent.is_dir() else path_obj.parent if path_obj.parent.is_dir() else Path(tempfile.gettempdir()))
+    )
 
     params_for_cache = {
         "target": target_fmt,
@@ -371,60 +418,67 @@ def convergent_convert(
                 "target_format": target_fmt,
                 "cached": is_all_cached,
             }
-            if conv_output_dir:
-                res["output_directory"] = str(conv_output_dir)
+            if published_output_dir:
+                res["output_directory"] = str(published_output_dir)
 
-            if len(converted_list) > 25:
-                import uuid
-                manifest_dir = conv_output_dir if conv_output_dir and conv_output_dir.is_dir() else Path(tempfile.gettempdir())
-                manifest_file = manifest_dir / f".convergent_manifest_converted_{uuid.uuid4().hex[:8]}.json"
-                try:
-                    manifest_file.write_text(json.dumps(converted_list, indent=2), encoding="utf-8")
-                    res["manifest_path"] = str(manifest_file.resolve())
-                except Exception:
-                    pass
-                res["converted_files"] = converted_list[:10]
-                res["truncated"] = True
-            else:
-                res["converted_files"] = converted_list
-                res["truncated"] = False
+            conv_files, conv_truncated, conv_manifest = _cap_list(converted_list, "converted", manifest_dest_dir)
+            res["converted_files"] = conv_files
+            res["truncated"] = conv_truncated
+            if conv_manifest:
+                res["manifest_path"] = conv_manifest
+
+            if (target_fmt == "HTML" and (
+                path_obj.suffix.upper() == ".PPTX"
+                or (is_dir_input and any(p.suffix.upper() == ".PPTX" for p in original_inputs))
+            )):
+                res["warning"] = (
+                    "PPTX to HTML conversion via LibreOffice may have limited visual fidelity for slides, shapes, or vector charts. "
+                    "For presentation fidelity, converting PPTX to PDF or images (using pdf_to_images) is recommended."
+                )
 
             if skipped_out_list:
                 skipped_strs = [str(f) for f in skipped_out_list]
-                if len(skipped_strs) > 25:
-                    import uuid
-                    manifest_dir = conv_output_dir if conv_output_dir and conv_output_dir.is_dir() else Path(tempfile.gettempdir())
-                    manifest_file = manifest_dir / f".convergent_manifest_skipped_{uuid.uuid4().hex[:8]}.json"
-                    try:
-                        manifest_file.write_text(json.dumps(skipped_strs, indent=2), encoding="utf-8")
-                        res["skipped_manifest_path"] = str(manifest_file.resolve())
-                    except Exception:
-                        pass
-                    res["skipped_files"] = skipped_strs[:10]
-                    res["skipped_truncated"] = True
-                else:
-                    res["skipped_files"] = skipped_strs
-                    res["skipped_truncated"] = False
+                sk_files, sk_truncated, sk_manifest = _cap_list(skipped_strs, "skipped", manifest_dest_dir)
+                res["skipped_files"] = sk_files
+                res["skipped_truncated"] = sk_truncated
+                if sk_manifest:
+                    res["skipped_manifest_path"] = sk_manifest
 
             if failed_details:
                 res["partial_success"] = True
-                res["failed_files"] = failed_details
+                fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
+                res["failed_files"] = fail_items
+                if fail_truncated:
+                    res["failed_truncated"] = True
+                if fail_manifest:
+                    res["failed_manifest_path"] = fail_manifest
             return res
         elif failed_details:
             error_msg = failed_details[0]["error"] if failed_details else f"Conversion failed for: {input_path}"
+            fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
             res_fail: Dict[str, Any] = {
                 "success": False,
                 "error": error_msg,
                 "count": 0,
                 "converted_files": [],
-                "failed_files": failed_details,
+                "failed_files": fail_items,
                 "target_format": target_fmt,
             }
+            if fail_truncated:
+                res_fail["failed_truncated"] = True
+            if fail_manifest:
+                res_fail["failed_manifest_path"] = fail_manifest
             if skipped_out_list:
-                res_fail["skipped_files"] = [str(f) for f in skipped_out_list]
+                skipped_strs = [str(f) for f in skipped_out_list]
+                sk_files, sk_truncated, sk_manifest = _cap_list(skipped_strs, "skipped", manifest_dest_dir)
+                res_fail["skipped_files"] = sk_files
+                res_fail["skipped_truncated"] = sk_truncated
+                if sk_manifest:
+                    res_fail["skipped_manifest_path"] = sk_manifest
             return res_fail
         elif skipped_out_list:
             skipped_strs = [str(f) for f in skipped_out_list]
+            sk_files, sk_truncated, sk_manifest = _cap_list(skipped_strs, "skipped", manifest_dest_dir)
             res_skipped: Dict[str, Any] = {
                 "success": True,
                 "count": 0,
@@ -432,39 +486,41 @@ def convergent_convert(
                 "target_format": target_fmt,
                 "cached": False,
                 "message": f"All {len(skipped_out_list)} file(s) already exist and were skipped.",
+                "skipped_files": sk_files,
+                "skipped_truncated": sk_truncated,
             }
-            if len(skipped_strs) > 25:
-                import uuid
-                manifest_dir = conv_output_dir if conv_output_dir and conv_output_dir.is_dir() else Path(tempfile.gettempdir())
-                manifest_file = manifest_dir / f".convergent_manifest_skipped_{uuid.uuid4().hex[:8]}.json"
-                try:
-                    manifest_file.write_text(json.dumps(skipped_strs, indent=2), encoding="utf-8")
-                    res_skipped["skipped_manifest_path"] = str(manifest_file.resolve())
-                except Exception:
-                    pass
-                res_skipped["skipped_files"] = skipped_strs[:10]
-                res_skipped["skipped_truncated"] = True
-            else:
-                res_skipped["skipped_files"] = skipped_strs
-                res_skipped["skipped_truncated"] = False
+            if sk_manifest:
+                res_skipped["skipped_manifest_path"] = sk_manifest
             return res_skipped
         else:
             error_msg = failed_details[0]["error"] if failed_details else f"No matching files found or conversion failed for: {input_path}"
-            return {
+            fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
+            res_empty: Dict[str, Any] = {
                 "success": False,
                 "error": error_msg,
                 "count": 0,
                 "converted_files": [],
-                "failed_files": failed_details,
+                "failed_files": fail_items,
                 "target_format": target_fmt,
             }
+            if fail_truncated:
+                res_empty["failed_truncated"] = True
+            if fail_manifest:
+                res_empty["failed_manifest_path"] = fail_manifest
+            return res_empty
     except Exception as e:
-        return {
+        fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
+        res_exc: Dict[str, Any] = {
             "success": False,
             "error": str(e),
             "converted_files": [],
-            "failed_files": failed_details,
+            "failed_files": fail_items,
         }
+        if fail_truncated:
+            res_exc["failed_truncated"] = True
+        if fail_manifest:
+            res_exc["failed_manifest_path"] = fail_manifest
+        return res_exc
     finally:
         if temp_stage_dir:
             try:
@@ -485,17 +541,36 @@ def pdf_to_images(
     Ideal for feeding visual model context page by page.
 
     Args:
-        pdf_path: Absolute or relative path to PDF file.
+        pdf_path: Absolute or relative path to a single PDF file.
         target_format: Output image extension ('JPG', 'PNG'). Default 'JPG'.
         output_path: Optional destination directory or file path.
         dpi: Quality DPI resolution (default 150).
 
     Returns:
-        Dictionary with list of generated page image file paths.
+        Dictionary with list of generated page image file paths ('images'), total count ('count'),
+        and optional 'manifest_path' if page count > 50 (with 'truncated': True).
     """
     full_path = os.path.expanduser(pdf_path)
     if not os.path.exists(full_path):
         return {"success": False, "error": f"File not found: {pdf_path}", "images": []}
+
+    path_obj = Path(full_path)
+    if path_obj.is_dir():
+        return {
+            "success": False,
+            "error": f"pdf_to_images expects a single PDF file, but received a directory: {pdf_path}. Use convergent_convert for batch directory conversions.",
+            "images": [],
+            "count": 0,
+            "truncated": False,
+        }
+    if path_obj.suffix.lower() != ".pdf":
+        return {
+            "success": False,
+            "error": f"pdf_to_images expects a .pdf file, but received: {pdf_path}. Use convergent_convert for other document conversions.",
+            "images": [],
+            "count": 0,
+            "truncated": False,
+        }
 
     target_fmt = target_format.upper().lstrip(".")
     if target_fmt not in ("JPG", "JPEG", "PNG", "TIF", "TIFF", "BMP"):
@@ -551,13 +626,26 @@ def pdf_to_images(
     is_truncated = total_count > 50
     returned_images = image_files[:50] if is_truncated else image_files
 
-    return {
+    result: Dict[str, Any] = {
         "success": True,
         "count": total_count,
         "images": returned_images,
         "truncated": is_truncated,
         "error": None,
     }
+    if is_truncated:
+        manifest_dest = (
+            Path(output_path).resolve()
+            if output_path and Path(output_path).is_dir()
+            else path_obj.parent
+            if path_obj.parent.is_dir()
+            else Path(tempfile.gettempdir())
+        )
+        manifest_path = _write_manifest_durable(image_files, "pdf_pages", manifest_dest)
+        if manifest_path:
+            result["manifest_path"] = manifest_path
+
+    return result
 
 
 @mcp.tool()
@@ -633,6 +721,14 @@ def perform_ocr(
         return {
             "success": False,
             "error": f"Invalid input format '{input_ext}' for OCR. perform_ocr does not accept audio or video files. For speech transcription, use 'perform_stt'.",
+            "converted_files": [],
+        }
+
+    markup_exts = {".md", ".markdown", ".html", ".htm"}
+    if input_ext in markup_exts:
+        return {
+            "success": False,
+            "error": f"Invalid input format '{input_ext}' for OCR. perform_ocr is designed for image and scanned PDF inputs. For document format conversions (Markdown, HTML, DOCX), use 'convergent_convert'.",
             "converted_files": [],
         }
 

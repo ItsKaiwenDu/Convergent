@@ -1429,6 +1429,209 @@ class TestActionFixes(unittest.TestCase):
             rel_files = [a for a in cmd_args if a.endswith("-flag.txt") or a.endswith("@list.txt")]
             self.assertTrue(all(a.startswith("./") for a in rel_files))
 
+    # 46. Cache invalidation when content changes with preserved mtime & size
+    def test_cache_invalidation_preserved_mtime_hash_check(self):
+        src_file = self.dir_path / "doc.txt"
+        dest_file = self.dir_path / "doc.pdf"
+        src_file.write_text("AAAA_ORIGINAL_CONTENT_1234")
+        dest_file.write_text("FAKE_PDF_OUTPUT")
+
+        cache_mgr = CacheManager()
+        params = {"target": "PDF"}
+        cache_mgr.save(src_file, dest_file, params)
+
+        # Confirm initially valid
+        is_valid, reason = cache_mgr.is_cached_valid(src_file, dest_file, params)
+        self.assertTrue(is_valid)
+        self.assertTrue(reason.startswith("blake2b:"))
+
+        # Now mutate src_file with identical byte length and restore original mtime/atime
+        stat_before = src_file.stat()
+        src_file.write_text("BBBB_MUTATED_CONTENT_1234")
+        os.utime(src_file, (stat_before.st_atime, stat_before.st_mtime))
+
+        # Size and mtime match, but cryptographic hash changed
+        is_valid, reason = cache_mgr.is_cached_valid(src_file, dest_file, params)
+        self.assertFalse(is_valid)
+        self.assertEqual(reason, "hash mismatch")
+        cache_mgr.close()
+
+    # 47. Manifest fallback to /tmp on read-only output directory
+    def test_manifest_fallback_to_tempdir_on_readonly(self):
+        from mcp_server.server import _write_manifest_durable
+        readonly_dir = self.dir_path / "readonly_folder"
+        readonly_dir.mkdir()
+        readonly_dir.chmod(0o555)
+
+        try:
+            manifest_path = _write_manifest_durable(["file1.png", "file2.png"], "test_fallback", preferred_dir=readonly_dir)
+            self.assertIsNotNone(manifest_path)
+            self.assertTrue(manifest_path.startswith(tempfile.gettempdir()) or manifest_path.startswith(str(Path(tempfile.gettempdir()).resolve())))
+            manifest_file = Path(manifest_path)
+            self.assertTrue(manifest_file.exists())
+            import json
+            data = json.loads(manifest_file.read_text(encoding="utf-8"))
+            self.assertEqual(data, ["file1.png", "file2.png"])
+            manifest_file.unlink(missing_ok=True)
+        finally:
+            readonly_dir.chmod(0o755)
+
+    # 48. output_directory not leaking temporary staging path
+    def test_output_directory_not_leaking_temp_staging_path(self):
+        src_file = self.dir_path / "input.txt"
+        src_file.write_text("Hello Convergent")
+        custom_out = self.dir_path / "custom_out.pdf"
+
+        def fake_process(*args, **kwargs):
+            out_p = Path(kwargs.get("output_dir")) / "input.pdf"
+            out_p.touch()
+            return [str(out_p)]
+
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("Convergent.Converter.process", side_effect=fake_process):
+            # Single-file conversion with specific file target: output_directory should NOT be returned
+            res = convergent_convert(
+                input_path=str(src_file),
+                target_format="PDF",
+                output_path=str(custom_out),
+                overwrite=True,
+                use_cache=False,
+            )
+            self.assertTrue(res["success"])
+            self.assertNotIn("output_directory", res)
+            self.assertTrue(custom_out.exists())
+
+        # Directory conversion targeting a directory: output_directory SHOULD be returned
+        out_sub_dir = self.dir_path / "published_sub"
+        out_sub_dir.mkdir()
+        def fake_dir_process(*args, **kwargs):
+            out_p = out_sub_dir / "input.pdf"
+            out_p.touch()
+            return [str(out_p)]
+
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("Convergent.Converter.process", side_effect=fake_dir_process):
+            res_dir = convergent_convert(
+                input_path=str(self.dir_path),
+                target_format="PDF",
+                output_path=str(out_sub_dir),
+                overwrite=True,
+                use_cache=False,
+            )
+            self.assertTrue(res_dir["success"])
+            self.assertEqual(Path(res_dir.get("output_directory")).resolve(), out_sub_dir.resolve())
+
+    # 49. Failure branch token capping on large failure or skipped lists
+    def test_failure_and_skipped_branch_token_capping(self):
+        src_dir = self.dir_path / "fail_batch"
+        src_dir.mkdir()
+        for i in range(30):
+            (src_dir / f"f_{i:02d}.png").touch()
+
+        def fake_failing_process(*args, **kwargs):
+            failed_details = kwargs.get("failed_details")
+            if failed_details is not None:
+                for i in range(30):
+                    failed_details.append({
+                        "file": f"f_{i:02d}.png",
+                        "error": "Simulated conversion failure",
+                    })
+            return []
+
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("Convergent.Converter.process", side_effect=fake_failing_process):
+            res_fail = convergent_convert(
+                input_path=str(src_dir),
+                target_format="PDF",
+                output_path=str(src_dir),
+                use_cache=False,
+            )
+            self.assertFalse(res_fail["success"])
+            self.assertEqual(len(res_fail["failed_files"]), 10)
+            self.assertTrue(res_fail.get("failed_truncated"))
+            self.assertIn("failed_manifest_path", res_fail)
+            manifest_file = Path(res_fail["failed_manifest_path"])
+            self.assertTrue(manifest_file.exists())
+            import json
+            data = json.loads(manifest_file.read_text(encoding="utf-8"))
+            self.assertEqual(len(data), 30)
+            manifest_file.unlink(missing_ok=True)
+
+        # Test skipped branch capping when all 30 are skipped
+        def fake_skipped_process(*args, **kwargs):
+            skipped_list = kwargs.get("skipped_out_list")
+            if skipped_list is not None:
+                for i in range(30):
+                    skipped_list.append(f"f_{i:02d}.png")
+            return []
+
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("Convergent.Converter.process", side_effect=fake_skipped_process):
+            res_skip = convergent_convert(
+                input_path=str(src_dir),
+                target_format="PDF",
+                output_path=str(src_dir),
+                overwrite=False,
+                use_cache=False,
+            )
+            self.assertTrue(res_skip["success"])
+            self.assertEqual(len(res_skip["skipped_files"]), 10)
+            self.assertTrue(res_skip.get("skipped_truncated"))
+            self.assertIn("skipped_manifest_path", res_skip)
+            manifest_file = Path(res_skip["skipped_manifest_path"])
+            self.assertTrue(manifest_file.exists())
+            manifest_file.unlink(missing_ok=True)
+
+    # 50. Helper boundary guards: pdf_to_images rejects directory/non-pdf; perform_ocr rejects markup
+    def test_helper_boundary_guards_rejections(self):
+        # pdf_to_images rejects directory
+        dir_res = pdf_to_images(str(self.dir_path))
+        self.assertFalse(dir_res["success"])
+        self.assertIn("expects a single PDF file, but received a directory", dir_res["error"])
+
+        # pdf_to_images rejects non-pdf file
+        fake_txt = self.dir_path / "notes.txt"
+        fake_txt.touch()
+        txt_res = pdf_to_images(str(fake_txt))
+        self.assertFalse(txt_res["success"])
+        self.assertIn("expects a .pdf file", txt_res["error"])
+
+        # perform_ocr rejects markdown file
+        fake_md = self.dir_path / "doc.md"
+        fake_md.touch()
+        ocr_md_res = perform_ocr(str(fake_md))
+        self.assertFalse(ocr_md_res["success"])
+        self.assertIn("use 'convergent_convert'", ocr_md_res["error"])
+
+        # perform_ocr rejects html file
+        fake_html = self.dir_path / "page.html"
+        fake_html.touch()
+        ocr_html_res = perform_ocr(str(fake_html))
+        self.assertFalse(ocr_html_res["success"])
+        self.assertIn("use 'convergent_convert'", ocr_html_res["error"])
+
+    # 51. PPTX -> HTML visual fidelity warning attachment
+    def test_pptx_to_html_warning_attachment(self):
+        fake_pptx = self.dir_path / "presentation.pptx"
+        fake_pptx.touch()
+
+        def fake_pptx_process(*args, **kwargs):
+            out_p = self.dir_path / "presentation.html"
+            out_p.touch()
+            return [str(out_p)]
+
+        with patch("Convergent.Converter.prepare_conversion", return_value=True), \
+             patch("Convergent.Converter.process", side_effect=fake_pptx_process):
+            res = convergent_convert(
+                input_path=str(fake_pptx),
+                target_format="HTML",
+                output_path=str(self.dir_path),
+                use_cache=False,
+            )
+            self.assertTrue(res["success"])
+            self.assertIn("warning", res)
+            self.assertIn("PPTX to HTML conversion via LibreOffice may have limited visual fidelity", res["warning"])
+
 
 if __name__ == "__main__":
     unittest.main()

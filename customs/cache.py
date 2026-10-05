@@ -193,6 +193,15 @@ class CacheManager:
         except Exception:
             pass
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __del__(self):
+        self.close()
+
     def delete_entry(self, key: str):
         """Removes a single cache record."""
         try:
@@ -295,33 +304,24 @@ class CacheManager:
         except Exception:
             return False, "output stat failed"
 
-        try:
-            cur_stat = src_path.stat()
-            cur_mtime = cur_stat.st_mtime
-            cur_size = cur_stat.st_size
-        except Exception:
-            return False, "src stat failed"
-
-        # Fast path: if mtime and size identical to cached, assume valid (no need to re-hash)
-        if entry["src_mtime"] is not None and entry["src_size"] is not None:
-            if abs(entry["src_mtime"] - cur_mtime) < 0.001 and entry["src_size"] == cur_size:
-                self._touch_access(key)
-                hash_preview = entry["src_hash"][:8] if entry["src_hash"] else "...."
-                return True, f"blake2b:{hash_preview}..."
-
-        if cur_size > PARTIAL_THRESHOLD and abs((entry.get("src_mtime") or 0.0) - cur_mtime) >= 0.001:
-            return False, "mtime changed"
-
-        cur_hash, _, _ = get_file_fingerprint(src_path)
+        cur_hash, cur_mtime, cur_size = get_file_fingerprint(src_path)
         if not cur_hash:
             return False, "hash fail"
 
-        if cur_hash == entry["src_hash"]:
-            self._touch_access(key)
-            hash_preview = cur_hash[:8]
-            return True, f"blake2b:{hash_preview}..."
+        if cur_size > PARTIAL_THRESHOLD and entry.get("src_mtime") is not None:
+            if abs(entry["src_mtime"] - cur_mtime) >= 0.001:
+                return False, "mtime changed"
 
-        return False, "hash mismatch"
+        if entry.get("src_hash"):
+            if cur_hash != entry["src_hash"]:
+                return False, "hash mismatch"
+        elif entry.get("src_mtime") is not None and entry.get("src_size") is not None:
+            if abs(entry["src_mtime"] - cur_mtime) >= 0.001 or entry["src_size"] != cur_size:
+                return False, "mtime or size changed"
+
+        self._touch_access(key)
+        hash_preview = cur_hash[:8]
+        return True, f"blake2b:{hash_preview}..."
 
     def _touch_access(self, key: str):
         """Update last_accessed_at on cache hit."""
