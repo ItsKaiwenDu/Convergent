@@ -15,7 +15,18 @@ def required_dependencies(source_format, target_format, md_pdf_mode=None, **opti
             if _get_soffice_path() or _get_chrome_path():
                 return []
             return ["pandoc", "typst"]
-        return ["pandoc"]
+    if source_format == "TXT":
+        if target_format == "PDF":
+            if md_pdf_mode == "raw" and sys.platform == "darwin":
+                return []
+            if _get_soffice_path():
+                return []
+            if shutil.which("pandoc") and (shutil.which("typst") or shutil.which("pdflatex")):
+                return []
+            return ["pandoc", "typst"]
+        if target_format == "MD":
+            return []
+        return [] if _get_soffice_path() and not shutil.which("pandoc") else ["pandoc"]
     if target_format == "PDF" or source_format == "PPTX":
         if _get_soffice_path():
             return []
@@ -360,6 +371,183 @@ def convert_html(source, target_ext, **kwargs):
             return True, ""
         return False, (
             f"Failed to convert HTML to {target_ext}.\n"
+            "This usually requires 'pandoc' or 'libreoffice'.\n"
+            "Install via: brew install pandoc\n"
+            f"Error details: {err}"
+        )
+
+    return False, f"Unsupported target format: {target_ext}"
+
+def convert_txt(source, target_ext, md_pdf_mode=None, **kwargs):
+    target_ext = target_ext.upper()
+    output = source.with_suffix(f".{target_ext.lower()}")
+    resource_dir = kwargs.get("resource_dir")
+    res_path = str(Path(resource_dir).resolve() if resource_dir else source.parent.resolve())
+
+    if target_ext == "PDF":
+        if md_pdf_mode and str(md_pdf_mode).lower() == "raw":
+            if sys.platform != "darwin":
+                return False, "Raw PDF conversion is only supported on macOS."
+
+            def run_conv(temp_src, temp_out):
+                try:
+                    with open(temp_out, "wb") as out_file:
+                        result = subprocess.run(["/usr/sbin/cupsfilter", str(temp_src)], stdout=out_file, stderr=subprocess.PIPE)
+                    if result.returncode == 0:
+                        return True, ""
+                    return False, f"cupsfilter failed: {result.stderr.decode('utf-8')}"
+                except Exception as e:
+                    return False, f"cupsfilter execution failed: {e}"
+
+            success, err = convert_with_temp_files(source, output, run_conv)
+            if success:
+                return True, ""
+            return False, f"Raw PDF conversion failed: {err}"
+        else:
+            def run_conv(temp_src, temp_out):
+                # Try Pandoc with typst first
+                success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out), "--pdf-engine=typst", f"--resource-path={res_path}"], cwd=res_path)
+                if success and temp_out.exists() and temp_out.stat().st_size > 0:
+                    return True, ""
+
+                # Try LibreOffice headless
+                soffice_path = _get_soffice_path()
+                if soffice_path:
+                    outdir = str(temp_out.parent)
+                    prof_dir = temp_out.parent / f".lo_prof_{uuid.uuid4().hex[:8]}"
+                    cmd = [
+                        soffice_path,
+                        f"-env:UserInstallation=file://{prof_dir}",
+                        "--headless",
+                        "--convert-to", "pdf",
+                        "--outdir", outdir,
+                        str(temp_src)
+                    ]
+                    success_lo, err_lo = run_command(cmd, cwd=res_path)
+                    if prof_dir.exists():
+                        shutil.rmtree(prof_dir, ignore_errors=True)
+                    if success_lo:
+                        lo_out = temp_out.parent / f"{temp_src.stem}.pdf"
+                        if lo_out.exists() and lo_out != temp_out:
+                            shutil.move(str(lo_out), str(temp_out))
+                        if temp_out.exists() and temp_out.stat().st_size > 0:
+                            return True, ""
+
+                # Fallback to cupsfilter on macOS
+                if sys.platform == "darwin" and Path("/usr/sbin/cupsfilter").exists():
+                    try:
+                        with open(temp_out, "wb") as out_file:
+                            result = subprocess.run(["/usr/sbin/cupsfilter", str(temp_src)], stdout=out_file, stderr=subprocess.PIPE)
+                        if result.returncode == 0 and temp_out.exists() and temp_out.stat().st_size > 0:
+                            return True, ""
+                    except Exception:
+                        pass
+
+                return False, (
+                    "Failed to convert TXT to PDF.\n"
+                    "Requires Pandoc + Typst, LibreOffice, or cupsfilter.\n"
+                    "Install via: brew install pandoc typst\n"
+                    f"Error details: {err}"
+                )
+
+            success, err = convert_with_temp_files(source, output, run_conv)
+            if success:
+                return True, ""
+            return False, err
+
+    elif target_ext == "HTML":
+        def run_conv(temp_src, temp_out):
+            # Try Pandoc first
+            success, err = run_command(["pandoc", "-s", "--embed-resources", "--standalone", f"--resource-path={res_path}", str(temp_src), "-o", str(temp_out)], cwd=res_path)
+            if success and temp_out.exists() and temp_out.stat().st_size > 0:
+                return True, ""
+
+            # Fallback to LibreOffice headless
+            soffice_path = _get_soffice_path()
+            if soffice_path:
+                outdir = str(temp_out.parent)
+                prof_dir = temp_out.parent / f".lo_prof_{uuid.uuid4().hex[:8]}"
+                cmd = [
+                    soffice_path,
+                    f"-env:UserInstallation=file://{prof_dir}",
+                    "--headless",
+                    "--convert-to", "html",
+                    "--outdir", outdir,
+                    str(temp_src)
+                ]
+                success_lo, err_lo = run_command(cmd, cwd=res_path)
+                if prof_dir.exists():
+                    shutil.rmtree(prof_dir, ignore_errors=True)
+                if success_lo:
+                    lo_out = temp_out.parent / f"{temp_src.stem}.html"
+                    if lo_out.exists() and lo_out != temp_out:
+                        shutil.move(str(lo_out), str(temp_out))
+                    if temp_out.exists() and temp_out.stat().st_size > 0:
+                        return True, ""
+
+            return False, f"TXT to HTML requires 'pandoc' or 'libreoffice'.\nInstall via: brew install pandoc\nError details: {err}"
+
+        success, err = convert_with_temp_files(source, output, run_conv)
+        if success:
+            return True, ""
+        return False, err
+
+    elif target_ext == "MD":
+        def run_conv(temp_src, temp_out):
+            # Pandoc converts plain text to markdown cleanly
+            success, err = run_command(["pandoc", str(temp_src), "-t", "markdown", "-o", str(temp_out)])
+            if success and temp_out.exists():
+                return True, ""
+            # Fallback: Plain text is valid markdown
+            try:
+                shutil.copy2(temp_src, temp_out)
+                return True, ""
+            except Exception as e:
+                return False, f"Failed to convert TXT to MD: {e}"
+
+        success, err = convert_with_temp_files(source, output, run_conv)
+        if success:
+            return True, ""
+        return False, err
+
+    elif target_ext in ("DOCX", "RTF"):
+        def run_conv(temp_src, temp_out):
+            # Try Pandoc first
+            success, err = run_command(["pandoc", str(temp_src), "-o", str(temp_out)], cwd=res_path)
+            if success and temp_out.exists() and temp_out.stat().st_size > 0:
+                return True, ""
+
+            # Fallback to LibreOffice headless
+            soffice_path = _get_soffice_path()
+            if soffice_path:
+                fmt_opt = target_ext.lower()
+                outdir = str(temp_out.parent)
+                prof_dir = temp_out.parent / f".lo_prof_{uuid.uuid4().hex[:8]}"
+                cmd = [
+                    soffice_path,
+                    f"-env:UserInstallation=file://{prof_dir}",
+                    "--headless",
+                    "--convert-to", fmt_opt,
+                    "--outdir", outdir,
+                    str(temp_src)
+                ]
+                success_lo, err_lo = run_command(cmd, cwd=res_path)
+                if prof_dir.exists():
+                    shutil.rmtree(prof_dir, ignore_errors=True)
+                if success_lo:
+                    lo_out = temp_out.parent / f"{temp_src.stem}.{fmt_opt}"
+                    if lo_out.exists() and lo_out != temp_out:
+                        shutil.move(str(lo_out), str(temp_out))
+                    if temp_out.exists() and temp_out.stat().st_size > 0:
+                        return True, ""
+                return False, err_lo or err
+            return False, err
+
+        success, err = convert_with_temp_files(source, output, run_conv)
+        if success:
+            return True, ""
+        return False, (
+            f"Failed to convert TXT to {target_ext}.\n"
             "This usually requires 'pandoc' or 'libreoffice'.\n"
             "Install via: brew install pandoc\n"
             f"Error details: {err}"

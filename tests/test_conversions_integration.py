@@ -194,6 +194,54 @@ class TestConversionsIntegration(unittest.TestCase):
         self.assertEqual(outputs, [png.with_suffix(".pdf")])
         self.assertTrue(outputs[0].read_bytes().startswith(b"%PDF-"))
 
+    @unittest.skipUnless(bool(shutil.which("pandoc")), "Pandoc is not installed")
+    def test_txt_conversions_real(self):
+        txt_file = self.dir_path / "notes.txt"
+        txt_file.write_text("Convergent TXT Test\nThis is a plain text file for conversion testing.\n")
+
+        # 1. TXT -> MD
+        ok, err = self.conv.convert_txt(txt_file, "MD")
+        self.assertTrue(ok, f"TXT to MD failed: {err}")
+        md_out = self.dir_path / "notes.md"
+        self.assertTrue(md_out.exists())
+        self.assertIn("Convergent TXT Test", md_out.read_text())
+
+        # 2. TXT -> HTML
+        ok, err = self.conv.convert_txt(txt_file, "HTML")
+        self.assertTrue(ok, f"TXT to HTML failed: {err}")
+        html_out = self.dir_path / "notes.html"
+        self.assertTrue(html_out.exists())
+        self.assertIn("Convergent TXT Test", html_out.read_text())
+
+        # 3. TXT -> DOCX
+        ok, err = self.conv.convert_txt(txt_file, "DOCX")
+        self.assertTrue(ok, f"TXT to DOCX failed: {err}")
+        docx_out = self.dir_path / "notes.docx"
+        self.assertTrue(docx_out.exists())
+        self.assertTrue(docx_out.stat().st_size > 100)
+
+        # 4. TXT -> RTF
+        ok, err = self.conv.convert_txt(txt_file, "RTF")
+        self.assertTrue(ok, f"TXT to RTF failed: {err}")
+        rtf_out = self.dir_path / "notes.rtf"
+        self.assertTrue(rtf_out.exists())
+        self.assertTrue(rtf_out.stat().st_size > 50)
+
+    @unittest.skipUnless(
+        bool(shutil.which("pandoc") and (shutil.which("typst") or shutil.which("soffice")) or (sys.platform == "darwin")),
+        "Pandoc + Typst, LibreOffice, or macOS cupsfilter required"
+    )
+    def test_txt_to_pdf_real(self):
+        txt_file = self.dir_path / "document.txt"
+        txt_file.write_text("Convergent Document\nPlain text to PDF conversion test.\n")
+
+        ok, err = self.conv.convert_txt(txt_file, "PDF")
+        self.assertTrue(ok, f"TXT to PDF failed: {err}")
+        pdf_out = self.dir_path / "document.pdf"
+        self.assertTrue(pdf_out.exists())
+        self.assertTrue(pdf_out.stat().st_size > 100)
+        self.assertTrue(pdf_out.read_bytes().startswith(b"%PDF-"))
+
 
 if __name__ == "__main__":
     unittest.main()

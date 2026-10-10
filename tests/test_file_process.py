@@ -79,6 +79,8 @@ class TestFileProcess(unittest.TestCase):
         self.assertIn("HTML", conv.formats["PPTX"])
         self.assertIn("HTML", conv.formats["RTF"])
         self.assertIn("HTML", conv.formats["MD"])
+        self.assertIn("TXT", conv.formats)
+        self.assertEqual(conv.formats["TXT"], ["PDF", "HTML", "DOCX", "MD", "RTF"])
 
     def test_expected_output_path_resolution(self):
         pdf_file = self.dir_path / "report.pdf"

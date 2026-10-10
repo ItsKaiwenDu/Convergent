@@ -108,6 +108,8 @@ class TestCLIFlags(unittest.TestCase):
         self.assertIn("PDF", self.conv.formats)
         self.assertIn("HTML", self.conv.formats)
         self.assertIn("HTML", self.conv.categories["5"]["extensions"])
+        self.assertIn("TXT", self.conv.formats)
+        self.assertIn("TXT", self.conv.categories["5"]["extensions"])
 
 
     def test_resume_reuses_saved_settings(self):

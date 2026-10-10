@@ -151,6 +151,9 @@ class Converter:
     def convert_html(self, source, target_ext, **kwargs):
         return doc.convert_html(source, target_ext, **kwargs)
 
+    def convert_txt(self, source, target_ext, md_pdf_mode=None, **kwargs):
+        return doc.convert_txt(source, target_ext, md_pdf_mode=md_pdf_mode, **kwargs)
+
     @staticmethod
     def _is_input_collision(paths, output_path, interactive=True):
         if not output_path:

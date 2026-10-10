@@ -118,6 +118,7 @@ FORMAT_REGISTRY = [
     FormatDef("PDF", "5", ["JPG", "PNG", "TIF", "BMP", "TXT", "MD", "DOCX"], "convert_pdf"),
     FormatDef("PPTX", "5", ["PDF", "HTML"], "convert_office"),
     FormatDef("RTF", "5", ["PDF", "HTML"], "convert_office"),
+    FormatDef("TXT", "5", ["PDF", "HTML", "DOCX", "MD", "RTF"], "convert_txt"),
 ]
 
 def normalize_format_alias(fmt: str) -> str:
@@ -202,7 +203,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     extra_kwargs = {}
     if output_dir:
         extra_kwargs["output_dir"] = output_dir
-    if source_fmt in ("MD", "HTML"):
+    if source_fmt in ("MD", "HTML", "TXT"):
         extra_kwargs["resource_dir"] = f.parent
 
     fmt_def = next((fd for fd in FORMAT_REGISTRY if fd.name == source_fmt), None)
