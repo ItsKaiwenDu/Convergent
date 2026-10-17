@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import shutil
+import tempfile
 import subprocess
 from pathlib import Path
 import contextvars
@@ -177,7 +178,6 @@ def split_pdf(
         out_directory = Path(os.path.expanduser(str(output_dir)))
     else:
         out_directory = path_obj.parent / f"{path_obj.stem}_split"
-        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
 
     if chosen_mode in ('1', 'pages', 'all', 'individual', 'auto'):
@@ -190,14 +190,23 @@ def split_pdf(
                 return None
         if interactive:
             console.print(f"[bold cyan]Splitting into {total_pages} individual pages...[/bold cyan]")
-        output_pattern = out_directory / "page_%03d.pdf"
-        cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(output_pattern), str(path_obj)]
-        success, error = run_command(cmd)
-        if success:
-            if interactive:
-                console.print(f"[bold green]Successfully split into {out_directory.name}/[/bold green]")
-            return out_directory
-        else:
+        with tempfile.TemporaryDirectory() as staging_dir_str:
+            staging_dir = Path(staging_dir_str)
+            output_pattern = staging_dir / "page_%03d.pdf"
+            cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(output_pattern), str(path_obj)]
+            success, error = run_command(cmd)
+            if success:
+                staged_files = sorted(staging_dir.glob("page_*.pdf"))
+                if not staged_files:
+                    success = False
+                    error = error or "Ghostscript generated no split pages."
+                else:
+                    for sf in staged_files:
+                        target_f = out_directory / sf.name
+                        shutil.move(str(sf), str(target_f))
+                    if interactive:
+                        console.print(f"[bold green]Successfully split into {out_directory.name}/[/bold green]")
+                    return out_directory
             record_split_failed_parts([{"part": 1, "error": error or "Failed to split PDF"}])
             if interactive:
                 console.print(f"[bold red]FAILED to split PDF[/bold red]")
@@ -340,7 +349,6 @@ def split_video(
         out_directory = Path(os.path.expanduser(str(output_dir)))
     else:
         out_directory = path_obj.parent / f"{path_obj.stem}_split"
-        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
     
     if chosen_mode in ('1', 'interval', 'fixed', 'segments', 'auto'):
@@ -545,7 +553,6 @@ def split_audio(
         out_directory = Path(os.path.expanduser(str(output_dir)))
     else:
         out_directory = path_obj.parent / f"{path_obj.stem}_split"
-        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
     
     if chosen_mode in ('1', 'interval', 'fixed', 'segments', 'auto'):
@@ -768,7 +775,6 @@ def split_gif(
         out_directory = Path(os.path.expanduser(str(output_dir)))
     else:
         out_directory = path_obj.parent / f"{path_obj.stem}_split"
-        send_to_trash(out_directory)
     out_directory.mkdir(parents=True, exist_ok=True)
     
     if chosen_mode in ('1', 'frames', 'extract', 'images', 'auto'):

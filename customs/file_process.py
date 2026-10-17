@@ -138,13 +138,16 @@ def normalize_format_alias(fmt: str) -> str:
 
 def get_convergent_tmp_dir() -> Path:
     """
-    Returns ~/.convergent/tmp directory, ensuring it exists.
-    Falls back to system temp directory if ~/.convergent cannot be created (e.g. permission denied).
+    Returns ~/.convergent/tmp directory, ensuring it exists and is writable.
+    Falls back to system temp directory if ~/.convergent cannot be created or written to (e.g. permission denied).
     Replaces repo-root .convergent_tmp to avoid modifying repo and avoid permission errors in read-only installs.
     """
     try:
         tmp_dir = Path.home() / ".convergent" / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
+        probe = tmp_dir / f".probe_{uuid.uuid4().hex[:8]}"
+        probe.touch()
+        probe.unlink()
         return tmp_dir
     except (PermissionError, OSError):
         tmp_dir = Path(tempfile.gettempdir()) / "convergent_tmp"
@@ -165,7 +168,7 @@ def get_expected_output_path(source_file: Path, target_format: str, output_dir: 
     return parent / f"{source_file.stem}.{target_upper.lower()}"
 
 
-def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None, explicit_output_file=None):
+def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None, explicit_output_file=None, overwrite=True):
     """
     Processes a single file conversion using provided Converter instance.
     """
@@ -187,6 +190,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
             if strip_metadata and source_fmt in ("JPG", "PNG", "WEBP", "TIF", "BMP", "HEIC", "HEIF", "AVIF"):
                 pass
             elif is_distinct_dest:
+                if (output_file.exists() or output_file.is_symlink()) and not overwrite:
+                    return f.name, False, f"Destination already exists: {output_file.name}. Choose another output path or set overwrite=True.", duration
                 try:
                     output_file.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(f, output_file)
@@ -240,9 +245,12 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                     if is_current_request_cancelled():
                         return f.name, False, "Operation cancelled.", time.perf_counter() - start_time
                     if success:
+                        if (output_file.exists() or output_file.is_symlink()) and output_file.resolve() != f.resolve():
+                            if not overwrite:
+                                return f.name, False, f"Destination already exists: {output_file.name}. Choose another output path or set overwrite=True.", time.perf_counter() - start_time
+                            send_to_trash(output_file)
+
                         if staged_out.exists():
-                            if output_file.exists() and output_file.resolve() != f.resolve():
-                                send_to_trash(output_file)
                             output_file.parent.mkdir(parents=True, exist_ok=True)
                             if staged_out.is_dir():
                                 if output_file.exists():
@@ -254,8 +262,6 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
                             else:
                                 shutil.copy2(str(staged_out), str(output_file))
                         elif staged_input.resolve() == staged_out.resolve():
-                            if output_file.exists() and output_file.resolve() != f.resolve():
-                                send_to_trash(output_file)
                             output_file.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(str(staged_input), str(output_file))
                         else:
@@ -681,7 +687,10 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 task = progress.add_task(f"{source_label} → {target_format}...", total=len(files))
                 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                    proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
+                    proc_kwargs = {}
+                    if out_dir_path:
+                        proc_kwargs["output_dir"] = out_dir_path
+                        proc_kwargs["overwrite"] = overwrite
                     futures = {}
                     for f in files:
                         ctx = contextvars.copy_context()
@@ -689,6 +698,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         kw = dict(proc_kwargs)
                         if exp_target and exp_target != get_expected_output_path(f, target_format, output_dir=out_dir_path):
                             kw["explicit_output_file"] = exp_target
+                            kw["overwrite"] = overwrite
                         fut = executor.submit(ctx.run, process_single_file, conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **kw)
                         futures[fut] = f
                     
@@ -755,9 +765,13 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             for f in files:
                 completed_files.add(f)
                 exp_target = target_map.get(f)
-                proc_kwargs = {"output_dir": out_dir_path} if out_dir_path else {}
+                proc_kwargs = {}
+                if out_dir_path:
+                    proc_kwargs["output_dir"] = out_dir_path
+                    proc_kwargs["overwrite"] = overwrite
                 if exp_target and exp_target != get_expected_output_path(f, target_format, output_dir=out_dir_path):
                     proc_kwargs["explicit_output_file"] = exp_target
+                    proc_kwargs["overwrite"] = overwrite
                 name, success, error, duration = process_single_file(conv, f, target_format, fps, bitrate, md_pdf_mode, strip_metadata, ocr, stt, model, language, hwaccel, dpi, **proc_kwargs)
                 if success:
                     success_count += 1

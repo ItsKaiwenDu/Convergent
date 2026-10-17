@@ -1632,6 +1632,183 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("warning", res)
             self.assertIn("PPTX to HTML conversion via LibreOffice may have limited visual fidelity", res["warning"])
 
+    # 52. MCP Output alias / symlink cannot overwrite original input
+    def test_mcp_output_alias_cannot_overwrite_original_input(self):
+        src_png = self.dir_path / "original_source.png"
+        src_png.write_bytes(b"original png bytes")
+        alias_jpg = self.dir_path / "alias.jpg"
+        try:
+            os.symlink(str(src_png), str(alias_jpg))
+        except OSError:
+            self.skipTest("Symlinks not supported on this filesystem")
+
+        res = convergent_convert(
+            input_path=str(src_png),
+            target_format="JPG",
+            output_path=str(alias_jpg),
+            overwrite=True,
+            use_cache=False,
+        )
+        self.assertFalse(res["success"])
+        self.assertIn("resolves to an original input file", res["error"])
+        self.assertEqual(src_png.read_bytes(), b"original png bytes")
+
+    # 53. Ghostscript PDF splitting in isolated staging preserves existing files like page_003.pdf
+    def test_ghostscript_split_isolated_staging_preserves_existing_pages(self):
+        from modules.split import split_pdf
+        pdf_file = self.dir_path / "doc2.pdf"
+        cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(pdf_file), "-g100x100", "-c", "showpage showpage"]
+        ok, _ = run_command(cmd)
+        if not ok or not pdf_file.exists():
+            self.skipTest("Ghostscript is not installed")
+
+        split_out = self.dir_path / "split_dest"
+        split_out.mkdir()
+        sentinel_p3 = split_out / "page_003.pdf"
+        sentinel_p3.write_text("sentinel page 3 content")
+
+        res_dir = split_pdf(str(pdf_file), mode="pages", output_dir=str(split_out), interactive=False)
+        self.assertIsNotNone(res_dir)
+        self.assertTrue((split_out / "page_001.pdf").exists())
+        self.assertTrue((split_out / "page_002.pdf").exists())
+        self.assertTrue(sentinel_p3.exists())
+        self.assertEqual(sentinel_p3.read_text(), "sentinel page 3 content")
+
+    # 54. 7Z compression preserves subfolder paths with -spf
+    def test_7z_compression_preserves_subfolder_paths(self):
+        d1 = self.dir_path / "sub_a"
+        d2 = self.dir_path / "sub_b"
+        d1.mkdir()
+        d2.mkdir()
+        f1 = d1 / "report.txt"
+        f2 = d2 / "report.txt"
+        f1.write_text("report A")
+        f2.write_text("report B")
+
+        with patch("modules.compress.run_command", return_value=(True, "")) as mock_cmd:
+            success, err, out_p = compress([f1, f2], output_name="out.7z", format_choice="7Z", output_dir=self.dir_path)
+            self.assertTrue(mock_cmd.called)
+            cmd_args = mock_cmd.call_args[0][0]
+            self.assertIn("-spf", cmd_args)
+
+    # 55. LibreOffice zero exit without output falls back to Pandoc
+    def test_doc_libreoffice_empty_output_falls_back_to_pandoc(self):
+        from modules.doc import convert_office
+        docx_file = self.dir_path / "sample.docx"
+        docx_file.write_bytes(b"dummy docx")
+
+        def fake_run_cmd(cmd, cwd=None):
+            if cmd[0] == "soffice" or cmd[0].endswith("soffice"):
+                return True, ""
+            if "pandoc" in cmd[0]:
+                out_idx = cmd.index("-o") + 1
+                Path(cmd[out_idx]).touch()
+                return True, ""
+            return False, "unknown"
+
+        with patch("modules.doc._get_soffice_path", return_value="soffice"), \
+             patch("modules.doc.run_command", side_effect=fake_run_cmd):
+            success, err = convert_office(docx_file, "PDF")
+            self.assertTrue(success)
+            self.assertTrue((self.dir_path / "sample.pdf").exists())
+
+    # 56. Sips failure falls back to ImageMagick in convert_image
+    def test_image_sips_failure_falls_back_to_imagemagick(self):
+        from modules.image import convert_image
+        img_file = self.dir_path / "test_sips.png"
+        img_file.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+        executed_cmds = []
+        def fake_run_cmd(cmd, cwd=None):
+            executed_cmds.append(cmd[0])
+            if cmd[0] == "sips":
+                return False, "sips permission error"
+            if cmd[0] in ("magick", "convert"):
+                out_path = Path(cmd[-1])
+                out_path.touch()
+                return True, ""
+            return False, "unknown"
+
+        with patch("sys.platform", "darwin"), \
+             patch("shutil.which", side_effect=lambda x: f"/usr/local/bin/{x}"), \
+             patch("modules.image.run_command", side_effect=fake_run_cmd):
+            success, err = convert_image(img_file, "JPG")
+            self.assertTrue(success)
+            self.assertIn("sips", executed_cmds)
+            self.assertIn("magick", executed_cmds)
+
+    # 57. Whisper preserves stderr diagnostic when output file is missing
+    def test_stt_whisper_preserves_stderr_on_exit_zero(self):
+        from modules.stt import convert_audio_to_text
+        from customs.run_command import LAST_COMMAND_STDERR
+        audio_file = self.dir_path / "speech.wav"
+        audio_file.write_bytes(b"RIFF" + b"\x00" * 36)
+
+        def fake_run_whisper(cmd, cwd=None):
+            if cmd[0] == "ffmpeg":
+                Path(cmd[-1]).touch()
+                return True, ""
+            LAST_COMMAND_STDERR.set("error: unknown language 'elvish'")
+            return True, ""
+
+        with patch("modules.stt.find_whisper_binary", return_value="/bin/whisper-cli"), \
+             patch("modules.stt.get_model_path", return_value=self.dir_path / "model.bin"), \
+             patch("modules.stt.run_command", side_effect=fake_run_whisper):
+            success, err = convert_audio_to_text(audio_file, "TXT", language="elvish")
+            self.assertFalse(success)
+            self.assertIn("error: unknown language 'elvish'", err)
+
+    # 58. Specialized tools support overwrite parameter
+    def test_mcp_combine_and_resize_support_overwrite(self):
+        f1 = self.dir_path / "part1.txt"
+        f2 = self.dir_path / "part2.txt"
+        f1.write_text("p1")
+        f2.write_text("p2")
+        out_txt = self.dir_path / "merged.txt"
+        out_txt.write_text("existing merged")
+
+        res_combine = combine_files([str(f1), str(f2)], output_path=str(out_txt), overwrite=False)
+        self.assertFalse(res_combine["success"])
+        self.assertIn("Destination already exists", res_combine["error"])
+
+        img = self.dir_path / "photo.png"
+        img.write_bytes(b"\x89PNG")
+        out_resized = self.dir_path / "photo_resized.png"
+        out_resized.write_bytes(b"existing resized")
+
+        res_resize = resize_media(str(img), width=100, output_path=str(out_resized), overwrite=False)
+        self.assertFalse(res_resize["success"])
+        self.assertIn("Destination already exists", res_resize["error"])
+
+    # 59. MCP split_file uses _cap_list manifest and provides failed_parts
+    def test_mcp_split_file_generates_manifest_and_detailed_errors(self):
+        pdf_file = self.dir_path / "big_doc.pdf"
+        pdf_file.touch()
+
+        fake_split_dir = self.dir_path / "split_many"
+        fake_split_dir.mkdir()
+        for i in range(55):
+            (fake_split_dir / f"page_{i:03d}.pdf").touch()
+
+        with patch("mcp_server.server.conv.split_pdf", return_value=fake_split_dir):
+            res = split_file(str(pdf_file), output_dir=str(fake_split_dir))
+            self.assertTrue(res["success"])
+            self.assertEqual(res["count"], 55)
+            self.assertTrue(res["truncated"])
+            self.assertIn("manifest_path", res)
+            self.assertTrue(Path(res["manifest_path"]).exists())
+
+        from modules.split import record_split_failed_parts
+        def fake_split_fail(*args, **kwargs):
+            record_split_failed_parts([{"part": 1, "error": "Ghostscript memory error"}])
+            return None
+
+        with patch("mcp_server.server.conv.split_pdf", side_effect=fake_split_fail):
+            fail_res = split_file(str(pdf_file))
+            self.assertFalse(fail_res["success"])
+            self.assertIn("Ghostscript memory error", fail_res["error"])
+            self.assertIn("failed_parts", fail_res)
+
 
 if __name__ == "__main__":
     unittest.main()

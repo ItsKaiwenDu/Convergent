@@ -14,7 +14,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Tuple, Optional, List, Dict
-from customs.run_command import run_command, is_current_request_cancelled
+from customs.run_command import run_command, is_current_request_cancelled, get_last_command_stderr
 
 # Local model cache directory
 MODELS_DIR = Path.home() / ".cache" / "convergent" / "models"
@@ -339,7 +339,8 @@ def convert_audio_to_text(
         generated_srt = Path(f"{temp_out_prefix}.srt")
         generated_vtt = Path(f"{temp_out_prefix}.vtt")
 
-        err_detail = f": {err_msg.strip()}" if err_msg and err_msg.strip() else ""
+        backend_err = (err_msg.strip() if err_msg else "") or get_last_command_stderr().strip()
+        err_detail = f": {backend_err}" if backend_err else ""
         if target_ext == "TXT":
             if generated_txt.exists():
                 shutil.move(str(generated_txt), str(output))

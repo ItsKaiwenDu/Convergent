@@ -91,10 +91,11 @@ def convert_office(source, target_ext):
                 success, err = run_command([soffice_path, "--headless", "--convert-to", "pdf", "--outdir", outdir, str(temp_src)])
                 if success:
                     lo_out = temp_out.parent / f"{temp_src.stem}.pdf"
-                    if lo_out.exists() and lo_out != temp_out:
-                        shutil.move(str(lo_out), str(temp_out))
-                    return True, ""
-                # If LibreOffice failed, fall back to pandoc
+                    if lo_out.exists() and lo_out.stat().st_size > 0:
+                        if lo_out != temp_out:
+                            shutil.move(str(lo_out), str(temp_out))
+                        return True, ""
+                # If LibreOffice failed or produced no output, fall back to pandoc
                 
             global _libreoffice_warned
             if not soffice_path and not _libreoffice_warned:
@@ -149,10 +150,11 @@ def convert_office(source, target_ext):
                 success_lo, err_lo = run_command([soffice_path, "--headless", "--convert-to", "html", "--outdir", outdir, str(temp_src)])
                 if success_lo:
                     lo_out = temp_out.parent / f"{temp_src.stem}.html"
-                    if lo_out.exists() and lo_out != temp_out:
-                        shutil.move(str(lo_out), str(temp_out))
-                    return True, ""
-                return False, err_lo or err
+                    if lo_out.exists() and lo_out.stat().st_size > 0:
+                        if lo_out != temp_out:
+                            shutil.move(str(lo_out), str(temp_out))
+                        return True, ""
+                return False, err_lo or err or "LibreOffice produced no output HTML file"
             return False, err
 
         success, err = convert_with_temp_files(source, output, run_conv)

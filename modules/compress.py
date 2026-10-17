@@ -127,7 +127,7 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
         elif format_choice == "TAR.XZ":
             cmd = ["tar", "-cJf", str(tmp_output), "--"] + rel_paths
         elif format_choice == "7Z":
-            cmd = [sevenzip_exec, "a", str(tmp_output), "--"] + rel_paths
+            cmd = [sevenzip_exec, "a", "-spf", str(tmp_output), "--"] + rel_paths
             if password:
                 cmd.insert(2, f"-p{password}")
         elif format_choice == "RAR":

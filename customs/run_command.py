@@ -9,6 +9,16 @@ from typing import Optional, Tuple
 
 CURRENT_REQUEST_ID: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("CURRENT_REQUEST_ID", default=None)
 CURRENT_CANCEL_EVENT: contextvars.ContextVar[Optional[threading.Event]] = contextvars.ContextVar("CURRENT_CANCEL_EVENT", default=None)
+LAST_COMMAND_STDERR: contextvars.ContextVar[str] = contextvars.ContextVar("LAST_COMMAND_STDERR", default="")
+LAST_COMMAND_STDOUT: contextvars.ContextVar[str] = contextvars.ContextVar("LAST_COMMAND_STDOUT", default="")
+
+def get_last_command_stderr() -> str:
+    """Returns stderr from the most recently completed run_command in this context."""
+    return LAST_COMMAND_STDERR.get()
+
+def get_last_command_stdout() -> str:
+    """Returns stdout from the most recently completed run_command in this context."""
+    return LAST_COMMAND_STDOUT.get()
 
 _ACTIVE_PROCESSES = set()
 _REQUEST_PROCESSES = defaultdict(set)
@@ -88,6 +98,9 @@ def run_command(cmd, cwd=None):
         if is_current_request_cancelled():
             return False, "Operation cancelled."
 
+        LAST_COMMAND_STDERR.set(stderr.strip() if stderr else "")
+        LAST_COMMAND_STDOUT.set(stdout.strip() if stdout else "")
+
         if proc.returncode == 0:
             return True, ""
         else:
@@ -138,6 +151,8 @@ def run_command_output(cmd, cwd=None) -> Tuple[int, str, str]:
                     if not _REQUEST_PROCESSES[req_id]:
                         _REQUEST_PROCESSES.pop(req_id, None)
 
+        LAST_COMMAND_STDERR.set(stderr.strip() if stderr else "")
+        LAST_COMMAND_STDOUT.set(stdout.strip() if stdout else "")
         return proc.returncode, stdout, stderr
     except FileNotFoundError:
         return 127, "", f"Command not found: {cmd[0]}"
@@ -168,7 +183,7 @@ def send_to_trash(path):
     if sys.platform == "darwin":
         # Attempt using `trash` CLI utility
         try:
-            result = subprocess.run(["trash", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True)
+            result = subprocess.run(["trash", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True, timeout=2.0)
             if result.returncode == 0:
                 try:
                     from customs.console import console
@@ -181,20 +196,26 @@ def send_to_trash(path):
         except Exception:
             pass
             
-        # Fallback to AppleScript Finder delete
-        try:
-            escaped_path = str(path).replace('\\', '\\\\').replace('"', '\\"')
-            applescript = f'tell application "Finder" to delete POSIX file "{escaped_path}"'
-            result = subprocess.run(["osascript", "-e", applescript], capture_output=True, stdin=subprocess.DEVNULL, text=True)
-            if result.returncode == 0:
-                try:
-                    from customs.console import console
-                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
-                except Exception:
-                    pass
-                return True
-        except Exception:
-            pass
+        # Fallback to AppleScript Finder delete only if not running headless / MCP request
+        is_headless = (
+            CURRENT_REQUEST_ID.get() is not None
+            or os.environ.get("CONVERGENT_HEADLESS") == "1"
+            or not sys.stdin.isatty()
+        )
+        if not is_headless:
+            try:
+                escaped_path = str(path).replace('\\', '\\\\').replace('"', '\\"')
+                applescript = f'tell application "Finder" to delete POSIX file "{escaped_path}"'
+                result = subprocess.run(["osascript", "-e", applescript], capture_output=True, stdin=subprocess.DEVNULL, text=True, timeout=2.0)
+                if result.returncode == 0:
+                    try:
+                        from customs.console import console
+                        console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
+                    except Exception:
+                        pass
+                    return True
+            except Exception:
+                pass
             
         return False
 

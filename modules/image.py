@@ -83,6 +83,13 @@ def convert_image(source, target_ext, strip_metadata=False):
                 if res and strip_metadata:
                     strip_cmd = "magick" if shutil.which("magick") else "convert"
                     res, err = run_command([strip_cmd, str(output), "-auto-orient", "-strip", str(output)])
+                elif not res and shutil.which(cmd_name):
+                    # Fallback to ImageMagick if sips fails
+                    cmd = [cmd_name, str(source), "-auto-orient"]
+                    if strip_metadata:
+                        cmd.append("-strip")
+                    cmd.append(str(output))
+                    res, err = run_command(cmd)
             elif target_upper == "WEBP" and source.suffix.lower() in (".arw", ".dng"):
                 # Convert to temp PNG first using sips, then use magick to convert PNG to WEBP
                 temp_png = source.with_suffix(".temp.png")

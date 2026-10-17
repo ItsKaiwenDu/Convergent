@@ -93,6 +93,13 @@ def _relocate_output(source: Path, destination: Path, overwrite: bool, original_
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     is_source_input = original_inputs and (source.resolve() in original_inputs)
+    is_dest_input = original_inputs and (destination.resolve() in original_inputs)
+
+    if is_dest_input:
+        raise ValueError(
+            f"Output destination '{destination}' resolves to an original input file. "
+            "Overwriting original input files via output alias/symlink is not permitted."
+        )
 
     if not overwrite:
         if destination.exists() or destination.is_symlink():
@@ -324,6 +331,15 @@ def convergent_convert(
             pass
 
     if output_path and not is_dest_dir:
+        if dest_target and original_inputs and (dest_target.resolve() in original_inputs):
+            return {
+                "success": False,
+                "error": f"Output destination '{dest_target}' resolves to an original input file. Overwriting original input files via output alias/symlink is not permitted.",
+                "converted_files": [],
+                "count": 0,
+                "failed_files": [],
+                "target_format": target_fmt,
+            }
         if dest_target and (dest_target.exists() or dest_target.is_symlink()) and not overwrite:
             return {
                 "success": False,
@@ -382,6 +398,11 @@ def convergent_convert(
             for out_p, target_loc in moves:
                 if out_p == target_loc:
                     continue
+                if original_inputs and (target_loc.resolve() in original_inputs):
+                    raise ValueError(
+                        f"Output destination '{target_loc}' resolves to an original input file. "
+                        "Overwriting original input files via output alias/symlink is not permitted."
+                    )
                 if (target_loc.exists() or target_loc.is_symlink()) and not overwrite:
                     raise FileExistsError(
                         f"Destination already exists: {target_loc}. "
@@ -826,17 +847,22 @@ def perform_stt(
             "converted_files": [],
         }
 
+    model_cleaned = (model or "base").strip().lower()
     valid_models = (
         "tiny", "mini", "base", "standard", "small", "medium",
         "large", "turbo", "large-turbo", "large-v3-turbo", "large-v3"
     )
-    actual_model = model
+    actual_model = model_cleaned
     warning = None
-    if model.lower() not in valid_models:
+    if model_cleaned not in valid_models:
         warning = f"Model '{model}' is not a recognized Whisper model name ({', '.join(valid_models)}). Falling back to 'base'."
         actual_model = "base"
 
-    resolved_model = "base" if actual_model.lower() == "standard" else actual_model
+    canonical_models = {
+        "standard": "base",
+        "mini": "tiny",
+    }
+    resolved_model = canonical_models.get(actual_model, actual_model)
 
     res = convergent_convert(
         input_path=full_path,
@@ -883,6 +909,7 @@ def perform_stt(
 def combine_files(
     file_paths: List[str],
     output_path: Optional[str] = None,
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
     Combine multiple PDF, video, audio, GIF, or document files into a single merged file non-interactively.
@@ -891,6 +918,7 @@ def combine_files(
     Args:
         file_paths: List of file paths to combine (must all share compatible file types).
         output_path: Optional destination file or directory path.
+        overwrite: If True, overwrites destination file if it exists. Default True.
 
     Returns:
         Dictionary with status and path to combined output file.
@@ -908,7 +936,11 @@ def combine_files(
             missing_paths.append(p)
 
     if missing_paths:
-        return {"success": False, "error": f"The following file(s) do not exist: {', '.join(missing_paths)}"}
+        if len(missing_paths) > 5:
+            missing_preview = ", ".join(missing_paths[:5]) + f", ... and {len(missing_paths) - 5} more ({len(missing_paths)} missing total)"
+        else:
+            missing_preview = ", ".join(missing_paths)
+        return {"success": False, "error": f"The following file(s) do not exist: {missing_preview}"}
 
     if not expanded_paths:
         return {"success": False, "error": "No valid existing files provided to combine."}
@@ -963,6 +995,11 @@ def combine_files(
             return {
                 "success": False,
                 "error": "Output destination cannot be one of the input files to combine.",
+            }
+        if (out_p_resolved.exists() or out_p_resolved.is_symlink()) and not overwrite:
+            return {
+                "success": False,
+                "error": f"Destination already exists: {out_p_resolved}. Choose another output path or set overwrite=True.",
             }
 
     try:
@@ -1166,16 +1203,17 @@ def split_file(
             if total_count == 0:
                 return {"success": False, "error": f"No split files were generated from {file_path}."}
 
-            is_truncated = total_count > 50
-            returned_files = files[:50] if is_truncated else files
+            capped_files, is_truncated, manifest_path = _cap_list(files, "split", out_path_obj, limit=50, sample_size=50)
             res_dict = {
                 "success": True,
                 "output_dir": str(out_path_obj),
-                "split_files": returned_files,
+                "split_files": capped_files,
                 "count": total_count,
                 "truncated": is_truncated,
-                "message": f"Successfully split {file_path} into {total_count} files." + (" (showing first 50)" if is_truncated else ""),
+                "message": f"Successfully split {file_path} into {total_count} files." + (f" (showing first {len(capped_files)})" if is_truncated else ""),
             }
+            if manifest_path:
+                res_dict["manifest_path"] = manifest_path
             failed_parts = get_split_failed_parts()
             if failed_parts:
                 res_dict["partial_success"] = True
@@ -1191,9 +1229,13 @@ def split_file(
             failed_parts = get_split_failed_parts()
             err_msg = f"Failed to split {file_path}."
             if failed_parts:
-                err_msg += f" {len(failed_parts)} segment(s) failed."
+                err_details = "; ".join(f"part {p.get('part', '?')}: {p.get('error', 'unknown error')}" for p in failed_parts[:3])
+                err_msg += f" {len(failed_parts)} segment(s) failed: {err_details}."
             reset_split_diagnostics()
-            return {"success": False, "error": err_msg}
+            res_fail = {"success": False, "error": err_msg}
+            if failed_parts:
+                res_fail["failed_parts"] = failed_parts
+            return res_fail
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -1353,6 +1395,7 @@ def resize_media(
     aspect_ratio: Optional[str] = None,
     output_path: Optional[str] = None,
     strip_metadata: bool = False,
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
     Resize, rescale, crop to aspect ratio, or strip metadata from images (JPG, PNG, HEIC) or video (MP4).
@@ -1365,6 +1408,7 @@ def resize_media(
         aspect_ratio: Optional aspect ratio crop ('16:9', '4:3', '1:1', '9:16').
         output_path: Optional output file or directory path.
         strip_metadata: If True, strips EXIF/IPTC metadata. Default False.
+        overwrite: If True, overwrites destination file if it exists. Default True.
 
     Returns:
         Dictionary with status, output file path, and duration.
@@ -1373,6 +1417,21 @@ def resize_media(
     full_path = Path(os.path.expanduser(file_path)).resolve()
     if not full_path.exists():
         return {"success": False, "error": f"File not found: {file_path}"}
+
+    if output_path:
+        out_p = Path(os.path.expanduser(str(output_path))).resolve()
+        if out_p.is_dir() or str(output_path).endswith(os.sep) or str(output_path).endswith("/"):
+            expected_dest = out_p / f"{full_path.stem}_resized{full_path.suffix}"
+        else:
+            expected_dest = out_p
+    else:
+        expected_dest = full_path.parent / f"{full_path.stem}_resized{full_path.suffix}"
+
+    if (expected_dest.exists() or expected_dest.is_symlink()) and not overwrite:
+        return {
+            "success": False,
+            "error": f"Destination already exists: {expected_dest}. Choose another output path or set overwrite=True.",
+        }
 
     if width is not None:
         try:
