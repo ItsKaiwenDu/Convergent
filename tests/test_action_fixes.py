@@ -1761,7 +1761,8 @@ class TestActionFixes(unittest.TestCase):
             LAST_COMMAND_STDERR.set("error: unknown language 'elvish'")
             return True, ""
 
-        with patch("modules.stt.find_whisper_binary", return_value="/bin/whisper-cli"), \
+        with patch("modules.stt.shutil.which", return_value="/bin/ffmpeg"), \
+             patch("modules.stt.find_whisper_binary", return_value="/bin/whisper-cli"), \
              patch("modules.stt.get_model_path", return_value=self.dir_path / "model.bin"), \
              patch("modules.stt.run_command", side_effect=fake_run_whisper):
             success, err = convert_audio_to_text(audio_file, "TXT", language="elvish")
