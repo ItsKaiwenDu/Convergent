@@ -1657,22 +1657,31 @@ class TestActionFixes(unittest.TestCase):
     def test_ghostscript_split_isolated_staging_preserves_existing_pages(self):
         from modules.split import split_pdf
         pdf_file = self.dir_path / "doc2.pdf"
-        cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(pdf_file), "-g100x100", "-c", "showpage showpage"]
-        ok, _ = run_command(cmd)
-        if not ok or not pdf_file.exists():
-            self.skipTest("Ghostscript is not installed")
+        pdf_file.write_bytes(b"%PDF-1.4 dummy pdf")
 
         split_out = self.dir_path / "split_dest"
         split_out.mkdir()
         sentinel_p3 = split_out / "page_003.pdf"
         sentinel_p3.write_text("sentinel page 3 content")
 
-        res_dir = split_pdf(str(pdf_file), mode="pages", output_dir=str(split_out), interactive=False)
-        self.assertIsNotNone(res_dir)
-        self.assertTrue((split_out / "page_001.pdf").exists())
-        self.assertTrue((split_out / "page_002.pdf").exists())
-        self.assertTrue(sentinel_p3.exists())
-        self.assertEqual(sentinel_p3.read_text(), "sentinel page 3 content")
+        def fake_gs_split(cmd, cwd=None):
+            if cmd[0] == "gs":
+                out_idx = cmd.index("-o") + 1
+                pattern = cmd[out_idx]
+                staging_p = Path(pattern).parent
+                (staging_p / "page_001.pdf").write_bytes(b"%PDF-1.4 p1")
+                (staging_p / "page_002.pdf").write_bytes(b"%PDF-1.4 p2")
+                return True, ""
+            return False, "unknown"
+
+        with patch("modules.split.get_pdf_page_count", return_value=2), \
+             patch("modules.split.run_command", side_effect=fake_gs_split):
+            res_dir = split_pdf(str(pdf_file), mode="pages", output_dir=str(split_out), interactive=False)
+            self.assertIsNotNone(res_dir)
+            self.assertTrue((split_out / "page_001.pdf").exists())
+            self.assertTrue((split_out / "page_002.pdf").exists())
+            self.assertTrue(sentinel_p3.exists())
+            self.assertEqual(sentinel_p3.read_text(), "sentinel page 3 content")
 
     # 54. 7Z compression preserves subfolder paths with -spf
     def test_7z_compression_preserves_subfolder_paths(self):
@@ -1685,7 +1694,8 @@ class TestActionFixes(unittest.TestCase):
         f1.write_text("report A")
         f2.write_text("report B")
 
-        with patch("modules.compress.run_command", return_value=(True, "")) as mock_cmd:
+        with patch("modules.compress.shutil.which", return_value="/usr/local/bin/7z"), \
+             patch("modules.compress.run_command", return_value=(True, "")) as mock_cmd:
             success, err, out_p = compress([f1, f2], output_name="out.7z", format_choice="7Z", output_dir=self.dir_path)
             self.assertTrue(mock_cmd.called)
             cmd_args = mock_cmd.call_args[0][0]
@@ -1729,8 +1739,8 @@ class TestActionFixes(unittest.TestCase):
                 return True, ""
             return False, "unknown"
 
-        with patch("sys.platform", "darwin"), \
-             patch("shutil.which", side_effect=lambda x: f"/usr/local/bin/{x}"), \
+        with patch("modules.image.sys.platform", "darwin"), \
+             patch("modules.image.shutil.which", side_effect=lambda x: f"/usr/local/bin/{x}"), \
              patch("modules.image.run_command", side_effect=fake_run_cmd):
             success, err = convert_image(img_file, "JPG")
             self.assertTrue(success)
