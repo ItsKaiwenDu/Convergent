@@ -1,6 +1,7 @@
 import os
 import time
 import uuid
+import shutil
 import subprocess
 import multiprocessing
 import concurrent.futures
@@ -21,9 +22,11 @@ def get_image_dimensions(path):
     """
     Returns orientation-adjusted (width, height) of an image using ImageMagick identify.
     """
+    if not shutil.which("magick"):
+        raise RuntimeError("ImageMagick ('magick') is not installed or not in PATH. Please install it with 'brew install imagemagick'.")
     try:
         cmd = ["magick", "identify", "-format", "%w %h %[orientation]", str(path)]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, errors="replace")
         parts = result.stdout.strip().split()
         if len(parts) >= 2:
             w = int(parts[0])
@@ -32,7 +35,9 @@ def get_image_dimensions(path):
             if any(o in orient for o in ["righttop", "leftbottom", "lefttop", "rightbottom", "6", "8", "5", "7"]):
                 w, h = h, w
             return w, h
-    except:
+    except subprocess.CalledProcessError:
+        pass
+    except Exception:
         pass
     return None, None
 
@@ -40,9 +45,11 @@ def get_video_dimensions(path):
     """
     Returns rotation-adjusted (width, height) of a video using ffprobe.
     """
+    if not shutil.which("ffprobe"):
+        raise RuntimeError("FFmpeg ('ffprobe') is not installed or not in PATH. Please install it with 'brew install ffmpeg'.")
     try:
         cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "default=noprint_wrappers=1:nokey=1", str(path)]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, errors="replace")
         lines = result.stdout.strip().splitlines()
         if len(lines) >= 2:
             w = int(lines[0])
@@ -157,10 +164,14 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
     f = Path(f)
     is_video = f.suffix.lower() == ".mp4"
     
-    if is_video:
-        w, h = get_video_dimensions(f)
-    else:
-        w, h = get_image_dimensions(f)
+    try:
+        if is_video:
+            w, h = get_video_dimensions(f)
+        else:
+            w, h = get_image_dimensions(f)
+    except RuntimeError as e:
+        duration = time.perf_counter() - start_time
+        return f.name, False, str(e), duration
         
     if not w or not h:
         duration = time.perf_counter() - start_time
@@ -284,10 +295,13 @@ def resize_media(paths, conv, console, get_char, get_input):
     # 2. Display files and dimensions
     console.print("\n[bold yellow]Files to Resize:[/bold yellow]")
     for idx, f in enumerate(files, 1):
-        if f.suffix.lower() == ".mp4":
-            w, h = get_video_dimensions(f)
-        else:
-            w, h = get_image_dimensions(f)
+        try:
+            if f.suffix.lower() == ".mp4":
+                w, h = get_video_dimensions(f)
+            else:
+                w, h = get_image_dimensions(f)
+        except RuntimeError:
+            w, h = None, None
         dim_str = f"({w}x{h})" if w and h else "(unknown dimensions)"
         console.print(f" [bold cyan]{idx}.[/bold cyan] {f.name} [dim]{dim_str}[/dim]")
 

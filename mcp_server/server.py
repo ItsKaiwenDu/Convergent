@@ -556,6 +556,7 @@ def pdf_to_images(
     target_format: str = "JPG",
     output_path: Optional[str] = None,
     dpi: int = 150,
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
     Convert a multi-page PDF into individual image files (one image per page).
@@ -607,7 +608,7 @@ def pdf_to_images(
         input_path=full_path,
         target_format=target_fmt,
         output_path=output_path,
-        overwrite=True,
+        overwrite=overwrite,
         dpi=dpi,
     )
 
@@ -675,6 +676,7 @@ def extract_audio(
     target_format: str = "MP3",
     output_path: Optional[str] = None,
     bitrate: str = "192k",
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
     Extract audio track from a video file. Useful for pre-processing video for audio transcription.
@@ -684,6 +686,7 @@ def extract_audio(
         target_format: Target audio format ('MP3', 'WAV', 'AAC', 'FLAC', 'M4A'). Default 'MP3'.
         output_path: Optional output file or directory path.
         bitrate: Audio bitrate (e.g. '128k', '192k', '320k'). Default '192k'.
+        overwrite: If True, overwrites destination file if it exists. Default True.
 
     Returns:
         Dictionary containing path to extracted audio file.
@@ -705,7 +708,7 @@ def extract_audio(
         target_format=target_upper,
         output_path=output_path,
         bitrate=bitrate,
-        overwrite=True,
+        overwrite=overwrite,
     )
     return res
 
@@ -716,6 +719,7 @@ def perform_ocr(
     target_format: str = "TXT",
     output_path: Optional[str] = None,
     preview_length: int = 500,
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
     Perform Optical Character Recognition (OCR) on an image or scanned PDF document to extract text.
@@ -725,6 +729,7 @@ def perform_ocr(
         target_format: Output text format ('TXT', 'MD', 'DOCX'). Default 'TXT'.
         output_path: Optional output file or directory path.
         preview_length: Maximum characters to return in preview snippet (default 500).
+        overwrite: If True, overwrites destination file if it exists. Default True.
 
     Returns:
         Dictionary with status, extracted file paths, and extracted text snippet if available.
@@ -767,7 +772,7 @@ def perform_ocr(
         target_format=target_upper,
         output_path=output_path,
         ocr=True,
-        overwrite=True,
+        overwrite=overwrite,
     )
 
     target_upper = target_format.upper().lstrip(".")
@@ -805,6 +810,7 @@ def perform_stt(
     model: str = "base",
     language: Optional[str] = None,
     preview_length: int = 500,
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
     Perform Speech-to-Text (STT) transcription on an audio or video file to extract text or generate subtitles.
@@ -816,6 +822,7 @@ def perform_stt(
         model: Whisper model size ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo'). Default 'base'.
         language: Language code (e.g. 'en', 'es', 'zh', 'auto'). Default None ('auto').
         preview_length: Maximum characters to return in transcript preview snippet (default 500).
+        overwrite: If True, overwrites destination file if it exists. Default True.
 
     Returns:
         Dictionary with status, extracted file paths, transcript preview snippet, and model metadata.
@@ -825,8 +832,8 @@ def perform_stt(
         return {"success": False, "error": f"File not found: {input_path}"}
 
     valid_stt_inputs = {
-        ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg", ".wma", ".opus",
-        ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".wmv"
+        ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg",
+        ".mp4", ".mov", ".mkv", ".avi", ".webm"
     }
     input_ext = Path(full_path).suffix.lower()
     if input_ext not in valid_stt_inputs:
@@ -858,11 +865,8 @@ def perform_stt(
         warning = f"Model '{model}' is not a recognized Whisper model name ({', '.join(valid_models)}). Falling back to 'base'."
         actual_model = "base"
 
-    canonical_models = {
-        "standard": "base",
-        "mini": "tiny",
-    }
-    resolved_model = canonical_models.get(actual_model, actual_model)
+    from modules.stt import normalize_model_name
+    resolved_model = normalize_model_name(actual_model)
 
     res = convergent_convert(
         input_path=full_path,
@@ -871,7 +875,7 @@ def perform_stt(
         stt=True,
         model=resolved_model,
         language=language,
-        overwrite=True,
+        overwrite=overwrite,
     )
     if res.get("success", False):
         res["model_used"] = resolved_model
@@ -996,10 +1000,21 @@ def combine_files(
                 "success": False,
                 "error": "Output destination cannot be one of the input files to combine.",
             }
-        if (out_p_resolved.exists() or out_p_resolved.is_symlink()) and not overwrite:
+        if out_p_resolved.is_dir() or str(output_path).endswith(os.sep) or str(output_path).endswith("/"):
+            default_name = (
+                "combined.pdf" if first_ext in pdf_exts or first_ext in docx_exts or first_ext in pptx_exts
+                else "combined.gif" if first_ext in gif_exts
+                else "combined.txt" if first_ext in txt_exts
+                else f"combined{first_ext}"
+            )
+            target_check = out_p_resolved / default_name
+        else:
+            target_check = out_p_resolved
+
+        if (target_check.exists() or target_check.is_symlink()) and not overwrite:
             return {
                 "success": False,
-                "error": f"Destination already exists: {out_p_resolved}. Choose another output path or set overwrite=True.",
+                "error": f"Destination already exists: {target_check}. Choose another output path or set overwrite=True.",
             }
 
     try:

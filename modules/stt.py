@@ -360,11 +360,13 @@ def convert_audio_to_text(
             return False, f"Whisper failed to produce VTT output{err_detail}"
 
         elif target_ext == "MD":
+            if not generated_txt.exists():
+                return False, f"Whisper failed to produce MD output{err_detail}"
+
             # Compose a formatted Markdown transcript with title & content
             content = ""
-            if generated_txt.exists():
-                with open(generated_txt, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read().strip()
+            with open(generated_txt, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read().strip()
             
             srt_content = ""
             if generated_srt.exists():

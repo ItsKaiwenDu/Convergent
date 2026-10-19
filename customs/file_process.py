@@ -70,9 +70,11 @@ def clear_failed_run():
 try:
     from rich.table import Table
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
+    from rich.markup import escape
     HAS_RICH = True
 except ImportError:
     HAS_RICH = False
+    escape = lambda x: x
 
 @dataclass
 class FormatDef:
@@ -742,7 +744,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                         pass
                                 
                                 if error != "Skipped (Same format)":
-                                    progress.console.print(f" [bold green]✓[/bold green] {name} [dim]→ {duration:.1f}s[/dim]")
+                                    progress.console.print(f" [bold green]✓[/bold green] {escape(name)} [dim]→ {duration:.1f}s[/dim]")
                             else:
                                 fail_count += 1
                                 failed_files.append(orig_file)
@@ -753,7 +755,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                     formatted_error = error_lines[0] + "\n" + "\n".join("   " + line for line in error_lines[1:])
                                 else:
                                     formatted_error = error.strip()
-                                progress.console.print(f" [bold red]✗[/bold red] {name}: [dim]{formatted_error} ({duration:.1f}s)[/dim]")
+                                progress.console.print(f" [bold red]✗[/bold red] {escape(name)}: [dim]{escape(formatted_error)} ({duration:.1f}s)[/dim]")
                             progress.update(task, advance=1)
                     except KeyboardInterrupt:
                         # Cancel remaining futures
@@ -802,17 +804,17 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                             pass
                     
                     if error != "Skipped (Same format)":
-                        console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
+                        console.print(f" > {escape(name)}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
                 else:
                     fail_count += 1
                     failed_files.append(f)
                     if failed_details is not None:
                         failed_details.append({"file": str(f), "name": name, "error": error})
-                    console.print(f" > {name}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
+                    console.print(f" > {escape(name)}... [bold red]FAILED[/bold red] [dim]({duration:.1f}s)[/dim]")
                     if error:
                         error_lines = error.strip().splitlines()
                         formatted_error = "\n".join("   " + line for line in error_lines)
-                        console.print(f"[dim]{formatted_error}[/dim]")
+                        console.print(f"[dim]{escape(formatted_error)}[/dim]")
     except MissingDependencyError as e:
         failed_files.extend(f for f in files if f not in failed_files)
         if failed_details is not None:

@@ -80,13 +80,32 @@ def convert_audio(source, target_ext, bitrate=None):
         else:
             cmd += ["-acodec", "libmp3lame", "-q:a", "2"]
     elif target_upper == "M4A":
-        cmd += ["-acodec", "aac", "-q:a", "2"]
+        if bitrate is not None:
+            valid, b_val = parse_audio_bitrate(bitrate)
+            if not valid or not b_val:
+                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
+            cmd += ["-acodec", "aac", "-b:a", b_val]
+        else:
+            cmd += ["-acodec", "aac", "-q:a", "2"]
+    elif target_upper == "AAC":
+        if bitrate is not None:
+            valid, b_val = parse_audio_bitrate(bitrate)
+            if not valid or not b_val:
+                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
+            cmd += ["-c:a", "aac", "-b:a", b_val]
+        else:
+            cmd += ["-c:a", "aac", "-b:a", "192k"]
     elif target_upper == "WAV":
         cmd += ["-acodec", "pcm_s16le"]
     elif target_upper == "FLAC":
         cmd += ["-acodec", "flac"]
     elif target_upper == "OGG":
         cmd += get_ogg_audio_encoder_args()
+        if bitrate is not None:
+            valid, b_val = parse_audio_bitrate(bitrate)
+            if not valid or not b_val:
+                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
+            cmd += ["-b:a", b_val]
     
     cmd.append(str(output))
     return run_command(cmd)

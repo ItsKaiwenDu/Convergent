@@ -79,6 +79,7 @@ def run_command(cmd, cwd=None):
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
             text=True,
+            errors="replace",
             cwd=cwd,
         )
         with _PROCESSES_LOCK:
@@ -135,6 +136,7 @@ def run_command_output(cmd, cwd=None) -> Tuple[int, str, str]:
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
             text=True,
+            errors="replace",
             cwd=cwd,
         )
         with _PROCESSES_LOCK:

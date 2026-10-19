@@ -449,7 +449,8 @@ class TestMCPServer(unittest.TestCase):
             dummy_audio = self.dir_path / "audio.mp3"
             dummy_audio.touch()
             res = perform_stt(input_path=str(dummy_audio), model="large-v3-turbo")
-            self.assertEqual(res.get("model_used"), "large-v3-turbo")
+            self.assertEqual(res.get("model_used"), "turbo")
+            self.assertEqual(res.get("model_requested"), "large-v3-turbo")
             self.assertNotIn("warning", res)
 
     def test_combine_apostrophe_escaping(self):
