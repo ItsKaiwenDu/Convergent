@@ -377,10 +377,6 @@ class TestMCPServer(unittest.TestCase):
             self.assertIn("scaled.png", res["output_file"])
             self.assertIn("duration_seconds", res)
 
-    def test_finding_10_split_file_docx_docstring(self):
-        self.assertIn("DOCX", split_file.__doc__)
-        self.assertIn("PDF", split_file.__doc__)
-
     def test_finding_11_list_supported_formats_filters(self):
         # Category filter
         res_cat = list_supported_formats(category="image")

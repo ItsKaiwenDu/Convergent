@@ -615,6 +615,31 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("-strip", strip_call_args)
             self.assertLess(strip_call_args.index("-auto-orient"), strip_call_args.index("-strip"))
 
+    def test_privacy_strip_preserves_icc_color_profile(self):
+        from modules import resize
+        source = self.dir_path / "wide-gamut.png"
+        source.touch()
+
+        with patch.object(resize, "get_image_dimensions", return_value=(100, 100)), \
+             patch.object(resize, "send_to_trash"), \
+             patch.object(resize, "run_command", return_value=(True, "")) as mock_run:
+            _, success, error, _ = resize.resize_single_file(
+                source,
+                method="1",
+                scale_val=50,
+                target_aspect="5",
+                strip_metadata=True,
+            )
+
+        self.assertTrue(success)
+        self.assertEqual(error, "")
+
+        command = mock_run.call_args.args[0]
+        self.assertNotIn("-strip", command)
+        self.assertIn("+profile", command)
+        profile_arg = command[command.index("+profile") + 1]
+        self.assertEqual(profile_arg, "exif,iptc,xmp")
+
     # 17. Robustness: 7z password handling & Decompress password support (Finding 4)
     def test_compress_7z_password_parameter_no_dash(self):
         f = self.dir_path / "doc.txt"

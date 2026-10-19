@@ -4,13 +4,16 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
+from io import StringIO
+from rich.console import Console
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from Convergent import Converter
+from Convergent import Converter, prompt_paths
 from customs import shortcut
+from modules import combine
 
 
 class TestCLIFlow(unittest.TestCase):
@@ -620,6 +623,178 @@ class TestCLIFlow(unittest.TestCase):
             mock_bitrate.assert_called_once()
             self.assertEqual(mock_process.call_args[0][1], "MP3")
             self.assertEqual(mock_process.call_args[1]["bitrate"], "192k")
+
+
+class TestCLIPromptsAndCombine(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.dir_path = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_prompt_paths_file_or_folder(self):
+        output_io = StringIO()
+        test_console = Console(file=output_io, force_terminal=False)
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.get_input", return_value="/path/to/test"), \
+             patch("Convergent.flush_stdin"):
+            paths = prompt_paths("convert", allow_folders=True)
+
+        self.assertEqual(paths, ["/path/to/test"])
+        output = output_io.getvalue()
+        self.assertIn("Enter file or folder path(s) to convert:", output)
+        self.assertIn("(Tip: You can either paste or drag and drop here)", output)
+
+    def test_prompt_paths_file_only(self):
+        output_io = StringIO()
+        test_console = Console(file=output_io, force_terminal=False)
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.get_input", return_value="/path/to/doc.pdf"), \
+             patch("Convergent.flush_stdin"):
+            paths = prompt_paths("split", allow_folders=False)
+
+        self.assertEqual(paths, ["/path/to/doc.pdf"])
+        output = output_io.getvalue()
+        self.assertIn("Enter file path(s) to split:", output)
+        self.assertNotIn("folder", output)
+        self.assertIn("(Tip: You can either paste or drag and drop here)", output)
+
+    def test_all_action_formats(self):
+        actions = [
+            ("combine", True, "Enter file or folder path(s) to combine:"),
+            ("split", False, "Enter file path(s) to split:"),
+            ("resize", True, "Enter file or folder path(s) to resize:"),
+            ("compress", True, "Enter file or folder path(s) to compress:"),
+            ("decompress", False, "Enter file path(s) to decompress:"),
+            ("OCR", True, "Enter file or folder path(s) to OCR:"),
+            ("transcribe (STT)", True, "Enter file or folder path(s) to transcribe (STT):"),
+            ("convert", True, "Enter file or folder path(s) to convert:"),
+        ]
+
+        for action, allow_folders, expected_header in actions:
+            output_io = StringIO()
+            test_console = Console(file=output_io, force_terminal=False)
+            with patch("Convergent.console", test_console), \
+                 patch("Convergent.get_input", return_value="foo.txt"), \
+                 patch("Convergent.flush_stdin"):
+                prompt_paths(action, allow_folders=allow_folders)
+            output = output_io.getvalue()
+            self.assertIn(expected_header, output)
+
+    def test_shortcut_resolve_paths_prompts(self):
+        test_cases = [
+            ({"operation": "split"}, "Enter file path(s) to split:"),
+            ({"operation": "decompress"}, "Enter file path(s) to decompress:"),
+            ({"operation": "combine"}, "Enter file or folder path(s) to combine:"),
+            ({"operation": "convert"}, "Enter file or folder path(s) to convert:"),
+            ({"operation": "ocr"}, "Enter file or folder path(s) to OCR:"),
+            ({"operation": "stt"}, "Enter file or folder path(s) to transcribe (STT):"),
+        ]
+
+        for sc, expected_header in test_cases:
+            output_io = StringIO()
+            test_console = Console(file=output_io, force_terminal=False)
+            paths = shortcut._resolve_shortcut_paths(
+                sc,
+                paths=None,
+                interactive=True,
+                console=test_console,
+                get_input=lambda p: "sample.txt",
+                flush_stdin=lambda: None,
+                clean_paths=lambda x: [x] if x else [],
+            )
+            self.assertEqual(paths, ["sample.txt"])
+            output = output_io.getvalue()
+            self.assertIn(expected_header, output)
+            self.assertIn("(Tip: You can either paste or drag and drop here)", output)
+
+    def test_prompt_paths_add_action(self):
+        output_io = StringIO()
+        test_console = Console(file=output_io, force_terminal=False)
+
+        with patch("Convergent.console", test_console), \
+             patch("Convergent.get_input", return_value="/path/to/folder"), \
+             patch("Convergent.flush_stdin"):
+            paths = prompt_paths("add", allow_folders=True)
+
+        self.assertEqual(paths, ["/path/to/folder"])
+        output = output_io.getvalue()
+        self.assertIn("Enter file or folder path(s) to add:", output)
+        self.assertIn("(Tip: You can either paste or drag and drop here)", output)
+
+    def test_video_metadata_newline(self):
+        v = self.dir_path / "test.mp4"
+        v.touch()
+
+        output_io = StringIO()
+        test_console = Console(file=output_io, force_terminal=False)
+
+        with patch("modules.combine.console", test_console), \
+             patch("modules.combine.get_media_duration", return_value=12.5), \
+             patch("modules.combine.get_input", return_value="q"):
+            combine.combine_videos([str(v)], interactive=True)
+
+        output = output_io.getvalue()
+        self.assertIn("\nReading video metadata...", output)
+
+    def test_combine_videos_command_a_mixed_folder(self):
+        init_v = self.dir_path / "initial.mp4"
+        init_v.touch()
+
+        folder = self.dir_path / "more_videos"
+        folder.mkdir()
+        v_mov = folder / "clip1.mov"
+        v_mp4 = folder / "clip2.mp4"
+        txt_file = folder / "notes.txt"
+        v_mov.touch()
+        v_mp4.touch()
+        txt_file.touch()
+
+        output_io = StringIO()
+        test_console = Console(file=output_io, force_terminal=False)
+
+        inputs = ["a", "q"]
+        input_iter = iter(inputs)
+
+        with patch("modules.combine.console", test_console), \
+             patch("modules.combine.get_media_duration", return_value=10.0), \
+             patch("modules.combine.get_input", side_effect=lambda p="": next(input_iter)), \
+             patch("modules.combine.prompt_paths", return_value=[str(folder)]):
+            combine.combine_videos([str(init_v)], interactive=True)
+
+        output = output_io.getvalue()
+        self.assertIn("A.                Add more files", output)
+        self.assertIn("clip1.mov", output)
+        self.assertIn("clip2.mp4", output)
+        self.assertIn("✓ Added 2 file(s).", output)
+        self.assertNotIn("notes.txt", output)
+
+    def test_combine_pdfs_command_a(self):
+        p1 = self.dir_path / "doc1.pdf"
+        p2 = self.dir_path / "doc2.pdf"
+        p1.touch()
+        p2.touch()
+
+        output_io = StringIO()
+        test_console = Console(file=output_io, force_terminal=False)
+
+        inputs = ["a", "q"]
+        input_iter = iter(inputs)
+
+        with patch("modules.combine.console", test_console), \
+             patch("modules.combine.get_pdf_page_count", return_value=5), \
+             patch("modules.combine.get_input", side_effect=lambda p="": next(input_iter)), \
+             patch("modules.combine.prompt_paths", return_value=[str(p2)]):
+            combine.combine_pdfs([str(p1)], interactive=True)
+
+        output = output_io.getvalue()
+        self.assertIn("A.                Add more files", output)
+        self.assertIn("doc1.pdf", output)
+        self.assertIn("doc2.pdf", output)
+        self.assertIn("✓ Added 1 file(s).", output)
 
 
 if __name__ == "__main__":
