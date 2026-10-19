@@ -1,7 +1,16 @@
 import os
+import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import importlib.util
+if importlib.util.find_spec("mcp") is None:
+    raise unittest.SkipTest("Optional MCP SDK is not installed; run make setup-mcp")
 
 from customs.run_command import run_command, run_command_output
 from mcp_server.server import (
@@ -43,7 +52,7 @@ class TestEvaluationFixes(unittest.TestCase):
 
     def test_f02_run_command_tolerates_non_utf8_output(self):
         """F02: Ensure run_command doesn't crash on non-UTF8/UTF-16 output bytes."""
-        cmd = ["python3", "-c", "import sys; sys.stderr.buffer.write(b'\\xfe\\xff\\x00H\\x00i'); sys.exit(0)"]
+        cmd = [sys.executable, "-c", "import sys; sys.stderr.buffer.write(b'\\xfe\\xff\\x00H\\x00i'); sys.exit(0)"]
         ok, err = run_command(cmd)
         self.assertTrue(ok)
 
@@ -81,7 +90,7 @@ class TestEvaluationFixes(unittest.TestCase):
         out_dir = self.dir_path / "my_output_dir"
         out_dir.mkdir()
 
-        with patch("modules.combine.combine_pdfs", return_value=out_dir / "combined.pdf"):
+        with patch("mcp_server.server.conv.combine_pdfs", return_value=out_dir / "combined.pdf"):
             res = combine_files(file_paths=[str(p1), str(p2)], output_path=str(out_dir), overwrite=False)
             self.assertTrue(res.get("success"), msg=res.get("error"))
             self.assertEqual(res.get("output_file"), str(out_dir / "combined.pdf"))
