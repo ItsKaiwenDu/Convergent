@@ -22,6 +22,10 @@ def get_image_dimensions(path):
     """
     Returns orientation-adjusted (width, height) of an image using ImageMagick identify.
     """
+    p = Path(path)
+    if p.suffix.lower() == ".pdf":
+        return get_pdf_dimensions(path)
+
     if not shutil.which("magick"):
         raise RuntimeError("ImageMagick ('magick') is not installed or not in PATH. Please install it with 'brew install imagemagick'.")
     try:
@@ -39,6 +43,52 @@ def get_image_dimensions(path):
         pass
     except Exception:
         pass
+    return None, None
+
+def get_pdf_dimensions(path):
+    """
+    Returns orientation-adjusted (width, height) in points of the first page of a PDF.
+    Tries ImageMagick identify (with [0] selector) first, then falls back to Ghostscript MediaBox.
+    """
+    path = Path(path)
+    if shutil.which("magick"):
+        try:
+            cmd = ["magick", "identify", "-format", "%w %h %[orientation]", f"{path.resolve()}[0]"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, errors="replace")
+            parts = result.stdout.strip().split()
+            if len(parts) >= 2:
+                w = int(parts[0])
+                h = int(parts[1])
+                orient = parts[2].lower() if len(parts) >= 3 else ""
+                if any(o in orient for o in ["righttop", "leftbottom", "lefttop", "rightbottom", "6", "8", "5", "7"]):
+                    w, h = h, w
+                return w, h
+        except subprocess.CalledProcessError:
+            pass
+        except Exception:
+            pass
+
+    if shutil.which("gs"):
+        try:
+            resolved_p = str(path.resolve())
+            cmd = [
+                "gs", "-q", "-dNODISPLAY", "-dSAFER",
+                f"--permit-file-read={resolved_p}",
+                "-c",
+                f"({resolved_p}) (r) file runpdfbegin 1 pdfgetpage /MediaBox pget {{ == }} if quit"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, errors="replace")
+            parts = result.stdout.replace("[", "").replace("]", "").strip().split()
+            if len(parts) >= 4:
+                w = int(round(float(parts[2]) - float(parts[0])))
+                h = int(round(float(parts[3]) - float(parts[1])))
+                return w, h
+        except Exception:
+            pass
+
+    if not shutil.which("magick") and not shutil.which("gs"):
+        raise RuntimeError("Neither ImageMagick ('magick') nor Ghostscript ('gs') is installed or in PATH.")
+
     return None, None
 
 def get_video_dimensions(path):
@@ -156,17 +206,20 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
 
     return w_crop, h_crop, w_final, h_final
 
-def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", strip_metadata=False, output_path=None):
+def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", strip_metadata=False, output_path=None, dpi=None):
     """
-    Resizes/crops a single file (image or video) and saves it with a '_resized' suffix.
+    Resizes/crops a single file (image, video, or PDF) and saves it with a '_resized' suffix.
     """
     start_time = time.perf_counter()
     f = Path(f)
     is_video = f.suffix.lower() == ".mp4"
+    is_pdf = f.suffix.lower() == ".pdf"
     
     try:
         if is_video:
             w, h = get_video_dimensions(f)
+        elif is_pdf:
+            w, h = get_pdf_dimensions(f)
         else:
             w, h = get_image_dimensions(f)
     except RuntimeError as e:
@@ -231,6 +284,70 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
                 fallback_cmd += ["-map_metadata", "-1"]
             fallback_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(actual_output)]
             success, error = run_command(fallback_cmd)
+    elif is_pdf:
+        if shutil.which("gs"):
+            cmd = [
+                "gs",
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.4",
+                f"-dDEVICEWIDTHPOINTS={w_final}",
+                f"-dDEVICEHEIGHTPOINTS={h_final}",
+                "-dPDFFitPage",
+                "-dFIXEDMEDIA",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dSAFER",
+                f"--permit-file-read={f.resolve()}",
+                f"--permit-file-write={actual_output.parent.resolve()}/*",
+            ]
+
+            scale_ratio = min(w_final / w_crop, h_final / h_crop) if w_crop and h_crop else 1.0
+            if dpi is not None and int(dpi) > 0:
+                target_dpi = int(dpi)
+            else:
+                target_dpi = max(72, min(300, int(round(300 * scale_ratio))))
+
+            cmd += [
+                "-dDownsampleColorImages=true",
+                "-dColorImageDownsampleType=/Bicubic",
+                f"-dColorImageResolution={target_dpi}",
+                "-dDownsampleGrayImages=true",
+                "-dGrayImageDownsampleType=/Bicubic",
+                f"-dGrayImageResolution={target_dpi}",
+                "-dDownsampleMonoImages=true",
+                "-dMonoImageDownsampleType=/Bicubic",
+                f"-dMonoImageResolution={min(600, target_dpi * 2)}",
+            ]
+
+            if strip_metadata:
+                cmd += [
+                    "-dPreserveAnnots=false",
+                    f"-sOutputFile={actual_output}",
+                    str(f.resolve()),
+                    "-c",
+                    "[ /Title () /Author () /Subject () /Keywords () /Creator () /ModDate () /CreationDate () /DOCINFO pdfmark",
+                ]
+            else:
+                cmd += [
+                    f"-sOutputFile={actual_output}",
+                    str(f.resolve()),
+                ]
+
+            success, error = run_command(cmd)
+
+        if not success and shutil.which("magick"):
+            cmd = ["magick", str(f), "-auto-orient"]
+            if crop_needed:
+                cmd += ["-gravity", "center", "-crop", f"{w_crop}x{h_crop}+0+0", "+repage"]
+            if scale_needed:
+                cmd += ["-resize", f"{w_final}x{h_final}!"]
+            if strip_metadata:
+                cmd += ["+profile", "exif,iptc,xmp"]
+            cmd.append(str(actual_output))
+            success, error = run_command(cmd)
+
+        if not success and not error:
+            error = "Neither Ghostscript ('gs') nor ImageMagick ('magick') is available to resize PDF."
     else:
         cmd = ["magick", str(f), "-auto-orient"]
         if crop_needed:
@@ -267,7 +384,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     """
     Interactive orchestrator to resize files in given paths.
     """
-    supported_exts = {".mp4", ".jpg", ".png", ".heic"}
+    supported_exts = {".mp4", ".jpg", ".png", ".heic", ".pdf"}
     files = []
     
     # 1. Collect files
@@ -284,11 +401,19 @@ def resize_media(paths, conv, console, get_char, get_input):
     files = sorted(list(set(files)))
     
     if not files:
-        console.print("[bold red]No MP4, JPG, PNG, or HEIC files found in provided paths.[/bold red]")
+        console.print("[bold red]No MP4, JPG, PNG, HEIC, or PDF files found in provided paths.[/bold red]")
         get_char("\nPress any key to continue...")
         return
 
-    tools = ["ffmpeg" if f.suffix.lower() == ".mp4" else "imagemagick7" for f in files]
+    tools = []
+    for f in files:
+        suf = f.suffix.lower()
+        if suf == ".mp4":
+            tools.append("ffmpeg")
+        elif suf == ".pdf":
+            tools.append("ghostscript")
+        else:
+            tools.append("imagemagick7")
     if not ensure_dependencies(tools, interactive=True, install=conv.install_deps):
         return []
 
@@ -298,6 +423,8 @@ def resize_media(paths, conv, console, get_char, get_input):
         try:
             if f.suffix.lower() == ".mp4":
                 w, h = get_video_dimensions(f)
+            elif f.suffix.lower() == ".pdf":
+                w, h = get_pdf_dimensions(f)
             else:
                 w, h = get_image_dimensions(f)
         except RuntimeError:

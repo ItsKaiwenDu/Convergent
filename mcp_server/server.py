@@ -1413,10 +1413,10 @@ def resize_media(
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Resize, rescale, crop to aspect ratio, or strip metadata from images (JPG, PNG, HEIC) or video (MP4).
+    Resize, rescale, crop to aspect ratio, or strip metadata from images (JPG, PNG, HEIC), video (MP4), or documents (PDF).
 
     Args:
-        file_path: Path to image or MP4 video file.
+        file_path: Path to image, MP4 video, or PDF file.
         width: Optional target width in pixels. If height is also provided, resizes to exact (width, height).
         height: Optional target height in pixels. If width is omitted, scales proportionally to height.
         scale_percent: Optional percentage scaling (e.g. 50 for 50%, 200 for 200%).

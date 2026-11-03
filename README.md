@@ -17,7 +17,7 @@
     -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
     -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF and HTML, Markdown (MD) to typeset/raw PDF, HTML, or TXT, plain text (TXT) to PDF, HTML, DOCX, MD, or RTF, and HTML to PDF, MD, TXT, DOCX, or RTF. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
     -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
-    -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), and privacy metadata stripping for images (JPG, PNG, HEIC) and video (MP4).
+    -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), raster image downsampling, and privacy metadata stripping for images (JPG, PNG, HEIC), video (MP4), and documents (PDF).
 -   **CLI Support**: Direct CLI arguments for automated workflows, Unix pipe composition & streaming (`stdin`/`stdout`, `pbpaste`/`pbcopy`), and an interactive terminal menu with single-key navigation.
 -   **MCP Support**: 100% local Model Context Protocol (`stdio`) server exposing conversion tools directly to AI assistants and IDEs (Claude Desktop, Cursor, OpenCode, Zed).
 -   **Fast & Efficient**: Multi-core parallel batch processing, hardware-accelerated transcoding (`VideoToolbox`, `NVENC`, `QSV`), and `blake2b` checksum caching to skip unchanged files.
@@ -188,7 +188,7 @@ make mcp-config
 - `split_file`: Split PDFs, videos, audio files, or documents into segments.
 - `compress_files`: Compress files or directories into archives (ZIP, TAR.GZ, 7Z, RAR) with optional password protection.
 - `decompress_archive`: Decompress archive packages safely to target directories.
-- `resize_media`: Resize, rescale, crop aspect ratio, or strip metadata from images or video.
+- `resize_media`: Resize, rescale, crop aspect ratio, or strip metadata from images, video, or PDF documents.
 - `list_supported_formats`: Query all supported format conversions and category mappings.
 
 ## Quick Shortcuts

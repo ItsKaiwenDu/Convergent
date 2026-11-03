@@ -39,7 +39,7 @@ def get_menu_entries(conv):
     entries = [
         {"key": "0", "label": "Combine:", "exts": "docx, gif, mp3, mp4, pdf, pptx, txt", "operation": "combine"},
         {"key": "1", "label": "Split:", "exts": "docx, gif, mp3, mp4, pdf, pptx", "operation": "split"},
-        {"key": "2", "label": "Resize:", "exts": "mp4, jpg, png, heic", "operation": "resize"},
+        {"key": "2", "label": "Resize:", "exts": "mp4, jpg, png, heic, pdf", "operation": "resize"},
     ]
     for key, cat_id in CONVERT_MENU_KEYS:
         cat = conv.categories[cat_id]
@@ -167,7 +167,7 @@ def get_applicable_menu_entries(conv, paths):
 
     combine_exts = {"docx", "gif", "mp3", "mp4", "pdf", "pptx", "txt"}
     split_exts = {"docx", "gif", "mp3", "mp4", "pdf", "pptx"}
-    resize_exts = {"mp4", "jpg", "png", "heic"}
+    resize_exts = {"mp4", "jpg", "png", "heic", "pdf"}
     archive_exts = {"7z", "rar", "tar.bz2", "tar.gz", "tar.xz", "zip", "tar", "tgz", "tbz2", "txz"}
     ocr_exts = {"jpg", "png", "heic", "webp", "pdf"}
     stt_exts = {"mp3", "wav", "m4a", "flac", "aac", "ogg", "mp4", "mov", "mkv", "webm", "avi"}
