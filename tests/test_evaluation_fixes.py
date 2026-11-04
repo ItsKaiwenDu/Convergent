@@ -45,7 +45,7 @@ class TestEvaluationFixes(unittest.TestCase):
              patch("modules.stt.extract_audio_for_stt", return_value=dummy_wav), \
              patch("modules.stt.get_model_path", return_value=self.dir_path / "model.bin"), \
              patch("modules.stt.run_command", return_value=(True, "")):
-            # Whisper returns success exit code 0 but does not create the .txt file
+            # Whisper returns success exit code 0 but does not create .txt file
             ok, err = stt_mod.convert_audio_to_text(dummy_wav, target_ext="MD", model="base")
             self.assertFalse(ok)
             self.assertIn("Whisper failed to produce MD output", err)

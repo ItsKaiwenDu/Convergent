@@ -258,7 +258,7 @@ class TestMCPServer(unittest.TestCase):
         canary = custom_dir / "canary.txt"
         canary.write_text("preserve me")
 
-        # split_pdf with user output_dir must never trash the user directory
+        # split_pdf with user output_dir must never trash user directory
         with patch("modules.split.send_to_trash") as mock_trash, \
              patch("modules.split.get_pdf_page_count", return_value=0):
             split.split_pdf("dummy.pdf", output_dir=str(custom_dir), interactive=False)
@@ -532,7 +532,7 @@ class TestMCPServer(unittest.TestCase):
         src_file = src_dir / "photo.jpg"
         src_file.write_bytes(b"original jpg content")
         
-        # Sibling file in the source directory that happens to share target name
+        # Sibling file in source directory that happens to share target name
         sibling_file = src_dir / "photo.png"
         sibling_file.write_bytes(b"precious sibling content")
         

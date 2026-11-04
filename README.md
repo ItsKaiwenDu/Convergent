@@ -9,20 +9,26 @@
 
 ## Key Features
 
--   **Multi-Format Support**:
-    -   **PDF**: Merge (with interactive page reordering), split, or export pages to JPG, PNG, TIF, or BMP.
-    -   **Images**: Convert HEIC, HEIF, AVIF, JPG, PNG, WEBP, TIF, BMP, SVG, and RAW (Sony ARW, Adobe DNG) with native macOS `sips` acceleration and ImageMagick fallback.
-    -   **Video/Audio**: Convert MOV, MP4, WEBM, GIF, AVI, MKV, FLAC, MP3, WAV, M4A, AAC, OGG; split by segment/interval/range; or merge clips with mixed-format support and interactive reordering.
-    -   **OCR**: Extract text from images (`JPG`/`PNG`/`HEIC`/`WEBP`) or documents (`PDF`) to `.txt`, `.md`, or `.docx` (via Apple Vision or Tesseract).
-    -   **Speech-to-Text (STT) (`*`)**: Local, offline transcription of audio and video (`MP4`, `MOV`, `MKV`, `WEBM`, `AVI`, `MP3`, `WAV`, `M4A`, `FLAC`, etc.) into `.txt`, `.srt`, `.vtt`, or `.md` using `whisper.cpp` with Metal acceleration (`base`, `tiny`, `small`, `turbo`).
-    -   **Documents**: Convert Office formats (DOCX, PPTX, RTF) to PDF and HTML, Markdown (MD) to typeset/raw PDF, HTML, or TXT, plain text (TXT) to PDF, HTML, DOCX, MD, or RTF, and HTML to PDF, MD, TXT, DOCX, or RTF. Supports splitting/combining DOCX/PPTX to PDF and merging TXT files.
-    -   **Archives**: Compress/decompress ZIP, RAR, 7z, and TAR (.gz, .bz2, .xz) with optional password protection.
-    -   **Resize**: Hardware-accelerated resizing, aspect-ratio cropping (16:9, 4:3, 1:1, 9:16), raster image downsampling, and privacy metadata stripping for images (JPG, PNG, HEIC), video (MP4), and documents (PDF).
--   **CLI Support**: Direct CLI arguments for automated workflows, Unix pipe composition & streaming (`stdin`/`stdout`, `pbpaste`/`pbcopy`), and an interactive terminal menu with single-key navigation.
--   **MCP Support**: 100% local Model Context Protocol (`stdio`) server exposing conversion tools directly to AI assistants and IDEs (Claude Desktop, Cursor, OpenCode, Zed).
--   **Fast & Efficient**: Multi-core parallel batch processing, hardware-accelerated transcoding (`VideoToolbox`, `NVENC`, `QSV`), and `blake2b` checksum caching to skip unchanged files.
--   **Secure & Private**: 100% local and offline execution, EXIF/IPTC metadata stripping, collision preview tables, and safe macOS Trash recovery.
--   **Shortcuts**: Save, edit, and trigger persistent workflows with single-key shortcuts, plus native macOS Finder Quick Action integration.
+-   **Comprehensive Media & Document Suite**: Convert, merge, split, resize, compress, extract text (OCR), and transcribe speech across images, videos, audio, documents, and archives.
+-   **Interactive TUI & Headless CLI**: Intuitive terminal menu with single-key navigation and drag-and-drop support, paired with scriptable CLI flags and Unix pipe streaming (`stdin`/`stdout`).
+-   **100% Local MCP Server**: Standalone Model Context Protocol (`stdio`) server empowering AI coding assistants (Claude Desktop, Cursor, OpenCode, Zed) with local conversion tools.
+-   **Hardware-Accelerated & Cached**: Multi-core parallel batch processing, hardware transcoding (`VideoToolbox`, `NVENC`, `QSV`, Apple Metal for Whisper), and `blake2b` checksum caching to skip unchanged files.
+-   **Privacy & Safety First**: Fully offline execution, EXIF/IPTC metadata stripping, collision preview tables, and safe macOS Trash recovery.
+-   **Persistent Workflow Shortcuts**: Save, edit, and trigger custom workflows with single-key shortcuts, plus native macOS Finder Quick Action context-menu integration.
+
+## Supported Formats
+
+| Category | Formats & Ops | Technology |
+| :--- | :--- | :--- |
+| **Images** | `JPG`, `PNG`, `HEIC`, `HEIF`, `AVIF`, `WEBP`, `TIF`, `BMP`, `SVG`, `ARW`, `DNG` | Native macOS `sips` acceleration, ImageMagick fallback, metadata stripping |
+| **Video** | `MOV`, `MP4`, `WEBM`, `GIF`, `AVI`, `MKV` | Hardware encoding (`VideoToolbox`, `NVENC`, `QSV`), custom FPS, split & merge |
+| **Audio** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG` | FFmpeg audio encoding, custom bitrates (`128k`, `192k`, `320k`), split & merge |
+| **Documents** | `PDF`, `DOCX`, `PPTX`, `RTF`, `HTML`, `MD`, `TXT` | Pandoc, Typst, LibreOffice, and Ghostscript layout fidelity |
+| **Archives** | `ZIP`, `TAR`, `TAR.GZ`, `TAR.BZ2`, `TAR.XZ`, `7Z`, `RAR` | 7-Zip, tar, and rar compression/extraction with optional password protection |
+| **Resize** | `JPG`, `PNG`, `HEIC`, `MP4`, `PDF` | Percentage scaling, target height, exact dimensions, aspect-ratio crop (16:9, 4:3, 1:1, 9:16), bicubic PDF downsampling |
+| **OCR** | `JPG`, `PNG`, `HEIC`, `WEBP`, `PDF` → `TXT`, `MD`, `DOCX` | Local text extraction via native Apple Vision Framework (macOS) or Tesseract |
+| **Speech-to-Text** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`, `MP4`, `MOV`, `MKV`, `WEBM`, `AVI` → `TXT`, `SRT`, `VTT`, `MD` | Local `whisper.cpp` Metal-accelerated transcription models (`base`, `tiny`, `small`, `turbo`) |
+| **Combine & Split** | `PDF`, `DOCX`, `PPTX`, `MP4`, `MP3`, `GIF`, `TXT` | Multi-file concatenation, interactive page reordering, chapter/interval splitting |
 
 ## Getting Started
 
@@ -256,40 +262,40 @@ After conversion, you can choose from Post-Convert Options menu:
 
 ```
 Convergent/
-├── Convergent.py        # Main CLI entry point and menu orchestrator
-├── Makefile             # Task automation (setup, run, test, check, mcp, clean, cache)
-├── requirements.txt     # Minimal CLI dependencies
-├── requirements-mcp.txt # Optional MCP SDK and CLI dependencies
-├── tests/               # Automated unit test suite (cache, MCP, flags, orchestration)
-├── _config.yml          # Jekyll configuration for GitHub Pages & SEO
-├── _includes/           # Jekyll template includes
-│   └── head-custom.html # Custom HTML head elements & Google site verification
-├── mcp_server/          # Local MCP (Model Context Protocol) Server package
-│   ├── __init__.py      # Package initialization
-│   ├── server.py        # FastMCP server & tool definitions over stdio
-│   └── config_generator.py # Helper script for generating client mcpServers JSON
-├── modules/             # Format-specific conversion engines
-│   ├── audio.py         # Audio format conversion
-│   ├── combine.py       # Centralized file combine/merge engine
-│   ├── compress.py      # Archive compression (ZIP, TAR, 7Z, RAR)
-│   ├── decompress.py    # Archive decompression
-│   ├── doc.py           # Document conversion (Office & Markdown)
-│   ├── image.py         # Image conversion (HEIC, JPG, PNG, RAW, etc.)
-│   ├── resize.py        # Image & video resize / aspect-ratio crop engine
-│   ├── ocr.py           # Local OCR text extraction engine
-│   ├── pdf_manip.py     # PDF format conversion (PDF to Image)
-│   ├── split.py         # Centralized file split engine
-│   ├── stt.py           # Local Speech-to-Text transcription engine (whisper.cpp)
-│   └── video.py         # Video format conversion
-└── customs/             # Shared helpers and utility frameworks
-    ├── cache.py         # Content-addressable conversion cache (blake2b + SQLite)
-    ├── check_deps.py    # On-demand dependency checks and installation
-    ├── console.py       # Terminal UI and rich-text helper
-    ├── file_process.py  # Queue manager, collision handler, and cache skip
-    ├── hwaccel.py       # FFmpeg hardware acceleration detection and encoder selection
-    ├── run_command.py   # Subprocess shell command runner
-    ├── shortcut.py      # Custom workflow CRUD manager
-    └── quick_action.py  # macOS Finder Quick Action installer
+├── Convergent.py             # Main CLI entry point
+├── Makefile                  # Task automation commands
+├── requirements.txt          # Core Python dependencies
+├── requirements-mcp.txt      # Optional MCP dependencies
+├── tests/                    # Unit and integration tests
+├── _config.yml               # GitHub Pages config
+├── _includes/                # Documentation templates
+│   └── head-custom.html      # Custom site headers & verification
+├── mcp_server/               # Local MCP server package
+│   ├── __init__.py           # Package initialization
+│   ├── server.py             # FastMCP server and tool handlers
+│   └── config_generator.py   # Client configuration generator
+├── modules/                  # Format conversion engines
+│   ├── audio.py              # Audio format conversion
+│   ├── combine.py            # File merge & combine engine
+│   ├── compress.py           # Archive compression
+│   ├── decompress.py         # Archive extraction
+│   ├── doc.py                # Office & Markdown conversion
+│   ├── image.py              # Image format conversion
+│   ├── resize.py             # Image, video & PDF resize engine
+│   ├── ocr.py                # OCR text extraction
+│   ├── pdf_manip.py          # PDF to image export
+│   ├── split.py              # File splitting engine
+│   ├── stt.py                # Speech-to-Text transcription
+│   └── video.py              # Video format conversion
+└── customs/                  # Shared helper utilities
+    ├── cache.py              # Conversion caching (blake2b + SQLite)
+    ├── check_deps.py         # Dependency check & installer
+    ├── console.py            # Rich terminal UI helper
+    ├── file_process.py       # File processing & collision guard
+    ├── hwaccel.py            # Hardware acceleration detector
+    ├── run_command.py        # Command execution runner
+    ├── shortcut.py           # Custom shortcuts manager
+    └── quick_action.py       # macOS Quick Action installer
 ```
 
 ## Owner

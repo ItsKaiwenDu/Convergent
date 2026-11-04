@@ -984,7 +984,7 @@ def combine_files(
     else:
         return {"success": False, "error": f"Unsupported file type for combination: {first_ext}"}
 
-    # Verify all files belong to the same compatible group
+    # Verify all files belong to same compatible group
     mismatched = [p for p in expanded_paths if Path(p).suffix.lower() not in target_group]
     if mismatched:
         distinct_exts = sorted(list(set(Path(p).suffix.lower() for p in expanded_paths)))
@@ -998,7 +998,7 @@ def combine_files(
         if any(Path(p).resolve() == out_p_resolved for p in expanded_paths):
             return {
                 "success": False,
-                "error": "Output destination cannot be one of the input files to combine.",
+                "error": "Output destination cannot be one of input files to combine.",
             }
         if out_p_resolved.is_dir() or str(output_path).endswith(os.sep) or str(output_path).endswith("/"):
             default_name = (
@@ -1063,7 +1063,7 @@ def split_file(
 ) -> Dict[str, Any]:
     """
     Split a PDF, video, audio, GIF, or document into individual pages, segments, frames, or parts non-interactively.
-    Note: When splitting document formats such as DOCX or PPTX, Convergent converts the document to PDF first and outputs individual PDF pages.
+    Note: When splitting document formats such as DOCX or PPTX, Convergent converts document to PDF first and outputs individual PDF pages.
 
     Args:
         file_path: Path to file to split.
@@ -1268,10 +1268,10 @@ def compress_files(
 
     Args:
         file_paths: List of file or folder paths to compress.
-        output_name: Name of the resulting archive file (e.g. 'archive.zip', 'backup.tar.gz').
+        output_name: Name of resulting archive file (e.g. 'archive.zip', 'backup.tar.gz').
         format: Archive format ('ZIP', 'TAR.GZ', 'TAR.BZ2', 'TAR.XZ', '7Z', 'RAR'). Default 'ZIP'.
         password: Optional encryption password for ZIP or 7Z archives.
-        output_dir: Optional destination directory for the archive.
+        output_dir: Optional destination directory for archive.
 
     Returns:
         Dictionary with status and output archive path.
@@ -1337,7 +1337,7 @@ def decompress_archive(
 
     Args:
         archive_path: Path to archive file to extract.
-        output_dir: Optional target directory to extract files into. Defaults to a folder named after the archive stem.
+        output_dir: Optional target directory to extract files into. Defaults to a folder named after archive stem.
         password: Optional password for extracting password-protected ZIP, 7Z, or RAR archives.
 
     Returns:

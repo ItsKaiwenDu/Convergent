@@ -18,6 +18,45 @@ def required_dependencies(kind):
 
 
 LAST_COMBINE_ERROR = ""
+ERR_DEST_IS_INPUT = "Output destination cannot be one of the input files to combine."
+
+
+def _handle_reorder_command(cmd_lower, items_list, console):
+    """
+    Handles 'r' (reverse), 's' (swap), and 'm' (move) reordering commands for combine item lists.
+    """
+    if cmd_lower == 'r':
+        items_list.reverse()
+        console.print("[bold green]✓ Reversed file order.[/bold green]")
+        return True
+    elif cmd_lower.startswith('s'):
+        match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
+        if match:
+            idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
+            if 0 <= idx1 < len(items_list) and 0 <= idx2 < len(items_list):
+                items_list[idx1], items_list[idx2] = items_list[idx2], items_list[idx1]
+                console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
+            else:
+                console.print("[bold red]Error: Number out of range.[/bold red]")
+        else:
+            console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
+        return True
+    elif cmd_lower.startswith('m'):
+        match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
+        if match:
+            idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
+            if 0 <= idx < len(items_list) and 0 <= target < len(items_list):
+                item = items_list.pop(idx)
+                items_list.insert(target, item)
+                console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
+            else:
+                console.print("[bold red]Error: Number out of range.[/bold red]")
+        else:
+            console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
+        return True
+    else:
+        console.print("[bold red]Error: Unknown command.[/bold red]")
+        return False
 
 
 def natural_sort_key(path):
@@ -219,34 +258,8 @@ def combine_pdfs(paths, output_path=None, interactive=True):
                     console.print(f"[bold green]✓ Added {len(new_files)} file(s).[/bold green]")
                 else:
                     console.print("[bold red]No PDF files found to add.[/bold red]")
-            elif cmd_lower == 'r':
-                pdf_details.reverse()
-                console.print("[bold green]✓ Reversed file order.[/bold green]")
-            elif cmd_lower.startswith('s'):
-                match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx1 < len(pdf_details) and 0 <= idx2 < len(pdf_details):
-                        pdf_details[idx1], pdf_details[idx2] = pdf_details[idx2], pdf_details[idx1]
-                        console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
-            elif cmd_lower.startswith('m'):
-                match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx < len(pdf_details) and 0 <= target < len(pdf_details):
-                        item = pdf_details.pop(idx)
-                        pdf_details.insert(target, item)
-                        console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
             else:
-                console.print("[bold red]Error: Unknown command.[/bold red]")
+                _handle_reorder_command(cmd_lower, pdf_details, console)
 
         pdf_files = [item["path"] for item in pdf_details]
 
@@ -263,7 +276,7 @@ def combine_pdfs(paths, output_path=None, interactive=True):
     dest_path_resolved = dest_path.resolve()
     if any(f.resolve() == dest_path_resolved for f in pdf_files):
         global LAST_COMBINE_ERROR
-        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        LAST_COMBINE_ERROR = ERR_DEST_IS_INPUT
         if interactive:
             console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
         return None
@@ -406,34 +419,8 @@ def combine_videos(paths, output_path=None, interactive=True):
                     console.print(f"[bold green]✓ Added {len(new_files)} file(s).[/bold green]")
                 else:
                     console.print("[bold red]No video files found to add.[/bold red]")
-            elif cmd_lower == 'r':
-                video_details.reverse()
-                console.print("[bold green]✓ Reversed file order.[/bold green]")
-            elif cmd_lower.startswith('s'):
-                match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx1 < len(video_details) and 0 <= idx2 < len(video_details):
-                        video_details[idx1], video_details[idx2] = video_details[idx2], video_details[idx1]
-                        console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
-            elif cmd_lower.startswith('m'):
-                match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx < len(video_details) and 0 <= target < len(video_details):
-                        item = video_details.pop(idx)
-                        video_details.insert(target, item)
-                        console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
             else:
-                console.print("[bold red]Error: Unknown command.[/bold red]")
+                _handle_reorder_command(cmd_lower, video_details, console)
 
         video_files = [item["path"] for item in video_details]
 
@@ -450,7 +437,7 @@ def combine_videos(paths, output_path=None, interactive=True):
     dest_path_resolved = dest_path.resolve()
     if any(vf.resolve() == dest_path_resolved for vf in video_files):
         global LAST_COMBINE_ERROR
-        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        LAST_COMBINE_ERROR = ERR_DEST_IS_INPUT
         if interactive:
             console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
         return None
@@ -615,34 +602,8 @@ def combine_audios(paths, output_path=None, interactive=True):
             elif cmd_lower == 'q':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
-            elif cmd_lower == 'r':
-                audio_details.reverse()
-                console.print("[bold green]✓ Reversed file order.[/bold green]")
-            elif cmd_lower.startswith('s'):
-                match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx1 < len(audio_details) and 0 <= idx2 < len(audio_details):
-                        audio_details[idx1], audio_details[idx2] = audio_details[idx2], audio_details[idx1]
-                        console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
-            elif cmd_lower.startswith('m'):
-                match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx < len(audio_details) and 0 <= target < len(audio_details):
-                        item = audio_details.pop(idx)
-                        audio_details.insert(target, item)
-                        console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
             else:
-                console.print("[bold red]Error: Unknown command.[/bold red]")
+                _handle_reorder_command(cmd_lower, audio_details, console)
 
         audio_files = [item["path"] for item in audio_details]
 
@@ -659,7 +620,7 @@ def combine_audios(paths, output_path=None, interactive=True):
     dest_path_resolved = dest_path.resolve()
     if any(af.resolve() == dest_path_resolved for af in audio_files):
         global LAST_COMBINE_ERROR
-        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        LAST_COMBINE_ERROR = ERR_DEST_IS_INPUT
         if interactive:
             console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
         return None
@@ -809,34 +770,8 @@ def combine_gifs(paths, output_path=None, interactive=True):
             elif cmd_lower == 'q':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
-            elif cmd_lower == 'r':
-                gif_details.reverse()
-                console.print("[bold green]✓ Reversed file order.[/bold green]")
-            elif cmd_lower.startswith('s'):
-                match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx1 < len(gif_details) and 0 <= idx2 < len(gif_details):
-                        gif_details[idx1], gif_details[idx2] = gif_details[idx2], gif_details[idx1]
-                        console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
-            elif cmd_lower.startswith('m'):
-                match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx < len(gif_details) and 0 <= target < len(gif_details):
-                        item = gif_details.pop(idx)
-                        gif_details.insert(target, item)
-                        console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
             else:
-                console.print("[bold red]Error: Unknown command.[/bold red]")
+                _handle_reorder_command(cmd_lower, gif_details, console)
 
         gif_files = [item["path"] for item in gif_details]
 
@@ -853,7 +788,7 @@ def combine_gifs(paths, output_path=None, interactive=True):
     dest_path_resolved = dest_path.resolve()
     if any(gf.resolve() == dest_path_resolved for gf in gif_files):
         global LAST_COMBINE_ERROR
-        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        LAST_COMBINE_ERROR = ERR_DEST_IS_INPUT
         if interactive:
             console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
         return None
@@ -1024,34 +959,8 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
                 elif cmd_lower == 'q':
                     console.print("[yellow]Operation cancelled.[/yellow]")
                     return None
-                elif cmd_lower == 'r':
-                    pdf_details.reverse()
-                    console.print("[bold green]✓ Reversed file order.[/bold green]")
-                elif cmd_lower.startswith('s'):
-                    match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
-                    if match:
-                        idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
-                        if 0 <= idx1 < len(pdf_details) and 0 <= idx2 < len(pdf_details):
-                            pdf_details[idx1], pdf_details[idx2] = pdf_details[idx2], pdf_details[idx1]
-                            console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
-                        else:
-                            console.print("[bold red]Error: Number out of range.[/bold red]")
-                    else:
-                        console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
-                elif cmd_lower.startswith('m'):
-                    match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
-                    if match:
-                        idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
-                        if 0 <= idx < len(pdf_details) and 0 <= target < len(pdf_details):
-                            item = pdf_details.pop(idx)
-                            pdf_details.insert(target, item)
-                            console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
-                        else:
-                            console.print("[bold red]Error: Number out of range.[/bold red]")
-                    else:
-                        console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
                 else:
-                    console.print("[bold red]Error: Unknown command.[/bold red]")
+                    _handle_reorder_command(cmd_lower, pdf_details, console)
 
             output_name = get_input("\nEnter name for combined PDF (default: combined.pdf): ").strip()
             if output_name:
@@ -1066,7 +975,7 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
         dest_path_resolved = dest_path.resolve()
         if any(of.resolve() == dest_path_resolved for of in office_files):
             global LAST_COMBINE_ERROR
-            LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+            LAST_COMBINE_ERROR = ERR_DEST_IS_INPUT
             if interactive:
                 console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
             return None
@@ -1199,34 +1108,8 @@ def combine_txt(paths, output_path=None, interactive=True):
             elif cmd_lower == 'q':
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
-            elif cmd_lower == 'r':
-                txt_details.reverse()
-                console.print("[bold green]✓ Reversed file order.[/bold green]")
-            elif cmd_lower.startswith('s'):
-                match = re.match(r'^s\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx1, idx2 = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx1 < len(txt_details) and 0 <= idx2 < len(txt_details):
-                        txt_details[idx1], txt_details[idx2] = txt_details[idx2], txt_details[idx1]
-                        console.print(f"[bold green]✓ Swapped file {idx1+1} and file {idx2+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Swap command requires exactly two numbers (e.g., s 1 3).[/bold red]")
-            elif cmd_lower.startswith('m'):
-                match = re.match(r'^m\s+(\d+)\s+(\d+)$', cmd_lower)
-                if match:
-                    idx, target = int(match.group(1)) - 1, int(match.group(2)) - 1
-                    if 0 <= idx < len(txt_details) and 0 <= target < len(txt_details):
-                        item = txt_details.pop(idx)
-                        txt_details.insert(target, item)
-                        console.print(f"[bold green]✓ Moved file {idx+1} to position {target+1}.[/bold green]")
-                    else:
-                        console.print("[bold red]Error: Number out of range.[/bold red]")
-                else:
-                    console.print("[bold red]Error: Move command requires two numbers (e.g., m 4 1).[/bold red]")
             else:
-                console.print("[bold red]Error: Unknown command.[/bold red]")
+                _handle_reorder_command(cmd_lower, txt_details, console)
 
         txt_files = [item["path"] for item in txt_details]
 
@@ -1243,7 +1126,7 @@ def combine_txt(paths, output_path=None, interactive=True):
     dest_path_resolved = dest_path.resolve()
     if any(tf.resolve() == dest_path_resolved for tf in txt_files):
         global LAST_COMBINE_ERROR
-        LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+        LAST_COMBINE_ERROR = ERR_DEST_IS_INPUT
         if interactive:
             console.print(f"[bold red]{LAST_COMBINE_ERROR}[/bold red]")
         return None

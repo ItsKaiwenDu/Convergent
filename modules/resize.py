@@ -47,7 +47,7 @@ def get_image_dimensions(path):
 
 def get_pdf_dimensions(path):
     """
-    Returns orientation-adjusted (width, height) in points of the first page of a PDF.
+    Returns orientation-adjusted (width, height) in points of first page of a PDF.
     Tries ImageMagick identify (with [0] selector) first, then falls back to Ghostscript MediaBox.
     """
     path = Path(path)

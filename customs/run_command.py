@@ -13,11 +13,11 @@ LAST_COMMAND_STDERR: contextvars.ContextVar[str] = contextvars.ContextVar("LAST_
 LAST_COMMAND_STDOUT: contextvars.ContextVar[str] = contextvars.ContextVar("LAST_COMMAND_STDOUT", default="")
 
 def get_last_command_stderr() -> str:
-    """Returns stderr from the most recently completed run_command in this context."""
+    """Returns stderr from most recently completed run_command in this context."""
     return LAST_COMMAND_STDERR.get()
 
 def get_last_command_stdout() -> str:
-    """Returns stdout from the most recently completed run_command in this context."""
+    """Returns stdout from most recently completed run_command in this context."""
     return LAST_COMMAND_STDOUT.get()
 
 _ACTIVE_PROCESSES = set()
@@ -25,12 +25,12 @@ _REQUEST_PROCESSES = defaultdict(set)
 _PROCESSES_LOCK = threading.Lock()
 
 def set_request_context(request_id: Optional[str] = None, cancel_event: Optional[threading.Event] = None):
-    """Sets the current request context variables."""
+    """Sets current request context variables."""
     CURRENT_REQUEST_ID.set(request_id)
     CURRENT_CANCEL_EVENT.set(cancel_event)
 
 def is_current_request_cancelled() -> bool:
-    """Checks whether the active request has been cancelled."""
+    """Checks whether active request has been cancelled."""
     evt = CURRENT_CANCEL_EVENT.get()
     return evt.is_set() if evt is not None else False
 
@@ -181,17 +181,20 @@ def send_to_trash(path):
         
     if not (path.exists() or path.is_symlink()):
         return True
-        
+
+    def _notify_trash():
+        try:
+            from customs.console import console
+            console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
+        except Exception:
+            pass
+
     if sys.platform == "darwin":
         # Attempt using `trash` CLI utility
         try:
             result = subprocess.run(["trash", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True, timeout=2.0)
             if result.returncode == 0:
-                try:
-                    from customs.console import console
-                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
-                except Exception:
-                    pass
+                _notify_trash()
                 return True
         except FileNotFoundError:
             pass
@@ -210,11 +213,7 @@ def send_to_trash(path):
                 applescript = f'tell application "Finder" to delete POSIX file "{escaped_path}"'
                 result = subprocess.run(["osascript", "-e", applescript], capture_output=True, stdin=subprocess.DEVNULL, text=True, timeout=2.0)
                 if result.returncode == 0:
-                    try:
-                        from customs.console import console
-                        console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
-                    except Exception:
-                        pass
+                    _notify_trash()
                     return True
             except Exception:
                 pass
@@ -226,11 +225,7 @@ def send_to_trash(path):
         try:
             result = subprocess.run(["gio", "trash", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True)
             if result.returncode == 0:
-                try:
-                    from customs.console import console
-                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
-                except Exception:
-                    pass
+                _notify_trash()
                 return True
         except FileNotFoundError:
             pass
@@ -241,11 +236,7 @@ def send_to_trash(path):
         try:
             result = subprocess.run(["trash-put", str(path)], capture_output=True, stdin=subprocess.DEVNULL, text=True)
             if result.returncode == 0:
-                try:
-                    from customs.console import console
-                    console.print(f"[dim]Moved to Trash: {path.name}[/dim]")
-                except Exception:
-                    pass
+                _notify_trash()
                 return True
         except FileNotFoundError:
             pass

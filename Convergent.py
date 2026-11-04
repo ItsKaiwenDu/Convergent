@@ -161,7 +161,7 @@ class Converter:
         try:
             out_p = Path(os.path.expanduser(str(output_path))).resolve()
             if any(Path(os.path.expanduser(str(p))).resolve() == out_p for p in paths):
-                combine.LAST_COMBINE_ERROR = "Output destination cannot be one of the input files to combine."
+                combine.LAST_COMBINE_ERROR = combine.ERR_DEST_IS_INPUT
                 if interactive:
                     console.print(f"[bold red]{combine.LAST_COMBINE_ERROR}[/bold red]")
                 return True

@@ -74,7 +74,7 @@ class TestActionFixes(unittest.TestCase):
         # Via MCP tool
         mcp_res = combine_files([str(pdf1), str(pdf2)], output_path=str(pdf1))
         self.assertFalse(mcp_res["success"])
-        self.assertIn("cannot be one of the input files", mcp_res["error"])
+        self.assertIn("cannot be one of input files", mcp_res["error"])
 
     # 3. Combine: Mixed video filter_complex
     def test_combine_videos_filter_complex_generation(self):
@@ -109,7 +109,7 @@ class TestActionFixes(unittest.TestCase):
 
         res = compress_files(file_paths=[str(f1)], output_name="file1.zip", output_dir=str(self.dir_path))
         self.assertFalse(res["success"])
-        self.assertIn("cannot be one of the input files", res["error"])
+        self.assertIn("cannot be one of input files", res["error"])
 
     # 5. Compress: Password on tar.gz rejection
     def test_compress_rejects_password_on_tar(self):
@@ -1236,7 +1236,7 @@ class TestActionFixes(unittest.TestCase):
         except Exception:
             pass
 
-        # Cleanup should succeed without throwing and completely remove the staging directory
+        # Cleanup should succeed without throwing and completely remove staging directory
         _force_remove_staging(staging_dir)
         self.assertFalse(staging_dir.exists())
 

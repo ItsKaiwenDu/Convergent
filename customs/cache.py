@@ -333,7 +333,7 @@ class CacheManager:
             pass
 
     def update_output_path(self, old_out_path: Path, new_out_path: Path):
-        """Updates the recorded output path and stats for entries when output is renamed or relocated."""
+        """Updates recorded output path and stats for entries when output is renamed or relocated."""
         try:
             old_str = str(old_out_path.resolve())
             new_str = str(new_out_path.resolve())

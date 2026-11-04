@@ -68,45 +68,38 @@ def convert_video(source, target_ext, fps=None, bitrate=None, hwaccel="auto"):
         if fps:
             vf = f"fps={fps}," + vf
         cmd += ["-vf", vf]
-    elif target_upper == "MP3":
-        from modules.audio import parse_audio_bitrate
-        if bitrate is not None:
+    elif target_upper in ("MP3", "M4A", "AAC", "OGG", "WAV", "FLAC"):
+        b_val = None
+        if bitrate is not None and target_upper in ("MP3", "M4A", "AAC", "OGG"):
+            from modules.audio import parse_audio_bitrate
             valid, b_val = parse_audio_bitrate(bitrate)
             if not valid or not b_val:
                 return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
-            cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", b_val]
-        else:
-            cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
-    elif target_upper == "WAV":
-        cmd += ["-vn", "-acodec", "pcm_s16le"]
-    elif target_upper == "M4A":
-        from modules.audio import parse_audio_bitrate
-        if bitrate is not None:
-            valid, b_val = parse_audio_bitrate(bitrate)
-            if not valid or not b_val:
-                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
-            cmd += ["-vn", "-acodec", "aac", "-b:a", b_val]
-        else:
-            cmd += ["-vn", "-acodec", "aac", "-q:a", "2"]
-    elif target_upper == "AAC":
-        from modules.audio import parse_audio_bitrate
-        if bitrate is not None:
-            valid, b_val = parse_audio_bitrate(bitrate)
-            if not valid or not b_val:
-                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
-            cmd += ["-vn", "-c:a", "aac", "-b:a", b_val]
-        else:
-            cmd += ["-vn", "-c:a", "aac", "-b:a", "192k"]
-    elif target_upper == "FLAC":
-        cmd += ["-vn", "-c:a", "flac"]
-    elif target_upper == "OGG":
-        from modules.audio import get_ogg_audio_encoder_args, parse_audio_bitrate
-        cmd += ["-vn"] + get_ogg_audio_encoder_args()
-        if bitrate is not None:
-            valid, b_val = parse_audio_bitrate(bitrate)
-            if not valid or not b_val:
-                return False, f"Invalid bitrate '{bitrate}'. Examples of valid bitrates: '128k', '192k', '256k', '320k', '256000'."
-            cmd += ["-b:a", b_val]
+
+        if target_upper == "MP3":
+            if b_val:
+                cmd += ["-vn", "-acodec", "libmp3lame", "-b:a", b_val]
+            else:
+                cmd += ["-vn", "-acodec", "libmp3lame", "-q:a", "2"]
+        elif target_upper == "WAV":
+            cmd += ["-vn", "-acodec", "pcm_s16le"]
+        elif target_upper == "M4A":
+            if b_val:
+                cmd += ["-vn", "-acodec", "aac", "-b:a", b_val]
+            else:
+                cmd += ["-vn", "-acodec", "aac", "-q:a", "2"]
+        elif target_upper == "AAC":
+            if b_val:
+                cmd += ["-vn", "-c:a", "aac", "-b:a", b_val]
+            else:
+                cmd += ["-vn", "-c:a", "aac", "-b:a", "192k"]
+        elif target_upper == "FLAC":
+            cmd += ["-vn", "-c:a", "flac"]
+        elif target_upper == "OGG":
+            from modules.audio import get_ogg_audio_encoder_args
+            cmd += ["-vn"] + get_ogg_audio_encoder_args()
+            if b_val:
+                cmd += ["-b:a", b_val]
 
     cmd.append(str(output))
     return run_command(cmd)
