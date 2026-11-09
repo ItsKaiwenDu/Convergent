@@ -37,7 +37,6 @@ def detect_capabilities(force_refresh=False):
     }
 
     try:
-        # Check encoders
         res = subprocess.run(
             ["ffmpeg", "-encoders"],
             stdout=subprocess.PIPE,

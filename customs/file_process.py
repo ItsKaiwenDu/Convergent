@@ -421,7 +421,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 console.print(f"[bold cyan]⚡ Cache: {cached_count} file(s) already up-to-date, skipping...[/bold cyan]")
             files = remaining_after_cache
             if not files:
-                # All files cached – report and return cached outputs
                 if cache_mgr:
                     try:
                         cache_mgr.close()
@@ -455,7 +454,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     if not interactive and not overwrite:
         skip = True
 
-    # 1. Identify conflicts
     conflicts = []
     for f in files:
         output = target_map.get(f, get_expected_output_path(f, target_format, output_dir=out_dir_path))
@@ -465,7 +463,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     keep_all = False
     
     try:
-        # Determine global action if multiple conflicts exist
         if len(conflicts) > 1 and not overwrite and not skip:
             is_mock = (console.__class__.__name__ == 'MockConsole')
             if HAS_RICH and not is_mock:
@@ -480,7 +477,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                         stat = out.stat()
                         mtime = datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
                         size = stat.st_size
-                        # human readable size
                         for unit in ['B', 'KB', 'MB', 'GB']:
                             if size < 1024:
                                 size_str = f"{size:.1f} {unit}"
@@ -721,7 +717,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                 if isinstance(success_map, dict):
                                     if out_path.resolve() != orig_file.resolve():
                                         success_map[out_path] = orig_file
-                                # Cache: save successful conversion
                                 if use_cache and cache_mgr:
                                     try:
                                         if 'params_for_cache' not in locals():
@@ -758,7 +753,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                                 progress.console.print(f" [bold red]✗[/bold red] {escape(name)}: [dim]{escape(formatted_error)} ({duration:.1f}s)[/dim]")
                             progress.update(task, advance=1)
                     except KeyboardInterrupt:
-                        # Cancel remaining futures
                         for fut in futures:
                             fut.cancel()
                         raise
@@ -841,7 +835,6 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
             except:
                 pass
 
-        # Close cache manager
         if use_cache and cache_mgr:
             try:
                 cache_mgr.close()
@@ -911,7 +904,6 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
     choice = get_char("\nSelect Option (or any other key to continue): ")
     
     if choice.lower() == 'm':
-        console.print()  # Move to new line after char input
         while True:
             dest_dir_str = get_input("[bold yellow]Enter target folder path: [/bold yellow]")
             if not dest_dir_str:
@@ -959,7 +951,6 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
             get_char("\nPress any key to continue...")
             break
     elif choice.lower() == 'd' and original_files:
-        console.print()  # Move to new line after char input
         deleted_count = 0
         for path in original_files:
             path_obj = Path(os.path.expanduser(path))
@@ -981,7 +972,6 @@ def prompt_move_files(console, get_char, get_input, file_paths, original_files=N
             console.print("[yellow]No original files were deleted.[/yellow]")
         get_char("\nPress any key to continue...")
     elif choice.lower() == 'u':
-        console.print()  # Move to new line after char input
         undone_count = 0
         for path in file_paths:
             path_obj = Path(path)
@@ -1033,11 +1023,9 @@ def process_stream(conv, console, source_format, target_format, input_path=None,
 
     try:
         if not input_path or input_path == "-":
-            # Read binary input from stdin
             with open(temp_source, "wb") as f_out:
                 shutil.copyfileobj(sys.stdin.buffer, f_out)
         else:
-            # Copy provided input file to temp_source
             shutil.copy2(os.path.expanduser(input_path), temp_source)
 
         if not temp_source.exists() or temp_source.stat().st_size == 0:
@@ -1088,7 +1076,6 @@ def process_stream(conv, console, source_format, target_format, input_path=None,
             shutil.copy2(temp_target, out_dest)
             console.print(f"[bold green]✓ Converted stream to {out_dest}[/bold green]")
         else:
-            # Default fallback if neither to_stdout nor output_path specified
             with open(temp_target, "rb") as f_in:
                 shutil.copyfileobj(f_in, sys.stdout.buffer)
                 sys.stdout.buffer.flush()

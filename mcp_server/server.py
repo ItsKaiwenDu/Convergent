@@ -72,7 +72,6 @@ from customs.console import set_stderr_mode
 
 set_stderr_mode(True)
 
-# Initialize FastMCP Server
 mcp = FastMCP(
     "Convergent",
     instructions=(
@@ -384,7 +383,6 @@ def convergent_convert(
 
         converted_list = [str(p) for p in (converted or list(success_map.keys()))]
 
-        # Honor output_path parameter if specified
         if output_path and converted_list:
             dest_target = Path(os.path.expanduser(output_path)).resolve()
             final_converted_list = []
@@ -949,7 +947,6 @@ def combine_files(
     if not expanded_paths:
         return {"success": False, "error": "No valid existing files provided to combine."}
 
-    # Format category definitions for validation
     pdf_exts = {".pdf"}
     video_exts = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
     audio_exts = {".mp3", ".wav", ".aac", ".flac", ".m4a", ".ogg"}
@@ -984,7 +981,6 @@ def combine_files(
     else:
         return {"success": False, "error": f"Unsupported file type for combination: {first_ext}"}
 
-    # Verify all files belong to same compatible group
     mismatched = [p for p in expanded_paths if Path(p).suffix.lower() not in target_group]
     if mismatched:
         distinct_exts = sorted(list(set(Path(p).suffix.lower() for p in expanded_paths)))

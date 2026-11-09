@@ -5,7 +5,6 @@ import tempfile
 from pathlib import Path
 from customs.run_command import run_command, run_command_output
 
-# Module-level platform-specific imports
 HAS_MACOS_VISION = False
 if sys.platform == "darwin":
     try:
@@ -137,7 +136,6 @@ def _convert_pdf_to_temp_images(source: Path):
         if success and out_png.exists():
             return temp_dir, [out_png]
 
-    # Cleanup temp dir if conversion failed
     shutil.rmtree(temp_dir, ignore_errors=True)
     raise RuntimeError(
         "Could not convert PDF pages to PNG for OCR. "
@@ -263,7 +261,6 @@ def convert_image_to_text(source_path, target_ext="TXT", **kwargs):
     except Exception as e:
         return False, str(e)
     finally:
-        # Clean up temporary files / directories created
         if temp_png is not None and temp_png.exists():
             temp_png.unlink()
         if temp_dir is not None and temp_dir.exists():

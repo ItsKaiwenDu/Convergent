@@ -79,7 +79,6 @@ class TestConversionsIntegration(unittest.TestCase):
         # Generate a minimal valid 10x10 PNG
         png_file = self.dir_path / "icon.png"
         if shutil.which("sips"):
-            # Create a 10x10 dummy image with sips or python
             dummy_bmp = self.dir_path / "temp.bmp"
             # 1x1 BMP raw bytes
             bmp_header = bytes([
@@ -137,28 +136,24 @@ class TestConversionsIntegration(unittest.TestCase):
             "<body><h1>Convergent HTML Test</h1><p>Testing <b>HTML</b> input support.</p></body></html>"
         )
 
-        # 1. HTML -> MD
         ok, err = self.conv.convert_html(html_file, "MD")
         self.assertTrue(ok, f"HTML to MD failed: {err}")
         md_out = self.dir_path / "page.md"
         self.assertTrue(md_out.exists())
         self.assertIn("Convergent HTML Test", md_out.read_text())
 
-        # 2. HTML -> TXT
         ok, err = self.conv.convert_html(html_file, "TXT")
         self.assertTrue(ok, f"HTML to TXT failed: {err}")
         txt_out = self.dir_path / "page.txt"
         self.assertTrue(txt_out.exists())
         self.assertIn("Convergent HTML Test", txt_out.read_text())
 
-        # 3. HTML -> DOCX
         ok, err = self.conv.convert_html(html_file, "DOCX")
         self.assertTrue(ok, f"HTML to DOCX failed: {err}")
         docx_out = self.dir_path / "page.docx"
         self.assertTrue(docx_out.exists())
         self.assertTrue(docx_out.stat().st_size > 100)
 
-        # 4. DOCX -> HTML (Output test)
         ok, err = self.conv.convert_office(docx_out, "HTML")
         self.assertTrue(ok, f"DOCX to HTML failed: {err}")
         html_out = self.dir_path / "page.html"
@@ -202,28 +197,24 @@ class TestConversionsIntegration(unittest.TestCase):
         txt_file = self.dir_path / "notes.txt"
         txt_file.write_text("Convergent TXT Test\nThis is a plain text file for conversion testing.\n")
 
-        # 1. TXT -> MD
         ok, err = self.conv.convert_txt(txt_file, "MD")
         self.assertTrue(ok, f"TXT to MD failed: {err}")
         md_out = self.dir_path / "notes.md"
         self.assertTrue(md_out.exists())
         self.assertIn("Convergent TXT Test", md_out.read_text())
 
-        # 2. TXT -> HTML
         ok, err = self.conv.convert_txt(txt_file, "HTML")
         self.assertTrue(ok, f"TXT to HTML failed: {err}")
         html_out = self.dir_path / "notes.html"
         self.assertTrue(html_out.exists())
         self.assertIn("Convergent TXT Test", html_out.read_text())
 
-        # 3. TXT -> DOCX
         ok, err = self.conv.convert_txt(txt_file, "DOCX")
         self.assertTrue(ok, f"TXT to DOCX failed: {err}")
         docx_out = self.dir_path / "notes.docx"
         self.assertTrue(docx_out.exists())
         self.assertTrue(docx_out.stat().st_size > 100)
 
-        # 4. TXT -> RTF
         ok, err = self.conv.convert_txt(txt_file, "RTF")
         self.assertTrue(ok, f"TXT to RTF failed: {err}")
         rtf_out = self.dir_path / "notes.rtf"

@@ -108,7 +108,6 @@ class TestCache(unittest.TestCase):
         self.assertFalse(is_valid)
         self.assertEqual(reason, "output missing")
 
-        # Recreate output
         out.write_bytes(b"png binary data")
 
         # 5. Miss when source file content mutated (mtime changes)

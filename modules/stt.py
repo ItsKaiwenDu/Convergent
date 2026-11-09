@@ -282,7 +282,6 @@ def convert_audio_to_text(
     if target_ext not in ("TXT", "SRT", "VTT", "MD"):
         return False, f"Unsupported STT target format: {target_ext}. Choose from TXT, SRT, VTT, MD."
 
-    # 1. Check for whisper-cli or alternative whisper binary
     binary = find_whisper_binary()
     if not binary:
         return False, (
@@ -290,20 +289,17 @@ def convert_audio_to_text(
             "Please install whisper.cpp via: brew install whisper-cpp"
         )
 
-    # 2. Extract 16kHz mono audio via FFmpeg
     temp_wav = None
     temp_out_prefix = None
     try:
         temp_wav = extract_audio_for_stt(source)
         temp_out_prefix = Path(tempfile.mktemp(prefix="convergent_stt_out_"))
 
-        # 3. Resolve or download model
         try:
             model_path = get_model_path(model_name=model, auto_download=False)
         except Exception as e:
             return False, f"Could not load Whisper model: {e}"
 
-        # 4. Build command for whisper-cli / whisper.cpp
         # Determine output flags based on target_ext
         cmd = [
             binary,
@@ -326,7 +322,6 @@ def convert_audio_to_text(
         if language and language.lower() not in ("auto", "none"):
             cmd.extend(["-l", language.lower()])
 
-        # Run transcription
         success, err_msg = run_command(cmd)
         if not success:
             return False, f"Whisper transcription failed: {err_msg}"
@@ -334,7 +329,6 @@ def convert_audio_to_text(
         if is_current_request_cancelled():
             return False, "Operation cancelled."
 
-        # 5. Move or format generated output to destination
         generated_txt = Path(f"{temp_out_prefix}.txt")
         generated_srt = Path(f"{temp_out_prefix}.srt")
         generated_vtt = Path(f"{temp_out_prefix}.vtt")
@@ -393,7 +387,6 @@ def convert_audio_to_text(
     except Exception as e:
         return False, str(e)
     finally:
-        # Cleanup temporary files
         if temp_wav and temp_wav.exists():
             try:
                 temp_wav.unlink()

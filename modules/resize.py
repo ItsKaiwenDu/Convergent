@@ -157,7 +157,6 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
         '9:16': 9/16,
     }
     
-    # 1. Target Aspect Ratio Cropping Dimensions
     if target_aspect and str(target_aspect) not in ('5', 'none', 'auto'):
         if str(target_aspect) in aspect_map:
             aspect = aspect_map[str(target_aspect)]
@@ -174,33 +173,27 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
         w_crop = w
         h_crop = h
 
-    # 2. Scale Calculations
     if method == '1':
-        # Scale by Percentage
         if scale_val is None or scale_val <= 0:
             raise ValueError(f"Scale percentage must be greater than 0, got {scale_val}")
         p = scale_val / 100.0
         w_final = int(round(w_crop * p))
         h_final = int(round(h_crop * p))
     elif method == '2':
-        # Set Target Height
         if scale_val is None or scale_val <= 0:
             raise ValueError(f"Target height must be greater than 0, got {scale_val}")
         h_final = scale_val
         w_final = int(round(scale_val * (w_crop / h_crop)))
     elif method == '3':
-        # Custom width and height
         if not scale_val or len(scale_val) < 2 or scale_val[0] <= 0 or scale_val[1] <= 0:
             raise ValueError(f"Target dimensions must be greater than 0, got {scale_val}")
         w_final, h_final = scale_val[0], scale_val[1]
     elif method == 'w':
-        # Set Target Width (proportional height)
         if scale_val is None or scale_val <= 0:
             raise ValueError(f"Target width must be greater than 0, got {scale_val}")
         w_final = scale_val
         h_final = int(round(scale_val * (h_crop / w_crop)))
     else:
-        # No change
         w_final = w_crop
         h_final = h_crop
 
@@ -387,7 +380,6 @@ def resize_media(paths, conv, console, get_char, get_input):
     supported_exts = {".mp4", ".jpg", ".png", ".heic", ".pdf"}
     files = []
     
-    # 1. Collect files
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
         if path_obj.is_file():
@@ -417,7 +409,6 @@ def resize_media(paths, conv, console, get_char, get_input):
     if not ensure_dependencies(tools, interactive=True, install=conv.install_deps):
         return []
 
-    # 2. Display files and dimensions
     console.print("\n[bold yellow]Files to Resize:[/bold yellow]")
     for idx, f in enumerate(files, 1):
         try:
@@ -432,7 +423,6 @@ def resize_media(paths, conv, console, get_char, get_input):
         dim_str = f"({w}x{h})" if w and h else "(unknown dimensions)"
         console.print(f" [bold cyan]{idx}.[/bold cyan] {f.name} [dim]{dim_str}[/dim]")
 
-    # 3. Interactive resize options
     step = 1
     method = None
     scale_val = None
@@ -543,7 +533,6 @@ def resize_media(paths, conv, console, get_char, get_input):
             get_char("\nPress any key to continue...")
             return False
 
-    # 6. Execute Batch
     success_count = 0
     fail_count = 0
     batch_start_time = time.perf_counter()

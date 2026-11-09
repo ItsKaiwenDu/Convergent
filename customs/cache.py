@@ -51,7 +51,6 @@ def _blake2b_hex(data: bytes, digest_size: int = 16) -> str:
 
 def _params_to_string(params: Dict) -> str:
     # Stable canonical representation
-    # Ensure keys sorted and values normalized
     normalized = {}
     for k, v in sorted(params.items()):
         if v is None:
@@ -90,7 +89,6 @@ def get_file_fingerprint(path: Path) -> Tuple[str, float, int]:
             with open(path, "rb") as f:
                 head = f.read(HEAD_TAIL_SIZE)
                 h.update(head)
-                # tail
                 try:
                     f.seek(max(0, size - HEAD_TAIL_SIZE))
                     tail = f.read(HEAD_TAIL_SIZE)
@@ -132,7 +130,6 @@ class CacheManager:
         # Support migration from alt path if main doesn't exist
         if not db_path.exists() and CACHE_DB_ALT.exists():
             try:
-                # Use alt as db_path for backward compat
                 self.db_path = CACHE_DB_ALT
             except Exception:
                 pass
@@ -249,7 +246,6 @@ class CacheManager:
         if not entry:
             return False, "miss"
 
-        # Check TTL expiration (if ttl_days > 0)
         if self.ttl_days > 0:
             access_time = entry.get("last_accessed_at") or entry.get("created_at") or 0.0
             if time.time() - access_time > self.ttl_days * 86400:

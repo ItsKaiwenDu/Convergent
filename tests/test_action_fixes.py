@@ -41,7 +41,6 @@ class TestActionFixes(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    # 1. Run Command: stdin=DEVNULL and stderr tail-trimming
     def test_run_command_stdin_devnull(self):
         # 'cat' without stdin would hang if stdin were open; DEVNULL causes immediate EOF
         success, _ = run_command(["cat"])
@@ -56,7 +55,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertLessEqual(len(err), 1500)
         self.assertEqual(err, "A" * 1500)
 
-    # 2. Combine: Input-as-output alias rejection
     def test_combine_rejects_input_as_output(self):
         pdf1 = self.dir_path / "a.pdf"
         pdf2 = self.dir_path / "b.pdf"
@@ -76,7 +74,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(mcp_res["success"])
         self.assertIn("cannot be one of input files", mcp_res["error"])
 
-    # 3. Combine: Mixed video filter_complex
     def test_combine_videos_filter_complex_generation(self):
         vid1 = self.dir_path / "v1.mp4"
         vid2 = self.dir_path / "v2.mov"
@@ -102,7 +99,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("anullsrc=", filter_str)
             self.assertIn("concat=n=2:v=1:a=1", filter_str)
 
-    # 4. Compress: Input-as-output alias rejection
     def test_compress_rejects_input_as_output(self):
         f1 = self.dir_path / "file1.zip"
         f1.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
@@ -111,7 +107,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertIn("cannot be one of input files", res["error"])
 
-    # 5. Compress: Password on tar.gz rejection
     def test_compress_rejects_password_on_tar(self):
         f1 = self.dir_path / "file1.txt"
         f1.write_text("content")
@@ -126,7 +121,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertIn("TAR archives do not support password encryption", res["error"])
 
-    # 6. Compress: -p- flag in 7z when non-interactive
     def test_compress_7z_non_interactive_p_dash_flag(self):
         f1 = self.dir_path / "file1.txt"
         f1.write_text("content")
@@ -150,7 +144,6 @@ class TestActionFixes(unittest.TestCase):
             cmd_args = mock_cmd.call_args[0][0]
             self.assertNotIn("-p-", cmd_args)
 
-    # 7. Resize: Validation for dimensions & aspect ratio
     def test_resize_validation(self):
         # Non-positive dimension/scale
         with self.assertRaises(ValueError):
@@ -162,7 +155,6 @@ class TestActionFixes(unittest.TestCase):
         with self.assertRaises(ValueError):
             calculate_crop_and_scale(100, 100, "invalid_ratio", 100, "crop")
 
-    # 8. Batch stem collision disambiguation
     def test_batch_stem_collision_disambiguation(self):
         from Convergent import Converter
         conv = Converter()
@@ -196,7 +188,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("graphic_jpg.webp", out_names)
             self.assertIn("graphic_png.webp", out_names)
 
-    # 9. Pandoc Markdown resource path and cwd
     def test_pandoc_markdown_resource_path_and_cwd(self):
         from modules import doc
         md_file = self.dir_path / "article.md"
@@ -222,7 +213,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("--embed-resources", cmd_args)
             self.assertIn("--standalone", cmd_args)
 
-    # 10. Cache destination mismatch & mtime change on large files
     def test_cache_destination_mismatch_and_mtime_change(self):
         cache_mgr = CacheManager(db_path=self.dir_path / "test_cache.db")
         src_file = self.dir_path / "data.bin"
@@ -256,7 +246,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertEqual(reason_large, "mtime changed")
         cache_mgr.close()
 
-    # 11. Video: fps, bitrate, and ogg target
     def test_video_fps_bitrate_and_ogg_audio(self):
         from modules import video
         src_video = self.dir_path / "clip.mp4"
@@ -282,7 +271,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("-vn", cmd_args)
             self.assertTrue("libvorbis" in cmd_args or "libopus" in cmd_args)
 
-    # 12. MCP server tools: edge cases and schema sanity
     def test_mcp_pdf_to_images_unsupported_format(self):
         doc = self.dir_path / "doc.pdf"
         doc.touch()
@@ -537,7 +525,6 @@ class TestActionFixes(unittest.TestCase):
 
         asyncio.run(check_concurrency())
 
-    # 14. Robustness: PDF failure preserves existing pages (Finding 1)
     def test_pdf_to_images_failure_preserves_existing_pages(self):
         from modules import pdf_manip
         dummy_pdf = self.dir_path / "broken.pdf"
@@ -553,7 +540,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(existing_page.exists())
             self.assertEqual(existing_page.read_text(), "pre-existing good image content")
 
-    # 15. Robustness: Cache invalidation on directory mtime edit & large file mtime (Finding 2)
     def test_cache_directory_manifest_mtime_invalidation(self):
         cache_mgr = CacheManager(db_path=self.dir_path / ".cache.sqlite")
         src = self.dir_path / "in.pdf"
@@ -588,7 +574,6 @@ class TestActionFixes(unittest.TestCase):
         is_valid, _ = cache_mgr.is_cached_valid(src, out_file, params)
         self.assertTrue(is_valid)
 
-        # Touch file to change mtime
         time.sleep(0.01)
         os.utime(out_file, None)
         is_valid, reason = cache_mgr.is_cached_valid(src, out_file, params)
@@ -596,7 +581,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertEqual(reason, "output mtime changed")
         cache_mgr.close()
 
-    # 16. Robustness: Image -auto-orient before -strip (Finding 3)
     def test_image_strip_metadata_auto_orient(self):
         from modules import image
         src_img = self.dir_path / "rotated.jpg"
@@ -640,7 +624,6 @@ class TestActionFixes(unittest.TestCase):
         profile_arg = command[command.index("+profile") + 1]
         self.assertEqual(profile_arg, "exif,iptc,xmp")
 
-    # 17. Robustness: 7z password handling & Decompress password support (Finding 4)
     def test_compress_7z_password_parameter_no_dash(self):
         f = self.dir_path / "doc.txt"
         f.write_text("data")
@@ -680,7 +663,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("-P", cmd_args)
             self.assertEqual(cmd_args[cmd_args.index("-P") + 1], "my_password")
 
-    # 18. Robustness: Strict argument validation rejecting typos (Finding 7)
     def test_mcp_strict_arg_validation_rejects_typos(self):
         import asyncio
         from mcp.server.fastmcp.exceptions import ToolError
@@ -699,7 +681,6 @@ class TestActionFixes(unittest.TestCase):
 
         asyncio.run(check_typo_rejection())
 
-    # 19. Robustness: Same-format conversion to distinct destination copies file (Finding 8)
     def test_same_format_distinct_destination_copies_file(self):
         from Convergent import Converter
         from customs.file_process import process_single_file
@@ -714,7 +695,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertTrue((dest_dir / "icon.png").exists())
         self.assertEqual((dest_dir / "icon.png").read_bytes(), src_png.read_bytes())
 
-    # 20. Robustness: Video accurate split option (Finding 6)
     def test_split_video_accurate_option(self):
         from modules import split
         sample_vid = self.dir_path / "sample.mp4"
@@ -735,7 +715,6 @@ class TestActionFixes(unittest.TestCase):
             cmd_acc = mock_cmd.call_args[0][0]
             self.assertNotIn("copy", cmd_acc)
 
-    # 21. Robustness: Decompress excludes AppleDouble metadata (Finding 10)
     def test_tar_decompress_excludes_appledouble(self):
         import zipfile
         zip_path = self.dir_path / "sample.zip"
@@ -749,7 +728,6 @@ class TestActionFixes(unittest.TestCase):
         # Should count 1 real extracted file, excluding AppleDouble and __MACOSX
         self.assertEqual(res["extracted_files_count"], 1)
 
-    # 22. Request-scoped cancellation preserves concurrent requests
     def test_request_scoped_cancellation_preserves_concurrent_requests(self):
         from customs.run_command import set_request_context, terminate_active_processes, _REQUEST_PROCESSES
         import threading
@@ -779,11 +757,9 @@ class TestActionFixes(unittest.TestCase):
         proc_b.terminate.assert_not_called()
         proc_b.kill.assert_not_called()
 
-        # Clean up
         _REQUEST_PROCESSES.clear()
         set_request_context(None, None)
 
-    # 23. Split loop stops subsequent segments upon cancellation
     def test_split_loop_stops_subsequent_segments_on_cancellation(self):
         from modules import split
         from customs.run_command import set_request_context
@@ -810,7 +786,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertEqual(call_count[0], 1)
         set_request_context(None, None)
 
-    # 24. PDF publication directory collision aborts without deleting existing pages
     def test_pdf_publication_directory_collision_preserves_pages(self):
         from modules import pdf_manip
         src = self.dir_path / "book.pdf"
@@ -848,7 +823,6 @@ class TestActionFixes(unittest.TestCase):
             # Sentinel inside p2_dir must also survive
             self.assertTrue((p2_dir / "sentinel.txt").exists())
 
-    # 25. Fresh conversion reports cached=False and repeat reports cached=True
     def test_fresh_conversion_reports_cached_false_and_repeat_reports_cached_true(self):
         src_img = self.dir_path / "raw.png"
         src_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
@@ -884,7 +858,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(res2["success"])
             self.assertTrue(res2.get("cached", False))
 
-    # 26. Parameter validation: dpi, md_pdf_mode, bitrate
     def test_parameter_validations(self):
         src_f = self.dir_path / "test_doc.md"
         src_f.write_text("# Hello")
@@ -904,7 +877,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res_br["success"])
         self.assertIn("Invalid bitrate", res_br["error"])
 
-    # 27. Bitrate normalization: "256000" and "256k"
     def test_bitrate_normalization(self):
         from modules import audio
         src_wav = self.dir_path / "clip.wav"
@@ -926,7 +898,6 @@ class TestActionFixes(unittest.TestCase):
             cmd2 = mock_cmd.call_args[0][0]
             self.assertIn("256k", cmd2)
 
-    # 28. Split file reports partial_success and failed_parts
     def test_split_file_reports_partial_success(self):
         from Convergent import Converter
         sample_vid = self.dir_path / "split_partial.mp4"
@@ -950,7 +921,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("warnings", res)
 
 
-    # 29. ThreadPoolExecutor propagates request context to worker threads
     def test_executor_propagates_request_context_and_cancels(self):
         from customs.run_command import set_request_context, CURRENT_REQUEST_ID, is_current_request_cancelled
         from customs import file_process
@@ -978,7 +948,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertEqual(observed_req_ids, ["req_pool_123"])
         set_request_context(None, None)
 
-    # 30. PDF publication rollback on move failure preserves all old pages
     def test_pdf_publication_rollback_on_failure(self):
         import shutil
         from modules import pdf_manip
@@ -1027,7 +996,6 @@ class TestActionFixes(unittest.TestCase):
                 self.assertTrue(p2.exists())
                 self.assertEqual(p2.read_text(), "orig page 2")
 
-    # 31. Split diagnostics isolation: video failure does not leak into PDF split
     def test_split_diagnostics_isolation(self):
         from modules import split
         from Convergent import Converter
@@ -1051,7 +1019,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertFalse(res.get("partial_success", False))
             self.assertNotIn("failed_parts", res)
 
-    # 32. Bitrate normalization: megabit and nonpositive values
     def test_bitrate_megabit_and_zero_normalization(self):
         from modules.audio import parse_audio_bitrate
 
@@ -1081,7 +1048,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIsNone(val)
 
-    # 33. Markdown mode normalization: uppercase "RAW" accepted, invalid rejected
     def test_markdown_mode_case_normalization(self):
         src_md = self.dir_path / "intro.md"
         src_md.write_text("# Welcome")
@@ -1097,7 +1063,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res_bad["success"])
         self.assertIn("Allowed modes: standard, formatted, raw, typst", res_bad["error"])
 
-    # 34. Audio and GIF split failure tracking
     def test_audio_and_gif_split_failure_tracking(self):
         from modules import split
         wav_file = self.dir_path / "audio.wav"
@@ -1108,7 +1073,6 @@ class TestActionFixes(unittest.TestCase):
         def fake_audio_run_cmd(cmd, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
-                # part 1 output
                 out_p = Path(cmd[-1])
                 out_p.touch()
                 return True, ""
@@ -1146,7 +1110,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertEqual(res["failed_parts"][0]["part"], 2)
             self.assertIn("Output write permission denied", res["failed_parts"][0]["error"])
 
-    # 35. Stem collision batch cache hits on repeat
     def test_stem_collision_batch_cache_hit_on_repeat(self):
         from customs import file_process
         from Convergent import Converter
@@ -1190,7 +1153,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertEqual(res2["count"], 2)
             self.assertTrue(res2.get("cached", False))
 
-    # 36. STT canonical model resolution and stderr error detail
     def test_stt_canonical_model_resolution_and_err_detail(self):
         from mcp_server.server import perform_stt
         from modules import stt
@@ -1215,7 +1177,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertFalse(ok)
             self.assertIn("error: unknown language 'invalid_lang'", err)
 
-    # 37. PDF staging cleanup force-removes immutable and read-only files
     def test_pdf_staging_cleanup_force_removes_immutable_files(self):
         from modules.pdf_manip import _force_remove_staging
         import stat
@@ -1240,7 +1201,6 @@ class TestActionFixes(unittest.TestCase):
         _force_remove_staging(staging_dir)
         self.assertFalse(staging_dir.exists())
 
-    # 38. Batch second-order stem collision disambiguation (Finding #1)
     def test_batch_second_order_stem_collision_disambiguation(self):
         from Convergent import Converter
         conv = Converter()
@@ -1278,7 +1238,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("asset_png.png", out_names)
             self.assertIn("asset_jpg_1.png", out_names)
 
-    # 39. PDF empty page output rejection and format isolation (Finding #2)
     def test_pdf_empty_output_and_format_isolation(self):
         from modules import pdf_manip
         from mcp_server.server import pdf_to_images
@@ -1302,7 +1261,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertEqual(res["count"], 0)
             self.assertEqual(res["images"], [])
 
-    # 40. All-skipped batch response preserves and surfaces failures (Finding #4)
     def test_all_skipped_branch_does_not_mask_failures(self):
         from mcp_server.server import convergent_convert
 
@@ -1322,7 +1280,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(len(res["failed_files"]) > 0)
             self.assertEqual(res["failed_files"][0]["name"], "corrupted.png")
 
-    # 41. Specialized tools input and target format validation (Finding #8)
     def test_specialized_tools_input_and_target_validation(self):
         from mcp_server.server import perform_ocr, perform_stt
 
@@ -1351,7 +1308,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res_stt_target["success"])
         self.assertIn("Supported transcript/subtitle targets", res_stt_target["error"])
 
-    # 42. Non-positive fps validation rejection (Finding #7)
     def test_convergent_convert_fps_zero_rejected(self):
         from mcp_server.server import convergent_convert
 
@@ -1366,7 +1322,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res_neg["success"])
         self.assertIn("Invalid fps", res_neg["error"])
 
-    # 43. Batch result capping and manifest generation for large sets (Finding #7)
     def test_batch_result_capping_and_manifest_generation(self):
         from mcp_server.server import convergent_convert
 
@@ -1397,7 +1352,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertEqual(len(data), 30)
             manifest_file.unlink(missing_ok=True)
 
-    # 44. Pandoc HTML conversion passes resource-path and cwd (Finding #3)
     def test_pandoc_html_resource_path_and_cwd(self):
         from modules import doc
         html_file = self.dir_path / "document.html"
@@ -1418,7 +1372,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(len(resource_arg) > 0)
             self.assertEqual(resource_arg[0], f"--resource-path={html_file.parent.resolve()}")
 
-    # 45. Archiver path safety and output-in-source directory rejection (Findings #9 & #10)
     def test_archiver_path_injection_and_output_in_source_rejection(self):
         from modules.compress import compress
 
@@ -1454,7 +1407,6 @@ class TestActionFixes(unittest.TestCase):
             rel_files = [a for a in cmd_args if a.endswith("-flag.txt") or a.endswith("@list.txt")]
             self.assertTrue(all(a.startswith("./") for a in rel_files))
 
-    # 46. Cache invalidation when content changes with preserved mtime & size
     def test_cache_invalidation_preserved_mtime_hash_check(self):
         src_file = self.dir_path / "doc.txt"
         dest_file = self.dir_path / "doc.pdf"
@@ -1481,7 +1433,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertEqual(reason, "hash mismatch")
         cache_mgr.close()
 
-    # 47. Manifest fallback to /tmp on read-only output directory
     def test_manifest_fallback_to_tempdir_on_readonly(self):
         from mcp_server.server import _write_manifest_durable
         readonly_dir = self.dir_path / "readonly_folder"
@@ -1501,7 +1452,6 @@ class TestActionFixes(unittest.TestCase):
         finally:
             readonly_dir.chmod(0o755)
 
-    # 48. output_directory not leaking temporary staging path
     def test_output_directory_not_leaking_temp_staging_path(self):
         src_file = self.dir_path / "input.txt"
         src_file.write_text("Hello Convergent")
@@ -1546,7 +1496,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(res_dir["success"])
             self.assertEqual(Path(res_dir.get("output_directory")).resolve(), out_sub_dir.resolve())
 
-    # 49. Failure branch token capping on large failure or skipped lists
     def test_failure_and_skipped_branch_token_capping(self):
         src_dir = self.dir_path / "fail_batch"
         src_dir.mkdir()
@@ -1607,7 +1556,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(manifest_file.exists())
             manifest_file.unlink(missing_ok=True)
 
-    # 50. Helper boundary guards: pdf_to_images rejects directory/non-pdf; perform_ocr rejects markup
     def test_helper_boundary_guards_rejections(self):
         # pdf_to_images rejects directory
         dir_res = pdf_to_images(str(self.dir_path))
@@ -1635,7 +1583,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(ocr_html_res["success"])
         self.assertIn("use 'convergent_convert'", ocr_html_res["error"])
 
-    # 51. PPTX -> HTML visual fidelity warning attachment
     def test_pptx_to_html_warning_attachment(self):
         fake_pptx = self.dir_path / "presentation.pptx"
         fake_pptx.touch()
@@ -1657,7 +1604,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("warning", res)
             self.assertIn("PPTX to HTML conversion via LibreOffice may have limited visual fidelity", res["warning"])
 
-    # 52. MCP Output alias / symlink cannot overwrite original input
     def test_mcp_output_alias_cannot_overwrite_original_input(self):
         src_png = self.dir_path / "original_source.png"
         src_png.write_bytes(b"original png bytes")
@@ -1678,7 +1624,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertIn("resolves to an original input file", res["error"])
         self.assertEqual(src_png.read_bytes(), b"original png bytes")
 
-    # 53. Ghostscript PDF splitting in isolated staging preserves existing files like page_003.pdf
     def test_ghostscript_split_isolated_staging_preserves_existing_pages(self):
         from modules.split import split_pdf
         pdf_file = self.dir_path / "doc2.pdf"
@@ -1708,7 +1653,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(sentinel_p3.exists())
             self.assertEqual(sentinel_p3.read_text(), "sentinel page 3 content")
 
-    # 54. 7Z compression preserves subfolder paths with -spf
     def test_7z_compression_preserves_subfolder_paths(self):
         d1 = self.dir_path / "sub_a"
         d2 = self.dir_path / "sub_b"
@@ -1726,7 +1670,6 @@ class TestActionFixes(unittest.TestCase):
             cmd_args = mock_cmd.call_args[0][0]
             self.assertIn("-spf", cmd_args)
 
-    # 55. LibreOffice zero exit without output falls back to Pandoc
     def test_doc_libreoffice_empty_output_falls_back_to_pandoc(self):
         from modules.doc import convert_office
         docx_file = self.dir_path / "sample.docx"
@@ -1747,7 +1690,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(success)
             self.assertTrue((self.dir_path / "sample.pdf").exists())
 
-    # 56. Sips failure falls back to ImageMagick in convert_image
     def test_image_sips_failure_falls_back_to_imagemagick(self):
         from modules.image import convert_image
         img_file = self.dir_path / "test_sips.png"
@@ -1772,7 +1714,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertIn("sips", executed_cmds)
             self.assertIn("magick", executed_cmds)
 
-    # 57. Whisper preserves stderr diagnostic when output file is missing
     def test_stt_whisper_preserves_stderr_on_exit_zero(self):
         from modules.stt import convert_audio_to_text
         from customs.run_command import LAST_COMMAND_STDERR
@@ -1794,7 +1735,6 @@ class TestActionFixes(unittest.TestCase):
             self.assertFalse(success)
             self.assertIn("error: unknown language 'elvish'", err)
 
-    # 58. Specialized tools support overwrite parameter
     def test_mcp_combine_and_resize_support_overwrite(self):
         f1 = self.dir_path / "part1.txt"
         f2 = self.dir_path / "part2.txt"
@@ -1816,7 +1756,6 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(res_resize["success"])
         self.assertIn("Destination already exists", res_resize["error"])
 
-    # 59. MCP split_file uses _cap_list manifest and provides failed_parts
     def test_mcp_split_file_generates_manifest_and_detailed_errors(self):
         pdf_file = self.dir_path / "big_doc.pdf"
         pdf_file.touch()

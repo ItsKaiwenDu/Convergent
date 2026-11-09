@@ -123,10 +123,8 @@ class TestFileProcess(unittest.TestCase):
     def test_failed_run_lifecycle(self):
         test_failed_file = self.dir_path / ".convergent_failed.json"
         with patch("customs.file_process.FAILED_RUN_FILE", test_failed_file):
-            # Initially none
             self.assertIsNone(load_failed_run())
 
-            # Save failed run
             failed_p1 = self.dir_path / "f1.jpg"
             failed_p2 = self.dir_path / "f2.jpg"
             failed_p1.touch()
@@ -151,7 +149,6 @@ class TestFileProcess(unittest.TestCase):
             self.assertTrue(loaded["strip_metadata"])
             self.assertTrue(loaded["use_cache"])
 
-            # Clear
             clear_failed_run()
             self.assertIsNone(load_failed_run())
             self.assertFalse(test_failed_file.exists())

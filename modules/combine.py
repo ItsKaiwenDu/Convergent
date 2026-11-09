@@ -198,7 +198,6 @@ def combine_pdfs(paths, output_path=None, interactive=True):
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
 
-        # Fetch page counts first
         console.print("\n[dim]Reading PDF metadata...[/dim]")
         pdf_details = []
         for f in pdf_files:
@@ -359,7 +358,6 @@ def combine_videos(paths, output_path=None, interactive=True):
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
 
-        # Fetch durations first
         console.print("\n[dim]Reading video metadata...[/dim]")
         video_details = []
         for f in video_files:
@@ -577,7 +575,6 @@ def combine_audios(paths, output_path=None, interactive=True):
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
 
-        # Fetch durations first
         console.print("\n[dim]Reading audio metadata...[/dim]")
         audio_details = []
         for f in audio_files:
@@ -745,7 +742,6 @@ def combine_gifs(paths, output_path=None, interactive=True):
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
 
-        # Fetch durations first
         console.print("\n[dim]Reading GIF metadata...[/dim]")
         gif_details = []
         for f in gif_files:
@@ -889,7 +885,6 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
 
-    # Import convert_office
     from modules.doc import convert_office
 
     from customs.file_process import get_convergent_tmp_dir
@@ -935,7 +930,6 @@ def combine_office(paths, file_type, output_path=None, interactive=True):
             })
             
         if interactive:
-            # Preview & edit order loop
             while True:
                 console.print(f"\n[bold yellow]Combine: {file_type.upper()} Order Preview (Output will be PDF)[/bold yellow]")
                 for idx, item in enumerate(pdf_details, 1):
@@ -1078,7 +1072,6 @@ def combine_txt(paths, output_path=None, interactive=True):
                 console.print("[yellow]Operation cancelled.[/yellow]")
                 return None
 
-        # Fetch line counts first
         console.print("\n[dim]Reading TXT metadata...[/dim]")
         txt_details = []
         for f in txt_files:
