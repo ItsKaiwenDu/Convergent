@@ -183,6 +183,36 @@ class TestEvaluationFixes(unittest.TestCase):
             self.assertFalse(res_vid.get("success"))
             self.assertIn("FFmpeg ('ffprobe') is not installed", res_vid.get("error"))
 
+            dummy_mov = self.dir_path / "test.mov"
+            dummy_mov.touch()
+            res_mov = resize_media(file_path=str(dummy_mov), width=200)
+            self.assertFalse(res_mov.get("success"))
+            self.assertIn("FFmpeg ('ffprobe') is not installed", res_mov.get("error"))
+
+    def test_f09_resize_mov_video_dispatches_to_ffmpeg(self):
+        """F09: resize_single_file correctly identifies MOV as video and uses ffmpeg with MOV encoder."""
+        dummy_mov = self.dir_path / "clip.mov"
+        dummy_mov.touch()
+
+        with patch("modules.resize.get_video_dimensions", return_value=(1920, 1080)) as mock_dims, \
+             patch("modules.resize.get_image_dimensions") as mock_img_dims, \
+             patch("modules.resize.get_video_encoder", return_value=("h264_videotoolbox", ["-b:v", "8M"], "⚡ VideoToolbox")) as mock_enc, \
+             patch("modules.resize.run_command", return_value=(True, "")) as mock_cmd, \
+             patch("os.replace"):
+            name, success, error, duration = resize_mod.resize_single_file(
+                dummy_mov, method="1", scale_val=50.0, target_aspect="5"
+            )
+            self.assertTrue(success, f"Resize failed: {error}")
+            mock_dims.assert_called_once_with(dummy_mov)
+            mock_img_dims.assert_not_called()
+            mock_enc.assert_called_once_with("MOV", "auto")
+            cmd = mock_cmd.call_args[0][0]
+            self.assertEqual(cmd[0], "ffmpeg")
+            self.assertIn("scale=960:540", cmd[cmd.index("-vf") + 1])
+            self.assertIn("h264_videotoolbox", cmd)
+            self.assertIn("-c:a", cmd)
+            self.assertEqual(cmd[cmd.index("-c:a") + 1], "copy")
+
 
 if __name__ == "__main__":
     unittest.main()

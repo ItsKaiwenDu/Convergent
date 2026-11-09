@@ -78,6 +78,27 @@ class TestCLIFlow(unittest.TestCase):
         actual_keys = [e["key"] for e in entries]
         self.assertEqual(actual_keys, expected_keys)
 
+    def test_applicable_entries_for_mov_file(self):
+        f = self.test_dir / "test.mov"
+        f.touch()
+        entries = shortcut.get_applicable_menu_entries(self.conv, [str(f)])
+        operations = [e["operation"] for e in entries]
+
+        # MOV should support Resize, Video Convert, Compress, STT
+        self.assertIn("resize", operations)
+        self.assertIn("convert", operations)
+        self.assertIn("compress", operations)
+        self.assertIn("stt", operations)
+
+        # Should NOT support Decompress, OCR
+        self.assertNotIn("decompress", operations)
+        self.assertNotIn("ocr", operations)
+
+        # Consecutive 0-based indexing
+        expected_keys = [str(i) for i in range(len(entries))]
+        actual_keys = [e["key"] for e in entries]
+        self.assertEqual(actual_keys, expected_keys)
+
     def test_applicable_entries_for_heic_file(self):
         f = self.test_dir / "photo.heic"
         f.touch()
@@ -520,6 +541,7 @@ class TestCLIFlow(unittest.TestCase):
         self.assertNotIn("\x1b[1m(", output)
         self.assertIn("tar.(gz/bz2/xz)", output)
         self.assertIn("docx, html, md, pdf, pptx, rtf, txt", output)
+        self.assertIn("mp4, mov, jpg, png, heic, pdf", output)
 
 
     def test_resize_back_navigation(self):

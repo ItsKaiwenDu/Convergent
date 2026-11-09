@@ -12,6 +12,8 @@ from customs.console import prompt_strip_metadata
 from customs.check_deps import ensure_dependencies
 from customs.hwaccel import get_video_encoder
 
+VIDEO_EXTS = {".mp4", ".mov"}
+
 try:
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
     HAS_RICH = True
@@ -205,7 +207,7 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
     """
     start_time = time.perf_counter()
     f = Path(f)
-    is_video = f.suffix.lower() == ".mp4"
+    is_video = f.suffix.lower() in VIDEO_EXTS
     is_pdf = f.suffix.lower() == ".pdf"
     
     try:
@@ -260,7 +262,8 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
         if scale_needed:
             filters.append(f"scale={w_final}:{h_final}")
             
-        encoder, extra_flags, mode_tag = get_video_encoder("MP4", hwaccel)
+        video_ext = f.suffix.lstrip(".").upper()
+        encoder, extra_flags, mode_tag = get_video_encoder(video_ext, hwaccel)
         cmd = ["ffmpeg", "-i", str(f)]
         if filters:
             cmd += ["-vf", ",".join(filters)]
@@ -377,7 +380,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     """
     Interactive orchestrator to resize files in given paths.
     """
-    supported_exts = {".mp4", ".jpg", ".png", ".heic", ".pdf"}
+    supported_exts = {".mp4", ".mov", ".jpg", ".png", ".heic", ".pdf"}
     files = []
     
     for p in paths:
@@ -393,14 +396,14 @@ def resize_media(paths, conv, console, get_char, get_input):
     files = sorted(list(set(files)))
     
     if not files:
-        console.print("[bold red]No MP4, JPG, PNG, HEIC, or PDF files found in provided paths.[/bold red]")
+        console.print("[bold red]No MP4, MOV, JPG, PNG, HEIC, or PDF files found in provided paths.[/bold red]")
         get_char("\nPress any key to continue...")
         return
 
     tools = []
     for f in files:
         suf = f.suffix.lower()
-        if suf == ".mp4":
+        if suf in VIDEO_EXTS:
             tools.append("ffmpeg")
         elif suf == ".pdf":
             tools.append("ghostscript")
@@ -412,7 +415,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     console.print("\n[bold yellow]Files to Resize:[/bold yellow]")
     for idx, f in enumerate(files, 1):
         try:
-            if f.suffix.lower() == ".mp4":
+            if f.suffix.lower() in VIDEO_EXTS:
                 w, h = get_video_dimensions(f)
             elif f.suffix.lower() == ".pdf":
                 w, h = get_pdf_dimensions(f)

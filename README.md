@@ -25,7 +25,7 @@
 | **Audio** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG` | FFmpeg audio encoding, custom bitrates (`128k`, `192k`, `320k`), split & merge |
 | **Documents** | `PDF`, `DOCX`, `PPTX`, `RTF`, `HTML`, `MD`, `TXT` | Pandoc, Typst, LibreOffice, and Ghostscript layout fidelity |
 | **Archives** | `ZIP`, `TAR`, `TAR.GZ`, `TAR.BZ2`, `TAR.XZ`, `7Z`, `RAR` | 7-Zip, tar, and rar compression/extraction with optional password protection |
-| **Resize** | `JPG`, `PNG`, `HEIC`, `MP4`, `PDF` | Percentage scaling, target height, exact dimensions, aspect-ratio crop (16:9, 4:3, 1:1, 9:16), bicubic PDF downsampling |
+| **Resize** | `JPG`, `PNG`, `HEIC`, `MP4`, `MOV`, `PDF` | Percentage scaling, target height, exact dimensions, aspect-ratio crop (16:9, 4:3, 1:1, 9:16), bicubic PDF downsampling |
 | **OCR** | `JPG`, `PNG`, `HEIC`, `WEBP`, `PDF` → `TXT`, `MD`, `DOCX` | Local text extraction via native Apple Vision Framework (macOS) or Tesseract |
 | **Speech-to-Text** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`, `MP4`, `MOV`, `MKV`, `WEBM`, `AVI` → `TXT`, `SRT`, `VTT`, `MD` | Local `whisper.cpp` Metal-accelerated transcription models (`base`, `tiny`, `small`, `turbo`) |
 | **Combine & Split** | `PDF`, `DOCX`, `PPTX`, `MP4`, `MP3`, `GIF`, `TXT` | Multi-file concatenation, interactive page reordering, chapter/interval splitting |
