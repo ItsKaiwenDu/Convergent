@@ -1404,6 +1404,7 @@ def resize_media(
     height: Optional[int] = None,
     scale_percent: Optional[float] = None,
     aspect_ratio: Optional[str] = None,
+    fps: Optional[Union[int, float]] = None,
     output_path: Optional[str] = None,
     strip_metadata: bool = False,
     overwrite: bool = True,
@@ -1417,6 +1418,7 @@ def resize_media(
         height: Optional target height in pixels. If width is omitted, scales proportionally to height.
         scale_percent: Optional percentage scaling (e.g. 50 for 50%, 200 for 200%).
         aspect_ratio: Optional aspect ratio crop ('16:9', '4:3', '1:1', '9:16').
+        fps: Optional target frames per second for video.
         output_path: Optional output file or directory path.
         strip_metadata: If True, strips EXIF/IPTC metadata. Default False.
         overwrite: If True, overwrites destination file if it exists. Default True.
@@ -1492,6 +1494,7 @@ def resize_media(
             method=method,
             scale_val=scale_val,
             target_aspect=target_aspect,
+            fps=fps,
             strip_metadata=strip_metadata,
             output_path=output_path,
         )

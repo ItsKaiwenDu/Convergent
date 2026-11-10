@@ -185,6 +185,45 @@ def prompt_strip_metadata(get_char_func=None):
         time.sleep(0.5)
         return "invalid", False
 
+def prompt_video_fps(get_char_func=None, get_input_func=None):
+    gc = get_char_func or get_char
+    gi = get_input_func or get_input
+    import time
+    console.print("\n[bold yellow]Select FPS:[/bold yellow]")
+    console.print(" [bold cyan]1.[/bold cyan] Default FPS")
+    console.print(" [bold cyan]2.[/bold cyan] 30 FPS")
+    console.print(" [bold cyan]3.[/bold cyan] 60 FPS")
+    console.print(" [bold cyan]4.[/bold cyan] Custom FPS")
+    console.print(" [bold white]B[/bold white]. Back")
+    choice = gc("\nSelect Option: ")
+    if choice.lower() == 'b':
+        console.print()
+        return "back", None
+    elif choice == '1':
+        console.print()
+        return "success", None
+    elif choice == '2':
+        console.print()
+        return "success", 30
+    elif choice == '3':
+        console.print()
+        return "success", 60
+    elif choice == '4':
+        val_str = gi("\nEnter FPS: ")
+        try:
+            val = float(val_str)
+            if val <= 0:
+                raise ValueError
+            return "success", val
+        except ValueError:
+            console.print("[bold red]Invalid FPS.[/bold red]")
+            time.sleep(0.5)
+            return "invalid", None
+    else:
+        console.print(" [dim]Invalid choice[/dim]")
+        time.sleep(0.5)
+        return "invalid", None
+
 
 def clean_paths(path_str):
     if not path_str:

@@ -8,7 +8,7 @@ import concurrent.futures
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 from customs.file_process import prompt_move_files
-from customs.console import prompt_strip_metadata
+from customs.console import prompt_strip_metadata, prompt_video_fps
 from customs.check_deps import ensure_dependencies
 from customs.hwaccel import get_video_encoder
 
@@ -201,7 +201,7 @@ def calculate_crop_and_scale(w, h, method, scale_val, target_aspect):
 
     return w_crop, h_crop, w_final, h_final
 
-def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", strip_metadata=False, output_path=None, dpi=None):
+def resize_single_file(f, method, scale_val, target_aspect, fps=None, hwaccel="auto", strip_metadata=False, output_path=None, dpi=None):
     """
     Resizes/crops a single file (image, video, or PDF) and saves it with a '_resized' suffix.
     """
@@ -267,6 +267,8 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
         cmd = ["ffmpeg", "-i", str(f)]
         if filters:
             cmd += ["-vf", ",".join(filters)]
+        if fps:
+            cmd += ["-r", str(fps)]
         if strip_metadata:
             cmd += ["-map_metadata", "-1"]
         cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "copy", "-y", "-loglevel", "error", str(actual_output)]
@@ -276,6 +278,8 @@ def resize_single_file(f, method, scale_val, target_aspect, hwaccel="auto", stri
             fallback_cmd = ["ffmpeg", "-i", str(f)]
             if filters:
                 fallback_cmd += ["-vf", ",".join(filters)]
+            if fps:
+                fallback_cmd += ["-r", str(fps)]
             if strip_metadata:
                 fallback_cmd += ["-map_metadata", "-1"]
             fallback_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", "-loglevel", "error", str(actual_output)]
@@ -431,6 +435,8 @@ def resize_media(paths, conv, console, get_char, get_input):
     scale_val = None
     target_aspect = '5'
     strip_metadata = False
+    fps = None
+    has_video = any(f.suffix.lower() in VIDEO_EXTS for f in files)
 
     while True:
         if step == 1:
@@ -489,7 +495,7 @@ def resize_media(paths, conv, console, get_char, get_input):
 
             if method == '3':
                 target_aspect = '5'
-                step = 3
+                step = 3 if has_video else 4
             else:
                 step = 2
 
@@ -517,12 +523,22 @@ def resize_media(paths, conv, console, get_char, get_input):
                 step = 1
                 continue
 
-            step = 3
+            step = 3 if has_video else 4
 
         elif step == 3:
-            status, strip_metadata = prompt_strip_metadata()
+            status, val = prompt_video_fps(get_char, get_input)
             if status == "back":
                 step = 1 if method == '3' else 2
+                continue
+            if status == "invalid":
+                continue
+            fps = val
+            step = 4
+
+        elif step == 4:
+            status, strip_metadata = prompt_strip_metadata()
+            if status == "back":
+                step = 3 if has_video else (1 if method == '3' else 2)
                 continue
             if status == "invalid":
                 continue
@@ -557,7 +573,7 @@ def resize_media(paths, conv, console, get_char, get_input):
             task = progress.add_task("Resizing...", total=len(files))
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
-                futures = {executor.submit(resize_single_file, f, method, scale_val, target_aspect, strip_metadata=strip_metadata): f for f in files}
+                futures = {executor.submit(resize_single_file, f, method, scale_val, target_aspect, fps=fps, strip_metadata=strip_metadata): f for f in files}
                 
                 for future in concurrent.futures.as_completed(futures):
                     name, success, error, duration = future.result()
@@ -574,7 +590,7 @@ def resize_media(paths, conv, console, get_char, get_input):
                     progress.update(task, advance=1)
     else:
         for f in files:
-            name, success, error, duration = resize_single_file(f, method, scale_val, target_aspect, strip_metadata=strip_metadata)
+            name, success, error, duration = resize_single_file(f, method, scale_val, target_aspect, fps=fps, strip_metadata=strip_metadata)
             if success:
                 success_count += 1
                 console.print(f" > {name}... [bold green]DONE[/bold green] [dim]({duration:.1f}s)[/dim]")
