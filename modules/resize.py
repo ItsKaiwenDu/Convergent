@@ -12,7 +12,10 @@ from customs.console import prompt_strip_metadata, prompt_video_fps
 from customs.check_deps import ensure_dependencies
 from customs.hwaccel import get_video_encoder
 
-VIDEO_EXTS = {".mp4", ".mov"}
+VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".tif", ".tiff", ".bmp", ".gif"}
+PDF_EXTS = {".pdf"}
+SUPPORTED_RESIZE_EXTS = VIDEO_EXTS | IMAGE_EXTS | PDF_EXTS
 
 try:
     from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
@@ -207,8 +210,26 @@ def resize_single_file(f, method, scale_val, target_aspect, fps=None, hwaccel="a
     """
     start_time = time.perf_counter()
     f = Path(f)
-    is_video = f.suffix.lower() in VIDEO_EXTS
-    is_pdf = f.suffix.lower() == ".pdf"
+    ext = f.suffix.lower()
+    if ext not in SUPPORTED_RESIZE_EXTS:
+        duration = time.perf_counter() - start_time
+        return (
+            f.name,
+            False,
+            f"Unsupported file format for resize: '{f.suffix or f.name}'. Supported formats: images, videos ({', '.join(sorted(VIDEO_EXTS))}), and PDF (.pdf).",
+            duration,
+        )
+
+    is_video = ext in VIDEO_EXTS
+    is_pdf = ext == ".pdf"
+    if fps is not None and not is_video:
+        duration = time.perf_counter() - start_time
+        return (
+            f.name,
+            False,
+            f"fps is only supported for video files ({', '.join(sorted(VIDEO_EXTS))}), not '{f.suffix or f.name}'.",
+            duration,
+        )
     
     try:
         if is_video:
@@ -264,6 +285,9 @@ def resize_single_file(f, method, scale_val, target_aspect, fps=None, hwaccel="a
             
         video_ext = f.suffix.lstrip(".").upper()
         encoder, extra_flags, mode_tag = get_video_encoder(video_ext, hwaccel)
+        if not encoder:
+            encoder = "libx264"
+            extra_flags = ["-pix_fmt", "yuv420p"]
         cmd = ["ffmpeg", "-i", str(f)]
         if filters:
             cmd += ["-vf", ",".join(filters)]
@@ -274,7 +298,7 @@ def resize_single_file(f, method, scale_val, target_aspect, fps=None, hwaccel="a
         cmd += ["-c:v", encoder] + extra_flags + ["-c:a", "copy", "-y", "-loglevel", "error", str(actual_output)]
         success, error = run_command(cmd)
 
-        if not success and encoder != "libx264":
+        if not success and encoder != "libx264" and video_ext != "WEBM":
             fallback_cmd = ["ffmpeg", "-i", str(f)]
             if filters:
                 fallback_cmd += ["-vf", ",".join(filters)]
@@ -384,7 +408,7 @@ def resize_media(paths, conv, console, get_char, get_input):
     """
     Interactive orchestrator to resize files in given paths.
     """
-    supported_exts = {".mp4", ".mov", ".jpg", ".png", ".heic", ".pdf"}
+    supported_exts = SUPPORTED_RESIZE_EXTS
     files = []
     
     for p in paths:

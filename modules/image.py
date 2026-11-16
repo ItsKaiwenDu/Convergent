@@ -26,10 +26,15 @@ def convert_heic(source, target_ext, strip_metadata=False):
         }
         if target_upper in sips_targets:
             res, err = run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
+            if res and (not output.exists() or output.stat().st_size == 0):
+                res, err = False, err or f"sips produced no valid output for {source.name}."
             if res:
                 if strip_metadata:
                     strip_cmd = "magick" if shutil.which("magick") else "convert"
-                    return run_command([strip_cmd, str(output), "-strip", str(output)])
+                    res, err = run_command([strip_cmd, str(output), "-strip", str(output)])
+                    if res and (not output.exists() or output.stat().st_size == 0):
+                        return False, err or f"Image conversion produced no valid output for {source.name}."
+                    return res, err
                 return True, ""
 
     cmd_name = "magick" if shutil.which("magick") else ("convert" if shutil.which("convert") else "magick")
@@ -37,11 +42,42 @@ def convert_heic(source, target_ext, strip_metadata=False):
     if strip_metadata:
         cmd.append("-strip")
     cmd.append(str(output))
-    return run_command(cmd)
+    res, err = run_command(cmd)
+    if res and (not output.exists() or output.stat().st_size == 0):
+        return False, err or f"Image conversion produced no valid output for {source.name}."
+    return res, err
+
+def _get_sips_orientation_flags(source: Path):
+    """Return sips transform flags to normalize EXIF orientation (values 2-8)."""
+    try:
+        proc = subprocess.run(
+            ["sips", "-g", "orientation", str(source)],
+            capture_output=True,
+            text=True,
+        )
+        for line in proc.stdout.splitlines():
+            if "orientation:" in line.lower():
+                val_str = line.split(":", 1)[1].strip().split()[0]
+                orient = int(val_str)
+                orient_map = {
+                    2: ["-f", "horizontal"],
+                    3: ["-r", "180"],
+                    4: ["-f", "vertical"],
+                    5: ["-r", "90", "-f", "vertical"],
+                    6: ["-r", "90"],
+                    7: ["-r", "270", "-f", "vertical"],
+                    8: ["-r", "270"],
+                }
+                return orient_map.get(orient, [])
+    except Exception:
+        pass
+    return []
+
 
 def convert_image(source, target_ext, strip_metadata=False):
     output = source.with_suffix(f".{target_ext.lower()}")
     target_upper = target_ext.upper()
+    has_magick = bool(shutil.which("magick") or shutil.which("convert"))
     cmd_name = "magick" if shutil.which("magick") else ("convert" if shutil.which("convert") else "magick")
     
     is_inplace = (source.resolve() == output.resolve())
@@ -67,6 +103,11 @@ def convert_image(source, target_ext, strip_metadata=False):
                     cmd.append("-strip")
                 cmd.append(str(output))
                 res, err = run_command(cmd)
+            if not res and err and "unable to read font" in err.lower():
+                err = (
+                    f"{err.rstrip()} "
+                    "(Hint: system/Freetype font missing for SVG <text>; install system fonts or rasterize/outline text in the SVG.)"
+                )
 
         # Use sips on macOS when available for supported formats
         elif sys.platform == "darwin" and shutil.which("sips"):
@@ -79,11 +120,18 @@ def convert_image(source, target_ext, strip_metadata=False):
                 "PDF": "pdf"
             }
             if target_upper in sips_targets:
-                res, err = run_command(["sips", "-s", "format", sips_targets[target_upper], str(source), "--out", str(output)])
+                orient_flags = _get_sips_orientation_flags(source)
+                sips_cmd = ["sips", "-s", "format", sips_targets[target_upper]]
+                if orient_flags:
+                    sips_cmd += orient_flags + ["-s", "orientation", "1"]
+                sips_cmd += [str(source), "--out", str(output)]
+                res, err = run_command(sips_cmd)
+                if res and (not output.exists() or output.stat().st_size == 0):
+                    res, err = False, err or f"sips produced no valid output for {source.name}."
                 if res and strip_metadata:
                     strip_cmd = "magick" if shutil.which("magick") else "convert"
                     res, err = run_command([strip_cmd, str(output), "-auto-orient", "-strip", str(output)])
-                elif not res and shutil.which(cmd_name):
+                elif not res and has_magick:
                     # Fallback to ImageMagick if sips fails
                     cmd = [cmd_name, str(source), "-auto-orient"]
                     if strip_metadata:
@@ -95,8 +143,8 @@ def convert_image(source, target_ext, strip_metadata=False):
                 temp_png = source.with_suffix(".temp.png")
                 try:
                     success, sips_err = run_command(["sips", "-s", "format", "png", str(source), "--out", str(temp_png)])
-                    if not success:
-                        res, err = False, f"Failed to convert raw to temp PNG: {sips_err}"
+                    if not success or not temp_png.exists() or temp_png.stat().st_size == 0:
+                        res, err = False, f"Failed to convert raw to temp PNG: {sips_err or 'empty or missing output'}"
                     else:
                         cmd = [cmd_name, str(temp_png), "-auto-orient"]
                         if strip_metadata:
@@ -118,6 +166,10 @@ def convert_image(source, target_ext, strip_metadata=False):
                 cmd.append("-strip")
             cmd.append(str(output))
             res, err = run_command(cmd)
+
+        if res and (not output.exists() or output.stat().st_size == 0):
+            res = False
+            err = err or f"Image conversion produced no valid output for {source.name}."
 
         if is_inplace:
             if res and output.exists():

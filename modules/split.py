@@ -12,11 +12,15 @@ from customs.run_command import run_command, send_to_trash, is_current_request_c
 
 CURRENT_SPLIT_FAILED_PARTS: contextvars.ContextVar[Optional[List[Dict[str, Any]]]] = contextvars.ContextVar("CURRENT_SPLIT_FAILED_PARTS", default=None)
 LAST_SPLIT_FAILED_PARTS = []
+CURRENT_SPLIT_GENERATED_FILES: contextvars.ContextVar[Optional[List[str]]] = contextvars.ContextVar("CURRENT_SPLIT_GENERATED_FILES", default=None)
+LAST_SPLIT_GENERATED_FILES: List[str] = []
 
 def reset_split_diagnostics():
-    global LAST_SPLIT_FAILED_PARTS
+    global LAST_SPLIT_FAILED_PARTS, LAST_SPLIT_GENERATED_FILES
     LAST_SPLIT_FAILED_PARTS = []
     CURRENT_SPLIT_FAILED_PARTS.set([])
+    LAST_SPLIT_GENERATED_FILES = []
+    CURRENT_SPLIT_GENERATED_FILES.set([])
 
 def record_split_failed_parts(failed_parts):
     global LAST_SPLIT_FAILED_PARTS
@@ -27,6 +31,20 @@ def record_split_failed_parts(failed_parts):
 def get_split_failed_parts() -> List[Dict[str, Any]]:
     parts = CURRENT_SPLIT_FAILED_PARTS.get()
     return list(parts) if parts else list(LAST_SPLIT_FAILED_PARTS)
+
+def record_split_generated_file(file_path):
+    global LAST_SPLIT_GENERATED_FILES
+    p_str = str(file_path)
+    LAST_SPLIT_GENERATED_FILES.append(p_str)
+    cur = CURRENT_SPLIT_GENERATED_FILES.get()
+    if cur is None:
+        CURRENT_SPLIT_GENERATED_FILES.set([p_str])
+    else:
+        cur.append(p_str)
+
+def get_split_generated_files() -> List[str]:
+    files = CURRENT_SPLIT_GENERATED_FILES.get()
+    return list(files) if files is not None else list(LAST_SPLIT_GENERATED_FILES)
 
 def required_dependencies(kind):
     if kind in ("docx", "pptx"):
@@ -204,6 +222,7 @@ def split_pdf(
                     for sf in staged_files:
                         target_f = out_directory / sf.name
                         shutil.move(str(sf), str(target_f))
+                        record_split_generated_file(target_f)
                     if interactive:
                         console.print(f"[bold green]Successfully split into {out_directory.name}/[/bold green]")
                     return out_directory
@@ -234,6 +253,7 @@ def split_pdf(
             cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), f"-dFirstPage={start}", f"-dLastPage={end}", str(path_obj)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {idx} (Pages {start}-{end}): [bold green]DONE[/bold green]")
                 any_success = True
@@ -285,6 +305,7 @@ def split_pdf(
             cmd = ["gs", "-sDEVICE=pdfwrite", "-o", str(out_file), f"-dFirstPage={current_page}", f"-dLastPage={end_page}", str(path_obj)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1} (Pages {current_page}-{end_page}): [bold green]DONE[/bold green]")
                 any_success = True
@@ -393,6 +414,7 @@ def split_video(
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
@@ -433,6 +455,7 @@ def split_video(
             cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
                 any_success = True
@@ -491,6 +514,7 @@ def split_video(
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj)] + copy_args + ["-y", "-loglevel", "error", str(out_file)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
@@ -596,6 +620,7 @@ def split_audio(
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
@@ -635,6 +660,7 @@ def split_audio(
             cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
                 any_success = True
@@ -692,6 +718,7 @@ def split_audio(
             cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-c", "copy", "-y", "-loglevel", "error", str(out_file)]
             success, err = run_command(cmd)
             if success and out_file.exists():
+                record_split_generated_file(out_file)
                 if interactive:
                     console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                 any_success = True
@@ -790,6 +817,8 @@ def split_gif(
         cmd = ["ffmpeg", "-i", str(path_obj), "-y", "-loglevel", "error", str(out_pattern)]
         success, error = run_command(cmd)
         if success:
+            for frame_f in sorted(out_directory.glob(f"frame_*.{fmt}")):
+                record_split_generated_file(frame_f)
             if interactive:
                 console.print(f"[bold green]Successfully extracted frames to {out_directory.name}/[/bold green]")
             return out_directory
@@ -846,6 +875,7 @@ def split_gif(
                 cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-y", "-loglevel", "error", str(out_file)]
                 success, err = run_command(cmd)
                 if success and out_file.exists():
+                    record_split_generated_file(out_file)
                     if interactive:
                         console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                     any_success = True
@@ -885,6 +915,7 @@ def split_gif(
                 cmd = ["ffmpeg", "-ss", str(start), "-to", str(end), "-i", str(path_obj), "-y", "-loglevel", "error", str(out_file)]
                 success, err = run_command(cmd)
                 if success and out_file.exists():
+                    record_split_generated_file(out_file)
                     if interactive:
                         console.print(f" [bold green]✓[/bold green] Part {idx} ({format_seconds(start)} to {format_seconds(end)}): [bold green]DONE[/bold green]")
                     any_success = True
@@ -939,6 +970,7 @@ def split_gif(
                 cmd = ["ffmpeg", "-ss", str(start), "-t", str(split_interval), "-i", str(path_obj), "-y", "-loglevel", "error", str(out_file)]
                 success, err = run_command(cmd)
                 if success and out_file.exists():
+                    record_split_generated_file(out_file)
                     if interactive:
                         console.print(f" [bold green]✓[/bold green] Part {i+1}: [bold green]DONE[/bold green]")
                     any_success = True

@@ -310,11 +310,11 @@ class TestActionFixes(unittest.TestCase):
     def test_list_supported_formats_categories_and_no_phantom(self):
         res = list_supported_formats()
         cats = res.get("categories", {})
-        # Verify valid category IDs and names in FORMAT_REGISTRY
-        self.assertIn("2", cats)  # Image
-        self.assertIn("3", cats)  # Video
-        self.assertIn("4", cats)  # Audio
-        self.assertIn("5", cats)  # Document
+        # Verify semantic category names in FORMAT_REGISTRY
+        self.assertIn("image", cats)
+        self.assertIn("video", cats)
+        self.assertIn("audio", cats)
+        self.assertIn("document", cats)
 
         # Verify no phantom source formats exist in FORMAT_REGISTRY
         source_fmts = res.get("source_formats", [])
@@ -586,11 +586,14 @@ class TestActionFixes(unittest.TestCase):
         src_img = self.dir_path / "rotated.jpg"
         src_img.write_bytes(b"\xFF\xD8\xFF\xE0\x00\x10JFIF")
 
+        def fake_strip_cmd(cmd, cwd=None):
+            if cmd[0] in ("sips", "magick", "convert"):
+                Path(cmd[-1]).write_bytes(b"fake-image-bytes")
+            return True, ""
+
         with patch("sys.platform", "darwin"), \
              patch("shutil.which", return_value="/usr/local/bin/magick"), \
-             patch("modules.image.run_command") as mock_cmd:
-            # First command is sips, second is magick strip
-            mock_cmd.side_effect = [(True, ""), (True, "")]
+             patch("modules.image.run_command", side_effect=fake_strip_cmd) as mock_cmd:
             success, _ = image.convert_image(src_img, "JPG", strip_metadata=True)
             self.assertTrue(success)
             self.assertEqual(mock_cmd.call_count, 2)
@@ -1702,7 +1705,7 @@ class TestActionFixes(unittest.TestCase):
                 return False, "sips permission error"
             if cmd[0] in ("magick", "convert"):
                 out_path = Path(cmd[-1])
-                out_path.touch()
+                out_path.write_bytes(b"fake-image-bytes")
                 return True, ""
             return False, "unknown"
 

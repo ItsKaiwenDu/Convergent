@@ -4,6 +4,19 @@ import shutil
 from pathlib import Path
 from customs.run_command import run_command, send_to_trash
 
+COMPOUND_ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst")
+
+
+def archive_stem(path: Path) -> str:
+    """Return archive stem, stripping compound tar suffixes like .tar.gz."""
+    name = path.name
+    lower_name = name.lower()
+    for suffix in COMPOUND_ARCHIVE_SUFFIXES:
+        if lower_name.endswith(suffix):
+            return name[: -len(suffix)] or path.stem
+    return path.stem
+
+
 def required_dependencies(path):
     name = str(path).lower()
     if name.endswith(".zip"):
@@ -19,7 +32,7 @@ def decompress(path, output_dir=None, password=None):
         return False, f"Path does not exist: {path}", None
     
     if not output_dir:
-        output_dir = path_obj.parent / path_obj.stem
+        output_dir = path_obj.parent / archive_stem(path_obj)
         send_to_trash(output_dir)
     else:
         output_dir = Path(os.path.expanduser(str(output_dir))).resolve()

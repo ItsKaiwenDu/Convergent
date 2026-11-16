@@ -98,9 +98,9 @@ def _convert_pdf_to_temp_images(source: Path):
 
     # 2. Ghostscript (gs)
     if shutil.which("gs"):
-        out_pattern = temp_dir / "page_%04d.png"
         resolved_source = Path(source).resolve()
         resolved_temp = Path(temp_dir).resolve()
+        out_pattern = resolved_temp / "page_%04d.png"
         success, _ = run_command([
             "gs", "-dNOPAUSE", "-dBATCH", "-dSAFER",
             f"--permit-file-read={resolved_source}",
@@ -295,7 +295,7 @@ def _ocr_macos_native(image_path: Path) -> str:
 def _ocr_tesseract(image_path: Path) -> str:
     if not shutil.which("tesseract"):
         raise FileNotFoundError("Tesseract is not installed. Install via: brew install tesseract")
-    code, stdout, stderr = run_command_output(["tesseract", str(image_path), "stdout"])
+    code, stdout, stderr = run_command_output(["tesseract", str(image_path.resolve()), "stdout"])
     if code != 0:
         raise RuntimeError(f"Tesseract OCR failed: {stderr}")
     return stdout

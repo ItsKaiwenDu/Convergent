@@ -8,7 +8,9 @@ extract, process, combine, split, resize, compress, decompress, and OCR local fi
 """
 
 import os
+import re
 import sys
+import math
 import time
 import json
 import shutil
@@ -17,7 +19,7 @@ import asyncio
 import zipfile
 import tarfile
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union, Literal
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
@@ -152,7 +154,10 @@ def _write_manifest_durable(file_list: List[Any], label: str, preferred_dir: Opt
         candidate_dirs.append(temp_dir)
 
     for target_dir in candidate_dirs:
-        manifest_file = target_dir / f".convergent_manifest_{label}_{uuid.uuid4().hex[:8]}.json"
+        if preferred_dir and target_dir == preferred_dir and target_dir != temp_dir:
+            manifest_file = target_dir / f".convergent_manifest_{label}.json"
+        else:
+            manifest_file = target_dir / f".convergent_manifest_{label}_{uuid.uuid4().hex[:8]}.json"
         try:
             manifest_file.write_text(json.dumps(file_list, indent=2), encoding="utf-8")
             return str(manifest_file.resolve())
@@ -176,14 +181,57 @@ def _cap_list(items: List[Any], label: str, preferred_dir: Optional[Path], limit
     return items, False, None
 
 
-@mcp.tool()
+def _sanitize_mcp_error(msg: str) -> str:
+    """Clean MCP error text: replace CLI-only hints and strip noisy FFmpeg/temp-path lines."""
+    if not msg:
+        return msg
+    cli_hint = "Rerun conversion with --install-deps to download it."
+    mcp_hint = "Run 'python Convergent.py --install-deps' in a terminal or choose an already-installed Whisper model."
+    if cli_hint in msg:
+        msg = msg.replace(cli_hint, mcp_hint)
+
+    lines = [line.rstrip() for line in msg.splitlines() if line.strip()]
+    if not lines:
+        return msg.strip()
+
+    ffmpeg_ptr_re = re.compile(r'\[[^\]]+@\s*0x[0-9a-fA-F]+\]\s*')
+    tmp_path_re = re.compile(r'(?:[^\s"\']*/)?\.tmp_[A-Za-z0-9_-]+(?:/[^\s"\']*)?')
+
+    cleaned_lines = []
+    for line in lines:
+        is_ffmpeg_bracket = bool(
+            re.match(r'^\[(?:out|in|vost|aost|sost|fc|Parsed_|AVFilterGraph)[^\]]*@\s*0x[0-9a-fA-F]+\]', line)
+        )
+        has_tmp = ".tmp_" in line
+        if is_ffmpeg_bracket or (
+            has_tmp and ("Error opening output" in line or "Could not write header" in line or "Invalid data found" in line)
+        ):
+            continue
+        cleaned_lines.append(line)
+
+    if not cleaned_lines:
+        cleaned_lines = lines
+
+    final_lines = []
+    seen = set()
+    for line in cleaned_lines:
+        line = ffmpeg_ptr_re.sub("", line).strip()
+        line = tmp_path_re.sub("<temp>", line).strip()
+        if line and line not in seen:
+            seen.add(line)
+            final_lines.append(line)
+
+    return "\n".join(final_lines) if final_lines else msg.strip()
+
+
+@mcp.tool(structured_output=False)
 def convergent_convert(
     input_path: str,
     target_format: str,
     output_path: Optional[str] = None,
     fps: Optional[int] = None,
     bitrate: Optional[str] = None,
-    md_pdf_mode: str = "formatted",
+    md_pdf_mode: Literal["formatted", "raw"] = "formatted",
     strip_metadata: bool = False,
     ocr: bool = False,
     stt: bool = False,
@@ -194,27 +242,24 @@ def convergent_convert(
     dpi: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Convert a file or directory of files to a target format using Convergent.
+    Convert a file or directory of files to a target format.
+    If output exceeds 25 items, 'converted_files' is truncated to 10 items with 'truncated': True and 'manifest_path'.
 
     Args:
-        input_path: Absolute or relative path to file or directory to convert.
-        target_format: Extension of target format (e.g., 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'HTML', 'GIF', 'SRT', 'VTT').
-        output_path: Optional output directory or file path. Defaults to input path location.
-        fps: Target frames per second for video/GIF outputs (e.g. 30).
-        bitrate: Audio bitrate for MP3/Audio outputs (e.g. '192k', '320k').
-        md_pdf_mode: Rendering mode for Markdown to PDF ('formatted' or 'raw'). Default 'formatted'.
-        strip_metadata: If True, strips EXIF/IPTC metadata from image outputs.
-        ocr: If True, applies optical character recognition on image/scanned input.
-        stt: If True, performs Speech-to-Text transcription on audio/video input.
-        model: Whisper model size for STT ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo'). Default 'base'.
-        language: Language code for STT transcription (e.g. 'en', 'es', 'zh', 'auto').
-        overwrite: If True, overwrites existing files without asking. Default True.
-        use_cache: If True, uses content-addressable cache to skip unchanged files. Default True.
-        dpi: Quality DPI resolution for PDF-to-image conversion (e.g. 150, 300).
-
-    Returns:
-        Dictionary containing status, list of converted output files ('converted_files'),
-        total count ('count'), and optional 'manifest_path' if output count > 25 (with 'truncated': True).
+        input_path: Path to input file or directory.
+        target_format: Target extension (e.g. 'JPG', 'PNG', 'MP3', 'MP4', 'PDF', 'MD', 'TXT', 'DOCX', 'HTML', 'GIF', 'SRT', 'VTT').
+        output_path: Output directory or file path. Defaults to input location.
+        fps: Target FPS for video/GIF (e.g. 30).
+        bitrate: Audio bitrate (e.g. '192k', '320k').
+        md_pdf_mode: Markdown-to-PDF mode ('formatted' or 'raw').
+        strip_metadata: Strip EXIF/IPTC metadata from images.
+        ocr: Apply OCR on image/scanned PDF input.
+        stt: Perform Speech-to-Text on audio/video input.
+        model: Whisper model ('tiny'/'mini', 'base'/'standard', 'small'/'medium', 'large'/'turbo').
+        language: STT language code (e.g. 'en', 'es', 'zh', 'auto').
+        overwrite: Overwrite existing destination files.
+        use_cache: Use content-addressable cache to skip unchanged files.
+        dpi: DPI resolution for PDF-to-image conversion (e.g. 150, 300).
     """
     cleaned_input = os.path.expanduser(input_path)
     if not os.path.exists(cleaned_input):
@@ -264,7 +309,9 @@ def convergent_convert(
         bitrate_val = b_norm
 
     # Determine source format and gather original input set for safety
-    path_obj = Path(cleaned_input).resolve()
+    raw_input_path = Path(cleaned_input)
+    is_input_symlink = raw_input_path.is_symlink()
+    path_obj = raw_input_path.resolve()
     if path_obj.is_file():
         source_fmts = [path_obj.suffix.lstrip(".").upper()]
         original_inputs = {path_obj}
@@ -279,6 +326,7 @@ def convergent_convert(
     dest_target = None
     is_dest_dir = False
     temp_stage_dir = None
+    symlink_output_note = None
     if output_path:
         dest_target = Path(os.path.expanduser(output_path)).resolve()
         is_dest_dir = (
@@ -291,13 +339,24 @@ def convergent_convert(
         )
         if is_dest_dir:
             conv_output_dir = dest_target
+    elif is_input_symlink and path_obj.is_file() and raw_input_path.parent.resolve() != path_obj.parent.resolve():
+        conv_output_dir = raw_input_path.parent.resolve()
+        symlink_output_note = (
+            f"Input '{raw_input_path.name}' is a symlink; output was written next to the symlink in '{conv_output_dir}'."
+        )
 
     published_output_dir = dest_target if is_dest_dir else (path_obj if is_dir_input and not output_path else None)
-    manifest_dest_dir = (
-        published_output_dir
-        if (published_output_dir and published_output_dir.is_dir())
-        else (dest_target.parent if dest_target and dest_target.parent.is_dir() else path_obj.parent if path_obj.parent.is_dir() else Path(tempfile.gettempdir()))
-    )
+
+    def _resolve_manifest_dest_dir() -> Path:
+        if published_output_dir and published_output_dir.is_dir():
+            return published_output_dir
+        if dest_target and dest_target.parent.is_dir():
+            return dest_target.parent
+        if path_obj.parent.is_dir():
+            return path_obj.parent
+        return Path(tempfile.gettempdir())
+
+    manifest_dest_dir = _resolve_manifest_dest_dir()
 
     params_for_cache = {
         "target": target_fmt,
@@ -311,23 +370,6 @@ def convergent_convert(
         "language": language,
         "dpi": dpi,
     }
-
-    # If single file conversion targets a custom file path, check if already validly cached
-    if use_cache and not is_dest_dir and path_obj.is_file() and dest_target and dest_target.exists():
-        try:
-            cache_mgr = CacheManager()
-            is_valid, _ = cache_mgr.is_cached_valid(path_obj, dest_target, params_for_cache)
-            cache_mgr.close()
-            if is_valid:
-                return {
-                    "success": True,
-                    "count": 1,
-                    "converted_files": [str(dest_target)],
-                    "target_format": target_fmt,
-                    "cached": True,
-                }
-        except Exception:
-            pass
 
     if output_path and not is_dest_dir:
         if dest_target and original_inputs and (dest_target.resolve() in original_inputs):
@@ -348,6 +390,25 @@ def convergent_convert(
                 "failed_files": [],
                 "target_format": target_fmt,
             }
+
+    # If single file conversion targets a custom file path, check if already validly cached
+    if use_cache and not is_dest_dir and path_obj.is_file() and dest_target and dest_target.exists():
+        try:
+            cache_mgr = CacheManager()
+            is_valid, _ = cache_mgr.is_cached_valid(path_obj, dest_target, params_for_cache)
+            cache_mgr.close()
+            if is_valid:
+                return {
+                    "success": True,
+                    "count": 1,
+                    "converted_files": [str(dest_target)],
+                    "target_format": target_fmt,
+                    "cached": True,
+                }
+        except Exception:
+            pass
+
+    if output_path and not is_dest_dir:
         temp_stage_dir = tempfile.TemporaryDirectory()
         conv_output_dir = Path(temp_stage_dir.name)
 
@@ -426,6 +487,8 @@ def convergent_convert(
                     final_converted_list.append(str(target_loc))
             converted_list = final_converted_list
 
+        manifest_dest_dir = _resolve_manifest_dest_dir()
+
         if converted_list:
             is_all_cached = bool(converted_list) and bool(cached_out_list) and all(
                 str(Path(out_item).resolve()) in cached_out_list for out_item in converted_list
@@ -439,6 +502,17 @@ def convergent_convert(
             }
             if published_output_dir:
                 res["output_directory"] = str(published_output_dir)
+            if symlink_output_note:
+                res["note"] = symlink_output_note
+            if (
+                not is_dir_input
+                and not output_path
+                and not strip_metadata
+                and path_obj.is_file()
+                and len(converted_list) == 1
+                and Path(converted_list[0]).resolve() == path_obj.resolve()
+            ):
+                res["message"] = "Skipped (same format as input)."
 
             conv_files, conv_truncated, conv_manifest = _cap_list(converted_list, "converted", manifest_dest_dir)
             res["converted_files"] = conv_files
@@ -464,8 +538,12 @@ def convergent_convert(
                     res["skipped_manifest_path"] = sk_manifest
 
             if failed_details:
+                sanitized_partial = [
+                    {**item, "error": _sanitize_mcp_error(item["error"])} if isinstance(item, dict) and "error" in item else item
+                    for item in failed_details
+                ]
                 res["partial_success"] = True
-                fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
+                fail_items, fail_truncated, fail_manifest = _cap_list(sanitized_partial, "failed", manifest_dest_dir)
                 res["failed_files"] = fail_items
                 if fail_truncated:
                     res["failed_truncated"] = True
@@ -473,8 +551,20 @@ def convergent_convert(
                     res["failed_manifest_path"] = fail_manifest
             return res
         elif failed_details:
-            error_msg = failed_details[0]["error"] if failed_details else f"Conversion failed for: {input_path}"
-            fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
+            sanitized_failures = [
+                {**item, "error": _sanitize_mcp_error(item["error"])} if isinstance(item, dict) and "error" in item else item
+                for item in failed_details
+            ]
+            raw_err = sanitized_failures[0]["error"] if sanitized_failures else f"Conversion failed for: {input_path}"
+            if len(sanitized_failures) == 1 and not skipped_out_list:
+                fname = sanitized_failures[0].get("name") or Path(input_path).name
+                first_line = raw_err.splitlines()[0].strip() if raw_err else "Conversion failed."
+                if len(first_line) > 160:
+                    first_line = first_line[:157] + "..."
+                error_msg = f"Conversion failed for {fname}: {first_line}"
+            else:
+                error_msg = raw_err
+            fail_items, fail_truncated, fail_manifest = _cap_list(sanitized_failures, "failed", manifest_dest_dir)
             res_fail: Dict[str, Any] = {
                 "success": False,
                 "error": error_msg,
@@ -528,6 +618,7 @@ def convergent_convert(
                 res_empty["failed_manifest_path"] = fail_manifest
             return res_empty
     except Exception as e:
+        manifest_dest_dir = _resolve_manifest_dest_dir()
         fail_items, fail_truncated, fail_manifest = _cap_list(failed_details, "failed", manifest_dest_dir)
         res_exc: Dict[str, Any] = {
             "success": False,
@@ -548,7 +639,7 @@ def convergent_convert(
                 pass
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def pdf_to_images(
     pdf_path: str,
     target_format: str = "JPG",
@@ -557,18 +648,15 @@ def pdf_to_images(
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Convert a multi-page PDF into individual image files (one image per page).
-    Ideal for feeding visual model context page by page.
+    Convert a multi-page PDF into individual page images (returns 'images', 'count', 'truncated').
+    If > 25 pages, 'images' is truncated to 10 items with 'truncated': True and 'manifest_path'.
 
     Args:
-        pdf_path: Absolute or relative path to a single PDF file.
-        target_format: Output image extension ('JPG', 'PNG'). Default 'JPG'.
-        output_path: Optional destination directory or file path.
-        dpi: Quality DPI resolution (default 150).
-
-    Returns:
-        Dictionary with list of generated page image file paths ('images'), total count ('count'),
-        and optional 'manifest_path' if page count > 50 (with 'truncated': True).
+        pdf_path: Path to a single PDF file.
+        target_format: Output image format ('JPG', 'PNG', 'TIF', 'BMP'). Default 'JPG'.
+        output_path: Destination directory path (creates '<stem>_images/' inside).
+        dpi: DPI resolution (default 150).
+        overwrite: Overwrite existing destination directory. Default True.
     """
     full_path = os.path.expanduser(pdf_path)
     if not os.path.exists(full_path):
@@ -599,6 +687,30 @@ def pdf_to_images(
             "error": f"Unsupported target image format '{target_format}'. Supported formats: JPG, PNG, TIF, BMP",
             "images": [],
             "count": 0,
+            "truncated": False,
+        }
+
+    image_like_exts = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".gif"}
+    if output_path:
+        out_p = Path(os.path.expanduser(str(output_path))).resolve()
+        if not out_p.is_dir() and out_p.suffix.lower() in image_like_exts:
+            return {
+                "success": False,
+                "count": 0,
+                "images": [],
+                "error": f"pdf_to_images expects a directory path for output_path (each page is written as page_001.<ext>), but received file-like path: {output_path}",
+                "truncated": False,
+            }
+        target_images_dir = out_p / f"{path_obj.stem}_images"
+    else:
+        target_images_dir = path_obj.resolve().parent / f"{path_obj.stem}_images"
+
+    if not overwrite and (target_images_dir.exists() or target_images_dir.is_symlink()):
+        return {
+            "success": False,
+            "count": 0,
+            "images": [],
+            "error": f"Destination already exists: {target_images_dir}. Choose another output path or set overwrite=True.",
             "truncated": False,
         }
 
@@ -643,8 +755,14 @@ def pdf_to_images(
             "truncated": False,
         }
 
-    is_truncated = total_count > 50
-    returned_images = image_files[:50] if is_truncated else image_files
+    manifest_dest = (
+        Path(output_path).resolve()
+        if output_path and Path(output_path).is_dir()
+        else path_obj.parent
+        if path_obj.parent.is_dir()
+        else Path(tempfile.gettempdir())
+    )
+    returned_images, is_truncated, manifest_path = _cap_list(image_files, "pdf_pages", manifest_dest)
 
     result: Dict[str, Any] = {
         "success": True,
@@ -653,22 +771,13 @@ def pdf_to_images(
         "truncated": is_truncated,
         "error": None,
     }
-    if is_truncated:
-        manifest_dest = (
-            Path(output_path).resolve()
-            if output_path and Path(output_path).is_dir()
-            else path_obj.parent
-            if path_obj.parent.is_dir()
-            else Path(tempfile.gettempdir())
-        )
-        manifest_path = _write_manifest_durable(image_files, "pdf_pages", manifest_dest)
-        if manifest_path:
-            result["manifest_path"] = manifest_path
+    if manifest_path:
+        result["manifest_path"] = manifest_path
 
     return result
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def extract_audio(
     video_path: str,
     target_format: str = "MP3",
@@ -677,17 +786,14 @@ def extract_audio(
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Extract audio track from a video file. Useful for pre-processing video for audio transcription.
+    Extract audio track from a video file.
 
     Args:
-        video_path: Absolute or relative path to video file.
-        target_format: Target audio format ('MP3', 'WAV', 'AAC', 'FLAC', 'M4A'). Default 'MP3'.
-        output_path: Optional output file or directory path.
+        video_path: Path to video file.
+        target_format: Audio format ('MP3', 'WAV', 'AAC', 'FLAC', 'M4A', 'OGG'). Default 'MP3'.
+        output_path: Output file or directory path.
         bitrate: Audio bitrate (e.g. '128k', '192k', '320k'). Default '192k'.
-        overwrite: If True, overwrites destination file if it exists. Default True.
-
-    Returns:
-        Dictionary containing path to extracted audio file.
+        overwrite: Overwrite existing destination file. Default True.
     """
     full_path = os.path.expanduser(video_path)
     if not os.path.exists(full_path):
@@ -711,7 +817,7 @@ def extract_audio(
     return res
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def perform_ocr(
     input_path: str,
     target_format: str = "TXT",
@@ -720,17 +826,14 @@ def perform_ocr(
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Perform Optical Character Recognition (OCR) on an image or scanned PDF document to extract text.
+    Perform OCR on an image, scanned PDF, or directory of images/PDFs to extract text.
 
     Args:
-        input_path: Path to image or scanned PDF file.
-        target_format: Output text format ('TXT', 'MD', 'DOCX'). Default 'TXT'.
-        output_path: Optional output file or directory path.
-        preview_length: Maximum characters to return in preview snippet (default 500).
-        overwrite: If True, overwrites destination file if it exists. Default True.
-
-    Returns:
-        Dictionary with status, extracted file paths, and extracted text snippet if available.
+        input_path: Path to image, scanned PDF, or directory.
+        target_format: Output format ('TXT', 'MD', 'DOCX', 'PDF'). Default 'TXT'.
+        output_path: Output file or directory path.
+        preview_length: Max characters in 'extracted_text_preview' (default 500).
+        overwrite: Overwrite existing destination file. Default True.
     """
     full_path = os.path.expanduser(input_path)
     if not os.path.exists(full_path):
@@ -778,18 +881,44 @@ def perform_ocr(
     converted_files = res.get("converted_files", [])
     safe_preview_len = max(0, int(preview_length)) if preview_length is not None else 500
 
-    if target_upper in ("TXT", "MD"):
-        if converted_files and os.path.exists(converted_files[0]):
-            try:
-                with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
-                    full_text = f.read()
-                    res["total_characters"] = len(full_text)
-                    if len(full_text) > safe_preview_len:
-                        extracted_text = full_text[:safe_preview_len] + f"\n... [truncated, {len(full_text)} total characters]"
-                    else:
-                        extracted_text = full_text
-            except Exception:
-                pass
+    if target_upper in ("TXT", "MD") and converted_files:
+        if len(converted_files) == 1:
+            if os.path.exists(converted_files[0]):
+                try:
+                    with open(converted_files[0], "r", encoding="utf-8", errors="ignore") as f:
+                        full_text = f.read()
+                        res["total_characters"] = len(full_text)
+                        if len(full_text) > safe_preview_len:
+                            extracted_text = full_text[:safe_preview_len] + f"\n... [truncated, {len(full_text)} total characters]"
+                        else:
+                            extracted_text = full_text
+                except Exception:
+                    pass
+        else:
+            total_chars = 0
+            snippets = []
+            readable_count = 0
+            for cf in converted_files:
+                if not os.path.exists(cf):
+                    continue
+                try:
+                    with open(cf, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
+                    readable_count += 1
+                    total_chars += len(text)
+                    snippets.append(f"=== {Path(cf).name} ===\n{text}")
+                except Exception:
+                    pass
+            if readable_count > 0:
+                res["total_characters"] = total_chars
+                combined = "\n\n".join(snippets)
+                if len(combined) > safe_preview_len:
+                    extracted_text = (
+                        combined[:safe_preview_len]
+                        + f"\n... [truncated, {total_chars} total characters across {readable_count} files]"
+                    )
+                else:
+                    extracted_text = combined
     elif target_upper == "DOCX" and res.get("success", False):
         res["total_characters"] = None
         extracted_text = "[Text extracted and saved to DOCX document]"
@@ -800,7 +929,7 @@ def perform_ocr(
     return res
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def perform_stt(
     input_path: str,
     target_format: str = "TXT",
@@ -811,19 +940,16 @@ def perform_stt(
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Perform Speech-to-Text (STT) transcription on an audio or video file to extract text or generate subtitles.
+    Transcribe speech from an audio or video file into text or subtitles.
 
     Args:
-        input_path: Path to audio (MP3, WAV, M4A, FLAC, AAC, OGG) or video (MP4, MOV, MKV, etc.) file.
-        target_format: Output text/subtitle format ('TXT', 'SRT', 'VTT', 'MD'). Default 'TXT'.
-        output_path: Optional output file or directory path.
-        model: Whisper model size ('standard' / 'base', 'mini' / 'tiny', 'medium' / 'small', 'large' / 'turbo'). Default 'base'.
-        language: Language code (e.g. 'en', 'es', 'zh', 'auto'). Default None ('auto').
-        preview_length: Maximum characters to return in transcript preview snippet (default 500).
-        overwrite: If True, overwrites destination file if it exists. Default True.
-
-    Returns:
-        Dictionary with status, extracted file paths, transcript preview snippet, and model metadata.
+        input_path: Path to audio (MP3, WAV, M4A, FLAC, AAC, OGG) or video (MP4, MOV, MKV, AVI, WEBM) file.
+        target_format: Output format ('TXT', 'SRT', 'VTT', 'MD'). Default 'TXT'.
+        output_path: Output file or directory path.
+        model: Whisper model ('tiny'/'mini', 'base'/'standard', 'small'/'medium', 'large'/'turbo'). Default 'base'.
+        language: Language code (e.g. 'en', 'es', 'zh', 'auto').
+        preview_length: Max characters in 'extracted_text_preview' (default 500).
+        overwrite: Overwrite existing destination file. Default True.
     """
     full_path = os.path.expanduser(input_path)
     if not os.path.exists(full_path):
@@ -883,6 +1009,8 @@ def perform_stt(
         res["model_used"] = None
         res["model_requested"] = model
         res["model_resolved"] = resolved_model
+        if isinstance(res.get("error"), str):
+            res["error"] = _sanitize_mcp_error(res["error"])
     if warning:
         res["warning"] = warning
 
@@ -907,23 +1035,20 @@ def perform_stt(
     return res
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def combine_files(
     file_paths: List[str],
     output_path: Optional[str] = None,
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Combine multiple PDF, video, audio, GIF, or document files into a single merged file non-interactively.
-    Note: When combining mixed-resolution or mixed-format videos, clips are normalized to standard 1080p canvas at 30 FPS to ensure valid stream concatenation.
+    Combine multiple PDF, video, audio, GIF, TXT, DOCX, or PPTX files into one file.
+    DOCX/PPTX inputs are converted to PDF and merged into a '.pdf' output; mixed videos normalize to 1080p 30fps.
 
     Args:
-        file_paths: List of file paths to combine (must all share compatible file types).
-        output_path: Optional destination file or directory path.
-        overwrite: If True, overwrites destination file if it exists. Default True.
-
-    Returns:
-        Dictionary with status and path to combined output file.
+        file_paths: List of compatible file paths to combine.
+        output_path: Destination file or directory path.
+        overwrite: Overwrite existing destination file. Default True.
     """
     if not file_paths:
         return {"success": False, "error": "No valid existing files provided to combine."}
@@ -1005,6 +1130,15 @@ def combine_files(
             )
             target_check = out_p_resolved / default_name
         else:
+            if (first_ext in pdf_exts or first_ext in docx_exts or first_ext in pptx_exts) and out_p_resolved.suffix.lower() != ".pdf":
+                got_ext = out_p_resolved.suffix.lower() or "<no extension>"
+                return {
+                    "success": False,
+                    "error": (
+                        f"Combining {group_name} files outputs a PDF document, so output_path must end with '.pdf' "
+                        f"(got '{got_ext}' in '{output_path}'). Provide a '.pdf' filename or a directory path."
+                    ),
+                }
             target_check = out_p_resolved
 
         if (target_check.exists() or target_check.is_symlink()) and not overwrite:
@@ -1040,41 +1174,38 @@ def combine_files(
             error_detail = LAST_COMBINE_ERROR.strip() if LAST_COMBINE_ERROR else "Check file compatibility and dependencies (ghostscript, ffmpeg, libreoffice)."
             return {
                 "success": False,
-                "error": f"Failed to combine files: {error_detail}",
+                "error": _sanitize_mcp_error(f"Failed to combine files: {error_detail}"),
             }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def split_file(
     file_path: str,
-    mode: str = "auto",
+    mode: Literal["auto", "pages", "interval", "ranges", "parts", "frames"] = "auto",
     interval: Optional[float] = None,
     ranges: Optional[str] = None,
     num_parts: Optional[int] = None,
     frame_format: str = "png",
     output_dir: Optional[str] = None,
     accurate: bool = False,
+    overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Split a PDF, video, audio, GIF, or document into individual pages, segments, frames, or parts non-interactively.
-    Note: When splitting document formats such as DOCX or PPTX, Convergent converts document to PDF first and outputs individual PDF pages.
+    Split a PDF, video, audio, GIF, DOCX, or PPTX into pages, segments, frames, or parts.
+    DOCX/PPTX inputs convert to PDF first and output PDF pages. If > 25 items, 'split_files' is truncated to 10 with 'truncated': True and 'manifest_path'.
 
     Args:
         file_path: Path to file to split.
-        mode: Split mode ('auto', 'pages', 'interval', 'ranges', 'parts', 'frames').
-              Defaults to 'auto', which automatically chooses 'pages' for PDF/documents,
-              'interval' for video/audio, and 'frames' for GIF.
-        interval: Interval in seconds for video/audio/GIF interval split (e.g. 30, 60).
-        ranges: Page or time ranges string (e.g. '1-3,4-8' for PDF, '00:00:00-00:01:00,00:02:00-00:03:00' for video).
-        num_parts: Total number of parts to split into equally.
-        frame_format: Image format for GIF frame extraction ('png', 'jpg'). Default 'png'.
-        output_dir: Optional target directory path to save split files.
-        accurate: If True, performs frame-accurate video splitting by re-encoding rather than fast keyframe stream copy. Default False.
-
-    Returns:
-        Dictionary with status, output directory, and list of generated files.
+        mode: Split mode ('auto', 'pages', 'interval', 'ranges', 'parts', 'frames'). 'auto' selects 'pages' for docs, 'interval' for media, 'frames' for GIF.
+        interval: Interval in seconds for media/GIF interval split.
+        ranges: Page or time ranges (e.g. '1-3,4-8' or '00:00:00-00:01:00').
+        num_parts: Number of equal parts to split into.
+        frame_format: Image format for GIF frames ('png', 'jpg'). Default 'png'.
+        output_dir: Target directory for split files.
+        accurate: Re-encode for frame-accurate video splitting instead of fast keyframe copy. Default False.
+        overwrite: Remove stale split files in the output directory. Default True.
     """
     full_path = os.path.expanduser(file_path)
     if not os.path.exists(full_path):
@@ -1101,7 +1232,7 @@ def split_file(
         except (ValueError, TypeError):
             return {"success": False, "error": f"Invalid interval: {interval}."}
 
-    from modules.split import reset_split_diagnostics, get_split_failed_parts
+    from modules.split import reset_split_diagnostics, get_split_failed_parts, get_split_generated_files
     reset_split_diagnostics()
 
     warnings = []
@@ -1183,11 +1314,11 @@ def split_file(
         target_dir = Path(os.path.expanduser(output_dir)).resolve() if output_dir else None
         pre_existing = {}
         if target_dir and target_dir.exists():
-            pre_existing = {f.resolve(): f.stat().st_mtime for f in target_dir.iterdir() if f.is_file()}
+            pre_existing = {f.resolve(): f.stat().st_mtime_ns for f in target_dir.iterdir() if f.is_file()}
         else:
             default_dir = Path(full_path).parent / f"{Path(full_path).stem}_split"
             if default_dir.exists():
-                pre_existing = {f.resolve(): f.stat().st_mtime for f in default_dir.iterdir() if f.is_file()}
+                pre_existing = {f.resolve(): f.stat().st_mtime_ns for f in default_dir.iterdir() if f.is_file()}
 
         out_dir = None
         if ext == ".pdf":
@@ -1207,14 +1338,38 @@ def split_file(
 
         if out_dir and Path(out_dir).exists():
             out_path_obj = Path(out_dir)
-            all_files = [f for f in sorted(out_path_obj.iterdir(), key=natural_sort_key) if f.is_file()]
-            new_files = [str(f) for f in all_files if f.resolve() not in pre_existing or f.stat().st_mtime > pre_existing[f.resolve()]]
-            files = new_files if new_files else [str(f) for f in all_files]
+            recorded_files = [
+                Path(p) for p in get_split_generated_files()
+                if Path(p).exists() and Path(p).is_file()
+            ]
+            if recorded_files:
+                current_resolved = {p.resolve() for p in recorded_files}
+                files = [str(p) for p in sorted(recorded_files, key=natural_sort_key)]
+            else:
+                all_files = [f for f in sorted(out_path_obj.iterdir(), key=natural_sort_key) if f.is_file()]
+                new_files = [str(f) for f in all_files if f.resolve() not in pre_existing or f.stat().st_mtime_ns > pre_existing[f.resolve()]]
+                files = new_files if new_files else [str(f) for f in all_files]
+                current_resolved = {Path(p).resolve() for p in files} if new_files else set()
+
+            if overwrite and current_resolved:
+                for existing_f in out_path_obj.iterdir():
+                    if not existing_f.is_file():
+                        continue
+                    is_split_pattern = (
+                        existing_f.name.startswith("part_")
+                        or (existing_f.name.startswith("page_") and existing_f.suffix.lower() == ".pdf")
+                        or existing_f.name.startswith("frame_")
+                    )
+                    if is_split_pattern and existing_f.resolve() not in current_resolved:
+                        try:
+                            existing_f.unlink()
+                        except OSError:
+                            pass
             total_count = len(files)
             if total_count == 0:
                 return {"success": False, "error": f"No split files were generated from {file_path}."}
 
-            capped_files, is_truncated, manifest_path = _cap_list(files, "split", out_path_obj, limit=50, sample_size=50)
+            capped_files, is_truncated, manifest_path = _cap_list(files, "split", out_path_obj)
             res_dict = {
                 "success": True,
                 "output_dir": str(out_path_obj),
@@ -1251,7 +1406,7 @@ def split_file(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def compress_files(
     file_paths: List[str],
     output_name: str = "archive.zip",
@@ -1264,13 +1419,10 @@ def compress_files(
 
     Args:
         file_paths: List of file or folder paths to compress.
-        output_name: Name of resulting archive file (e.g. 'archive.zip', 'backup.tar.gz').
+        output_name: Resulting archive filename (e.g. 'archive.zip', 'backup.tar.gz').
         format: Archive format ('ZIP', 'TAR.GZ', 'TAR.BZ2', 'TAR.XZ', '7Z', 'RAR'). Default 'ZIP'.
-        password: Optional encryption password for ZIP or 7Z archives.
-        output_dir: Optional destination directory for archive.
-
-    Returns:
-        Dictionary with status and output archive path.
+        password: Optional encryption password for ZIP, 7Z, or RAR archives.
+        output_dir: Destination directory for archive.
     """
     if not file_paths:
         return {"success": False, "error": "No valid existing files provided to compress."}
@@ -1322,22 +1474,19 @@ def compress_files(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def decompress_archive(
     archive_path: str,
     output_dir: Optional[str] = None,
     password: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Decompress/extract an archive file (ZIP, TAR.GZ, TGZ, TAR.BZ2, TAR.XZ, 7Z, RAR).
+    Extract an archive file (ZIP, TAR.GZ, TGZ, TAR.BZ2, TAR.XZ, 7Z, RAR).
 
     Args:
         archive_path: Path to archive file to extract.
-        output_dir: Optional target directory to extract files into. Defaults to a folder named after archive stem.
-        password: Optional password for extracting password-protected ZIP, 7Z, or RAR archives.
-
-    Returns:
-        Dictionary with status, output directory, and extracted file count.
+        output_dir: Target directory for extracted files. Defaults to archive stem folder.
+        password: Optional password for encrypted ZIP, 7Z, or RAR archives.
     """
     full_path = os.path.expanduser(archive_path)
     if not os.path.exists(full_path):
@@ -1360,8 +1509,10 @@ def decompress_archive(
     except Exception:
         archive_member_count = None
 
+    from modules.decompress import archive_stem
+
     start_decompress = time.time()
-    dest_path_obj = Path(os.path.expanduser(output_dir)).resolve() if output_dir else Path(full_path).parent / Path(full_path).stem
+    dest_path_obj = Path(os.path.expanduser(output_dir)).resolve() if output_dir else Path(full_path).parent / archive_stem(Path(full_path))
     pre_existing_extracted = {}
     if dest_path_obj.exists():
         pre_existing_extracted = {f.resolve(): f.stat().st_mtime for f in dest_path_obj.rglob("*") if f.is_file()}
@@ -1397,53 +1548,55 @@ def decompress_archive(
         return {"success": False, "error": str(e)}
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def resize_media(
     file_path: str,
     width: Optional[int] = None,
     height: Optional[int] = None,
     scale_percent: Optional[float] = None,
-    aspect_ratio: Optional[str] = None,
+    aspect_ratio: Optional[Literal["16:9", "4:3", "1:1", "9:16"]] = None,
     fps: Optional[Union[int, float]] = None,
     output_path: Optional[str] = None,
     strip_metadata: bool = False,
     overwrite: bool = True,
 ) -> Dict[str, Any]:
     """
-    Resize, rescale, crop to aspect ratio, or strip metadata from images (JPG, PNG, HEIC), video (MP4, MOV), or documents (PDF).
+    Resize, rescale, crop to aspect ratio, or strip metadata from images (JPG, PNG, HEIC, WEBP, etc.), video (MP4, MOV, AVI, MKV, WEBM), or PDF.
 
     Args:
-        file_path: Path to image, video (MP4, MOV), or PDF file.
-        width: Optional target width in pixels. If height is also provided, resizes to exact (width, height).
-        height: Optional target height in pixels. If width is omitted, scales proportionally to height.
-        scale_percent: Optional percentage scaling (e.g. 50 for 50%, 200 for 200%).
-        aspect_ratio: Optional aspect ratio crop ('16:9', '4:3', '1:1', '9:16').
-        fps: Optional target frames per second for video.
-        output_path: Optional output file or directory path.
-        strip_metadata: If True, strips EXIF/IPTC metadata. Default False.
-        overwrite: If True, overwrites destination file if it exists. Default True.
-
-    Returns:
-        Dictionary with status, output file path, and duration.
+        file_path: Path to image, video (MP4, MOV, AVI, MKV, WEBM), or PDF file.
+        width: Target width in pixels (exact if height is also set, else proportional).
+        height: Target height in pixels (proportional if width is omitted).
+        scale_percent: Percentage scale (e.g. 50 for 50%, 200 for 200%).
+        aspect_ratio: Aspect ratio crop ('16:9', '4:3', '1:1', '9:16').
+        fps: Target FPS for video files.
+        output_path: Output file or directory path.
+        strip_metadata: Strip EXIF/IPTC metadata. Default False.
+        overwrite: Overwrite existing destination file. Default True.
     """
-    from modules.resize import resize_single_file
+    from modules.resize import SUPPORTED_RESIZE_EXTS, VIDEO_EXTS, resize_single_file
     full_path = Path(os.path.expanduser(file_path)).resolve()
     if not full_path.exists():
         return {"success": False, "error": f"File not found: {file_path}"}
 
-    if output_path:
-        out_p = Path(os.path.expanduser(str(output_path))).resolve()
-        if out_p.is_dir() or str(output_path).endswith(os.sep) or str(output_path).endswith("/"):
-            expected_dest = out_p / f"{full_path.stem}_resized{full_path.suffix}"
-        else:
-            expected_dest = out_p
-    else:
-        expected_dest = full_path.parent / f"{full_path.stem}_resized{full_path.suffix}"
-
-    if (expected_dest.exists() or expected_dest.is_symlink()) and not overwrite:
+    ext = full_path.suffix.lower()
+    if ext not in SUPPORTED_RESIZE_EXTS:
         return {
             "success": False,
-            "error": f"Destination already exists: {expected_dest}. Choose another output path or set overwrite=True.",
+            "error": f"Unsupported file format for resize: '{full_path.suffix or full_path.name}'. Supported formats: images, videos ({', '.join(sorted(VIDEO_EXTS))}), and PDF (.pdf).",
+        }
+
+    if (
+        width is None
+        and height is None
+        and scale_percent is None
+        and aspect_ratio is None
+        and fps is None
+        and not strip_metadata
+    ):
+        return {
+            "success": False,
+            "error": "No operation specified. Provide at least one of: width, height, scale_percent, aspect_ratio, fps, or strip_metadata=True.",
         }
 
     if width is not None:
@@ -1467,8 +1620,31 @@ def resize_media(
                 return {"success": False, "error": f"Invalid scale_percent: {scale_percent}. Must be greater than 0."}
         except (ValueError, TypeError):
             return {"success": False, "error": f"Invalid scale_percent: {scale_percent}."}
-    if aspect_ratio is not None and aspect_ratio not in ("16:9", "4:3", "1:1", "9:16", "5"):
+    if aspect_ratio is not None and aspect_ratio not in ("16:9", "4:3", "1:1", "9:16"):
         return {"success": False, "error": f"Unsupported aspect ratio: {aspect_ratio}. Allowed: '16:9', '4:3', '1:1', '9:16'"}
+    if fps is not None:
+        if isinstance(fps, bool) or not isinstance(fps, (int, float)) or not math.isfinite(fps) or fps <= 0:
+            return {"success": False, "error": f"Invalid fps: {fps}. FPS must be a finite number greater than 0."}
+        if ext not in VIDEO_EXTS:
+            return {
+                "success": False,
+                "error": f"fps is only supported for video files ({', '.join(sorted(VIDEO_EXTS))}), not '{full_path.suffix or full_path.name}'.",
+            }
+
+    if output_path:
+        out_p = Path(os.path.expanduser(str(output_path))).resolve()
+        if out_p.is_dir() or str(output_path).endswith(os.sep) or str(output_path).endswith("/"):
+            expected_dest = out_p / f"{full_path.stem}_resized{full_path.suffix}"
+        else:
+            expected_dest = out_p
+    else:
+        expected_dest = full_path.parent / f"{full_path.stem}_resized{full_path.suffix}"
+
+    if (expected_dest.exists() or expected_dest.is_symlink()) and not overwrite:
+        return {
+            "success": False,
+            "error": f"Destination already exists: {expected_dest}. Choose another output path or set overwrite=True.",
+        }
 
     if width is not None and height is not None:
         method = '3'
@@ -1515,26 +1691,23 @@ def resize_media(
         else:
             return {
                 "success": False,
-                "error": error or "Resize operation failed.",
+                "error": _sanitize_mcp_error(error) if error else "Resize operation failed.",
             }
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": _sanitize_mcp_error(str(e))}
 
 
-@mcp.tool()
+@mcp.tool(structured_output=False)
 def list_supported_formats(
     category: Optional[str] = None,
     source_format: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    List supported source formats and available conversion targets in Convergent.
+    List supported source formats and valid conversion targets.
 
     Args:
         category: Optional category filter ('image', 'video', 'audio', 'document').
         source_format: Optional source format filter (e.g. 'PNG', 'PDF', 'MP4').
-
-    Returns:
-        Dictionary mapping input extension to list of valid target output extensions, with optional filtering.
     """
     from customs.file_process import normalize_format_alias
 
@@ -1547,44 +1720,52 @@ def list_supported_formats(
     }
 
     formats = dict(conv.formats)
-    if source_format:
-        sf_upper = normalize_format_alias(source_format.upper().lstrip("."))
-        if sf_upper in formats:
-            return {
-                "source_format": sf_upper,
-                "target_formats": formats[sf_upper],
-            }
-        else:
-            return {
-                "error": f"Format '{source_format}' is not a recognized source format.",
-                "available_formats": sorted(list(formats.keys())),
-            }
-
+    cat_key = None
+    cat_formats = None
     if category:
         cat_key = category.lower().strip()
         cat_key = cat_name_map.get(cat_key, cat_key)
         cat_formats = semantic_categories.get(cat_key)
-        if cat_formats:
-            filtered_mapping = {k: v for k, v in formats.items() if k in cat_formats}
+        if not cat_formats:
             return {
-                "category": cat_key,
-                "source_formats": sorted(list(filtered_mapping.keys())),
-                "format_mapping": filtered_mapping,
-            }
-        else:
-            return {
+                "success": False,
                 "error": f"Category '{category}' not recognized. Available categories: {', '.join(semantic_categories.keys())}",
             }
 
-    category_aliases = {"2": "image", "3": "video", "4": "audio", "5": "document"}
-    categories_output = {
-        **category_aliases,
-        **semantic_categories,
-    }
+    if source_format:
+        sf_upper = normalize_format_alias(source_format.upper().lstrip("."))
+        if sf_upper not in formats:
+            return {
+                "success": False,
+                "error": f"Format '{source_format}' is not a recognized source format.",
+                "available_formats": sorted(list(formats.keys())),
+            }
+        if cat_formats is not None and sf_upper not in cat_formats:
+            return {
+                "success": False,
+                "error": f"Source format '{sf_upper}' does not belong to category '{cat_key}'.",
+                "category": cat_key,
+                "category_formats": cat_formats,
+            }
+        result: Dict[str, Any] = {
+            "source_format": sf_upper,
+            "target_formats": formats[sf_upper],
+        }
+        if cat_key is not None:
+            result["category"] = cat_key
+        return result
+
+    if cat_formats is not None:
+        filtered_mapping = {k: v for k, v in formats.items() if k in cat_formats}
+        return {
+            "category": cat_key,
+            "source_formats": sorted(list(filtered_mapping.keys())),
+            "format_mapping": filtered_mapping,
+        }
 
     return {
         "source_formats": conv.source_formats,
-        "categories": categories_output,
+        "categories": semantic_categories,
         "format_mapping": formats,
     }
 

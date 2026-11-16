@@ -43,7 +43,8 @@ class TestMCPServer(unittest.TestCase):
         self.assertIn("format_mapping", res)
         self.assertIn("JPG", res["source_formats"])
         self.assertIn("PNG", res["format_mapping"]["JPG"])
-        self.assertIn("2", res["categories"])  # Image category
+        self.assertIn("image", res["categories"])
+        self.assertNotIn("2", res["categories"])
 
     def test_convergent_convert_nonexistent_file(self):
         res = convergent_convert(
@@ -581,7 +582,7 @@ class TestMCPServer(unittest.TestCase):
             self.assertTrue(res["success"])
             self.assertEqual(res["count"], 60)
             self.assertTrue(res["truncated"])
-            self.assertEqual(len(res["images"]), 50)
+            self.assertEqual(len(res["images"]), 10)
             # Verify natural sorting (page_2 comes before page_10)
             self.assertTrue(res["images"][0].endswith("page_1.jpg"))
             self.assertTrue(res["images"][1].endswith("page_2.jpg"))
@@ -658,6 +659,456 @@ class TestMCPServer(unittest.TestCase):
                 # conv.process should NOT have been called because cache hit directly!
                 self.assertFalse(mock_proc2.called)
 
+    def test_ocr_tesseract_and_gs_use_resolved_paths(self):
+        from modules import ocr
+
+        real_dir = self.dir_path / "real_dir"
+        real_dir.mkdir()
+        link_dir = self.dir_path / "link_dir"
+        link_dir.symlink_to(real_dir)
+
+        img = link_dir / "scan.png"
+        img.write_bytes(b"fake png")
+
+        with patch("modules.ocr.shutil.which", side_effect=lambda cmd: "/usr/bin/tesseract" if cmd == "tesseract" else None), \
+             patch("modules.ocr.run_command_output", return_value=(0, "hello", "")) as mock_cmd:
+            text = ocr._ocr_tesseract(img)
+            self.assertEqual(text, "hello")
+            called_args = mock_cmd.call_args[0][0]
+            self.assertEqual(called_args[1], str(img.resolve()))
+
+        pdf_file = link_dir / "doc.pdf"
+        pdf_file.write_bytes(b"%PDF-1.4\n")
+        temp_sub = real_dir / "gs_tmp"
+        temp_sub.mkdir()
+        temp_link = link_dir / "gs_tmp_link"
+        temp_link.symlink_to(temp_sub)
+
+        def fake_gs(cmd, *args, **kwargs):
+            (temp_sub / "page_0001.png").write_bytes(b"png")
+            return True, ""
+
+        with patch("modules.ocr.tempfile.mkdtemp", return_value=str(temp_link)), \
+             patch("modules.ocr.shutil.which", side_effect=lambda cmd: "/usr/bin/gs" if cmd == "gs" else None), \
+             patch("modules.ocr.run_command", side_effect=fake_gs) as mock_gs:
+            _, pngs = ocr._convert_pdf_to_temp_images(pdf_file)
+            self.assertEqual(len(pngs), 1)
+            gs_cmd = mock_gs.call_args[0][0]
+            resolved_tmp = str(temp_link.resolve())
+            self.assertIn(f"--permit-file-write={resolved_tmp}/*", gs_cmd)
+            self.assertIn(f"-sOUTPUTFILE={resolved_tmp}/page_%04d.png", gs_cmd)
+
+    def test_sips_zero_byte_skipped_output_reports_failure(self):
+        from modules import image
+
+        empty_jpg = self.dir_path / "empty.jpg"
+        empty_jpg.write_bytes(b"")
+
+        with patch("modules.image.sys.platform", "darwin"), \
+             patch("modules.image.shutil.which", side_effect=lambda cmd: "/usr/bin/sips" if cmd == "sips" else None), \
+             patch("modules.image.run_command", return_value=(True, "")):
+            ok, err = image.convert_image(empty_jpg, "PNG")
+            self.assertFalse(ok)
+            self.assertTrue(len(err) > 0)
+
+            empty_heic = self.dir_path / "empty.heic"
+            empty_heic.write_bytes(b"")
+            ok_heic, err_heic = image.convert_heic(empty_heic, "JPG")
+            self.assertFalse(ok_heic)
+            self.assertTrue(len(err_heic) > 0)
+
+    def test_convergent_convert_cache_respects_overwrite_false(self):
+        test_db = self.dir_path / "test_cache_overwrite.sqlite"
+        src = self.dir_path / "source.txt"
+        src.write_text("hello cache overwrite", encoding="utf-8")
+        custom_out = self.dir_path / "out.md"
+
+        with patch("customs.cache.CACHE_DB_PATH", test_db):
+            with patch("mcp_server.server.conv.process") as mock_proc:
+                def fake_proc(*args, **kwargs):
+                    default_file = self.dir_path / "source.md"
+                    default_file.write_text("converted md", encoding="utf-8")
+                    return [default_file]
+                mock_proc.side_effect = fake_proc
+
+                res1 = convergent_convert(
+                    input_path=str(src),
+                    target_format="MD",
+                    output_path=str(custom_out),
+                    overwrite=True,
+                    use_cache=True,
+                )
+                self.assertTrue(res1["success"])
+                self.assertTrue(custom_out.exists())
+
+            # Calling again with overwrite=False must NOT bypass the check via cache
+            res2 = convergent_convert(
+                input_path=str(src),
+                target_format="MD",
+                output_path=str(custom_out),
+                overwrite=False,
+                use_cache=True,
+            )
+            self.assertFalse(res2["success"])
+            self.assertIn("Destination already exists", res2["error"])
+
+    def test_combine_files_rejects_non_pdf_output_for_pdf_docx_pptx(self):
+        d1 = self.dir_path / "a.docx"
+        d2 = self.dir_path / "b.docx"
+        d1.write_bytes(b"docx1")
+        d2.write_bytes(b"docx2")
+        res_docx = combine_files(file_paths=[str(d1), str(d2)], output_path=str(self.dir_path / "merged.docx"))
+        self.assertFalse(res_docx["success"])
+        self.assertIn(".pdf", res_docx["error"])
+
+        p1 = self.dir_path / "a.pptx"
+        p2 = self.dir_path / "b.pptx"
+        p1.write_bytes(b"pptx1")
+        p2.write_bytes(b"pptx2")
+        res_pptx = combine_files(file_paths=[str(p1), str(p2)], output_path=str(self.dir_path / "merged.pptx"))
+        self.assertFalse(res_pptx["success"])
+        self.assertIn(".pdf", res_pptx["error"])
+
+        pdf1 = self.dir_path / "a.pdf"
+        pdf2 = self.dir_path / "b.pdf"
+        pdf1.write_bytes(b"%PDF-1.4\n")
+        pdf2.write_bytes(b"%PDF-1.4\n")
+        res_noext = combine_files(file_paths=[str(pdf1), str(pdf2)], output_path=str(self.dir_path / "merged"))
+        self.assertFalse(res_noext["success"])
+        self.assertIn(".pdf", res_noext["error"])
+
+    def test_resize_media_validation_and_extensions(self):
+        img = self.dir_path / "photo.jpg"
+        img.write_bytes(b"jpg")
+        pdf = self.dir_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+        txt = self.dir_path / "note.txt"
+        txt.write_text("hello", encoding="utf-8")
+        svg = self.dir_path / "icon.svg"
+        svg.write_text("<svg/>", encoding="utf-8")
+        mp3 = self.dir_path / "audio.mp3"
+        mp3.write_bytes(b"mp3")
+
+        # 1. Reject internal CLI code aspect_ratio="5"
+        res_ar5 = resize_media(file_path=str(img), width=100, aspect_ratio="5")
+        self.assertFalse(res_ar5["success"])
+        self.assertIn("aspect ratio", res_ar5["error"].lower())
+
+        # 2. Reject invalid fps (<= 0, bool, non-numeric)
+        for bad_fps in (0, -24, True, "30"):
+            vid = self.dir_path / "clip.mp4"
+            vid.write_bytes(b"mp4")
+            res_fps = resize_media(file_path=str(vid), fps=bad_fps)
+            self.assertFalse(res_fps["success"], f"Expected failure for fps={bad_fps!r}")
+            self.assertIn("fps", res_fps["error"].lower())
+
+        # 3. Reject fps on non-video files
+        for non_vid in (img, pdf):
+            res_nonvid_fps = resize_media(file_path=str(non_vid), width=100, fps=30)
+            self.assertFalse(res_nonvid_fps["success"])
+            self.assertIn("video", res_nonvid_fps["error"].lower())
+
+        # 4. Reject pure no-op calls
+        res_noop = resize_media(file_path=str(img))
+        self.assertFalse(res_noop["success"])
+        self.assertIn("no operation", res_noop["error"].lower())
+
+        # 5. Reject unsupported extensions with explicit error
+        for bad_file in (txt, svg, mp3):
+            res_unsup = resize_media(file_path=str(bad_file), width=100)
+            self.assertFalse(res_unsup["success"])
+            self.assertIn("unsupported file format", res_unsup["error"].lower())
+
+        # 6. Accept expanded video extensions (.avi, .mkv, .webm)
+        for ext in (".avi", ".mkv", ".webm"):
+            v = self.dir_path / f"sample{ext}"
+            v.write_bytes(b"video")
+            with patch("modules.resize.resize_single_file", return_value=(v.name, True, "", 0.05)):
+                res_v = resize_media(file_path=str(v), fps=24)
+                self.assertTrue(res_v["success"], f"Expected success for {ext}: {res_v}")
+
+        # 7. Verify resize_single_file falls back to libx264 for .avi when get_video_encoder returns None
+        from modules import resize as resize_mod
+        avi = self.dir_path / "fallback.avi"
+        avi.write_bytes(b"avi")
+        captured_cmds = []
+
+        def fake_run_command(cmd):
+            captured_cmds.append(cmd)
+            Path(cmd[-1]).write_bytes(b"resized")
+            return True, ""
+
+        with patch("modules.resize.get_video_dimensions", return_value=(640, 480)), \
+             patch("modules.resize.get_video_encoder", return_value=(None, [], "")), \
+             patch("modules.resize.run_command", side_effect=fake_run_command):
+            _, ok, err, _ = resize_mod.resize_single_file(avi, "w", 320, "5")
+            self.assertTrue(ok, err)
+            self.assertIn("libx264", captured_cmds[0])
+
+    def test_convert_image_exif_auto_orient_with_sips(self):
+        from modules import image
+
+        src_jpg = self.dir_path / "rotated.jpg"
+        src_jpg.write_bytes(b"fake jpg")
+        expected_png = self.dir_path / "rotated.png"
+
+        cmds_sips = []
+
+        def fake_run_sips(cmd):
+            cmds_sips.append(cmd)
+            expected_png.write_bytes(b"png")
+            return True, ""
+
+        mock_proc = MagicMock()
+        mock_proc.stdout = "  orientation: 6\n"
+        with patch("modules.image.sys.platform", "darwin"), \
+             patch("modules.image.shutil.which", side_effect=lambda c: "/usr/bin/sips" if c == "sips" else None), \
+             patch("modules.image.subprocess.run", return_value=mock_proc), \
+             patch("modules.image.run_command", side_effect=fake_run_sips):
+            ok, err = image.convert_image(src_jpg, "PNG", strip_metadata=False)
+            self.assertTrue(ok, err)
+            self.assertEqual(cmds_sips[0][0], "sips")
+            self.assertIn("-r", cmds_sips[0])
+            self.assertIn("90", cmds_sips[0])
+            self.assertIn("orientation", cmds_sips[0])
+
+    def test_convergent_convert_manifest_in_new_output_dir_and_deterministic(self):
+        in_dir = self.dir_path / "batch_in"
+        in_dir.mkdir()
+        for i in range(28):
+            (in_dir / f"f_{i:02d}.txt").write_text(f"hello {i}", encoding="utf-8")
+
+        new_out_dir = self.dir_path / "brand_new_out"
+        self.assertFalse(new_out_dir.exists())
+
+        def fake_process(**kwargs):
+            out_dir = Path(kwargs["output_dir"])
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_files = []
+            for i in range(28):
+                p = out_dir / f"f_{i:02d}.md"
+                p.write_text(f"# hello {i}", encoding="utf-8")
+                out_files.append(str(p))
+            return out_files
+
+        with patch("mcp_server.server.conv.process", side_effect=fake_process):
+            res1 = convergent_convert(input_path=str(in_dir), target_format="MD", output_path=str(new_out_dir), use_cache=False)
+            self.assertTrue(res1["success"])
+            self.assertTrue(res1["truncated"])
+            manifest1 = Path(res1["manifest_path"])
+            self.assertEqual(manifest1.parent, new_out_dir.resolve())
+            self.assertEqual(manifest1.name, ".convergent_manifest_converted.json")
+            self.assertTrue(manifest1.exists())
+
+            # Repeat run overwrites same deterministic manifest instead of creating multiple files
+            res2 = convergent_convert(input_path=str(in_dir), target_format="MD", output_path=str(new_out_dir), use_cache=False)
+            self.assertEqual(res2["manifest_path"], res1["manifest_path"])
+            manifests = list(new_out_dir.glob(".convergent_manifest_converted*.json"))
+            self.assertEqual(len(manifests), 1)
+
+    def test_pdf_to_images_overwrite_false_and_file_output_path(self):
+        doc_pdf = self.dir_path / "report.pdf"
+        doc_pdf.write_bytes(b"%PDF-1.4\n")
+
+        # 1. File-like image output_path rejected
+        res_file_out = pdf_to_images(pdf_path=str(doc_pdf), output_path=str(self.dir_path / "page.jpg"))
+        self.assertFalse(res_file_out["success"])
+        self.assertIn("directory path", res_file_out["error"].lower())
+
+        # 2. overwrite=False when default <stem>_images dir already exists
+        existing_default_dir = self.dir_path / "report_images"
+        existing_default_dir.mkdir()
+        res_dup_default = pdf_to_images(pdf_path=str(doc_pdf), overwrite=False)
+        self.assertFalse(res_dup_default["success"])
+        self.assertIn("Destination already exists", res_dup_default["error"])
+
+        # 3. overwrite=False when custom output_path/<stem>_images dir already exists
+        custom_out = self.dir_path / "custom_out"
+        (custom_out / "report_images").mkdir(parents=True)
+        res_dup_custom = pdf_to_images(pdf_path=str(doc_pdf), output_path=str(custom_out), overwrite=False)
+        self.assertFalse(res_dup_custom["success"])
+        self.assertIn("Destination already exists", res_dup_custom["error"])
+
+    def test_list_supported_formats_errors_and_combined_filter(self):
+        res_bad_fmt = list_supported_formats(source_format="NOTAFMT")
+        self.assertFalse(res_bad_fmt["success"])
+        self.assertIn("not a recognized source format", res_bad_fmt["error"])
+
+        res_bad_cat = list_supported_formats(category="notacat")
+        self.assertFalse(res_bad_cat["success"])
+        self.assertIn("not recognized", res_bad_cat["error"])
+
+        res_mismatch = list_supported_formats(category="audio", source_format="PNG")
+        self.assertFalse(res_mismatch["success"])
+        self.assertIn("does not belong to category 'audio'", res_mismatch["error"])
+
+        res_match = list_supported_formats(category="image", source_format="PNG")
+        self.assertEqual(res_match["category"], "image")
+        self.assertEqual(res_match["source_format"], "PNG")
+        self.assertIn("JPG", res_match["target_formats"])
+
+    def test_perform_stt_mcp_missing_model_message(self):
+        dummy_audio = self.dir_path / "audio.mp3"
+        dummy_audio.touch()
+        raw_err = "Whisper model 'small' (~466 MB) is not installed. Rerun conversion with --install-deps to download it."
+        with patch("mcp_server.server.convergent_convert", return_value={"success": False, "error": raw_err, "converted_files": []}):
+            res = perform_stt(input_path=str(dummy_audio), model="small")
+        self.assertFalse(res["success"])
+        self.assertNotIn("Rerun conversion with --install-deps", res["error"])
+        self.assertIn("python Convergent.py --install-deps", res["error"])
+
+    def test_decompress_archive_compound_suffixes(self):
+        from modules.decompress import archive_stem
+        self.assertEqual(archive_stem(Path("out.tar.gz")), "out")
+        self.assertEqual(archive_stem(Path("out.tar.bz2")), "out")
+        self.assertEqual(archive_stem(Path("out.TAR.XZ")), "out")
+        self.assertEqual(archive_stem(Path("out.tar.zst")), "out")
+        self.assertEqual(archive_stem(Path("out.zip")), "out")
+
+        tar_gz = self.dir_path / "bundle.tar.gz"
+        tar_gz.write_bytes(b"fake")
+        expected_dir = self.dir_path / "bundle"
+
+        def fake_decompress(path, output_dir=None, interactive=False, password=None):
+            expected_dir.mkdir(exist_ok=True)
+            (expected_dir / "file.txt").write_text("hi")
+            return True, "", expected_dir
+
+        with patch("mcp_server.server.conv.decompress", side_effect=fake_decompress):
+            res = decompress_archive(archive_path=str(tar_gz))
+        self.assertTrue(res["success"])
+        self.assertEqual(Path(res["output_dir"]).name, "bundle")
+        self.assertEqual(res["extracted_files_count"], 1)
+
+    def test_split_file_cleans_stale_parts_on_resplit_preserves_other_files(self):
+        from modules.split import record_split_generated_file
+        dummy_pdf = self.dir_path / "doc.pdf"
+        dummy_pdf.write_bytes(b"%PDF-1.4\n")
+        out_dir = self.dir_path / "split_out"
+        out_dir.mkdir()
+        stale1 = out_dir / "part_1_1-2.pdf"
+        stale2 = out_dir / "part_2_3-4.pdf"
+        canary = out_dir / "canary.txt"
+        stale1.write_bytes(b"old1")
+        stale2.write_bytes(b"old2")
+        canary.write_text("keep")
+
+        def fake_split_pdf(*args, **kwargs):
+            new_part = out_dir / "part_1_1-3.pdf"
+            new_part.write_bytes(b"new1")
+            record_split_generated_file(new_part)
+            return out_dir
+
+        with patch("mcp_server.server.conv.split_pdf", side_effect=fake_split_pdf), \
+             patch("modules.split.send_to_trash") as mock_trash:
+            res = split_file(file_path=str(dummy_pdf), mode="parts", num_parts=1, output_dir=str(out_dir))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["count"], 1)
+        self.assertEqual([Path(p).name for p in res["split_files"]], ["part_1_1-3.pdf"])
+        self.assertFalse(stale1.exists())
+        self.assertFalse(stale2.exists())
+        self.assertTrue(canary.exists())
+        mock_trash.assert_not_called()
+
+    def test_perform_ocr_directory_aggregates_total_characters_and_labels_preview(self):
+        img_dir = self.dir_path / "scans"
+        img_dir.mkdir()
+        f1 = self.dir_path / "page1.txt"
+        f2 = self.dir_path / "page2.txt"
+        f1.write_text("Hello")
+        f2.write_text("World!")
+        with patch("mcp_server.server.convergent_convert", return_value={
+            "success": True,
+            "count": 2,
+            "converted_files": [str(f1), str(f2)],
+            "target_format": "TXT",
+        }):
+            res = perform_ocr(input_path=str(img_dir), preview_length=500)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["total_characters"], 11)
+        self.assertIn("page1.txt", res["extracted_text_preview"])
+        self.assertIn("page2.txt", res["extracted_text_preview"])
+
+    def test_convergent_convert_same_format_message_and_symlink_output_and_svg_font_hint(self):
+        # 1. Same-format in-place skip includes informative message
+        png = self.dir_path / "pic.png"
+        png.write_bytes(b"png")
+        res_same = convergent_convert(input_path=str(png), target_format="PNG", use_cache=False)
+        self.assertTrue(res_same["success"])
+        self.assertEqual(res_same.get("message"), "Skipped (same format as input).")
+
+        # 2. Symlink input with output_path=None writes next to symlink
+        real_dir = self.dir_path / "real_target"
+        link_dir = self.dir_path / "work_dir"
+        real_dir.mkdir()
+        link_dir.mkdir()
+        real_file = real_dir / "source.txt"
+        real_file.write_text("hello")
+        sym_file = link_dir / "alias.txt"
+        sym_file.symlink_to(real_file)
+
+        res_sym = convergent_convert(input_path=str(sym_file), target_format="MD", use_cache=False)
+        self.assertTrue(res_sym["success"])
+        self.assertEqual(Path(res_sym["converted_files"][0]).parent.resolve(), link_dir.resolve())
+        self.assertFalse((real_dir / "source.md").exists())
+        self.assertIn("symlink", res_sym.get("note", "").lower())
+
+        # 3. SVG font error hint
+        from modules import image
+        svg = self.dir_path / "diagram.svg"
+        svg.write_text("<svg><text>Hi</text></svg>")
+        with patch("modules.image.shutil.which", side_effect=lambda c: "/usr/bin/magick" if c == "magick" else None), \
+             patch("modules.image.run_command", return_value=(False, "magick: unable to read font `Helvetica'")):
+            ok, err = image.convert_image(svg, "PNG")
+        self.assertFalse(ok)
+        self.assertIn("Freetype font missing for SVG <text>", err)
+
+    def test_sanitize_mcp_error_and_single_failure_dedup(self):
+        from mcp_server.server import _sanitize_mcp_error
+
+        raw = (
+            "FFmpeg failed: Invalid data found when processing input\n"
+            "[out#0/mp4 @ 0x7f8b1c004a00] Error opening output file /tmp/.tmp_abc123/out.mp4\n"
+            "[vost#0:0/libx264 @ 0x7f8b1c005b00] Could not write header"
+        )
+        cleaned = _sanitize_mcp_error(raw)
+        self.assertIn("FFmpeg failed: Invalid data found", cleaned)
+        self.assertNotIn("0x7f8b1c004a00", cleaned)
+        self.assertNotIn(".tmp_abc123", cleaned)
+
+        src_file = self.dir_path / "broken.mp4"
+        src_file.touch()
+
+        def fake_fail(*args, **kwargs):
+            failed = kwargs.get("failed_details")
+            if failed is not None:
+                failed.append({"file": str(src_file), "name": "broken.mp4", "error": "Line 1 error\nLine 2 detail"})
+            return []
+
+        with patch("mcp_server.server.conv.process", side_effect=fake_fail):
+            res = convergent_convert(input_path=str(src_file), target_format="MP3", overwrite=True, use_cache=False)
+        self.assertFalse(res["success"])
+        self.assertNotEqual(res["error"], res["failed_files"][0]["error"])
+        self.assertIn("broken.mp4", res["error"])
+        self.assertIn("Line 1 error", res["error"])
+        self.assertEqual(res["failed_files"][0]["error"], "Line 1 error\nLine 2 detail")
+
+    def test_split_file_truncation_cap_matches_25_to_10(self):
+        doc_pdf = self.dir_path / "many.pdf"
+        doc_pdf.touch()
+        split_dir = self.dir_path / "many_split"
+        split_dir.mkdir()
+        for i in range(1, 31):
+            (split_dir / f"page_{i:03d}.pdf").touch()
+
+        with patch("mcp_server.server.conv.split_pdf", return_value=str(split_dir)):
+            res = split_file(file_path=str(doc_pdf), output_dir=str(split_dir))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["count"], 30)
+        self.assertTrue(res["truncated"])
+        self.assertEqual(len(res["split_files"]), 10)
+        self.assertIn("manifest_path", res)
+
 
 import asyncio
 from mcp.client.stdio import stdio_client
@@ -689,10 +1140,13 @@ class TestMCPAsyncSession(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("compress_files", tool_names)
                 self.assertIn("decompress_archive", tool_names)
                 self.assertIn("resize_media", tool_names)
+                for t in tools_res.tools:
+                    self.assertIsNone(t.outputSchema, f"{t.name} should not emit outputSchema")
 
                 # 3. Bounded call_tool
                 call_res = await asyncio.wait_for(session.call_tool("list_supported_formats", {}), timeout=5.0)
                 self.assertFalse(call_res.isError)
+                self.assertIsNone(call_res.structuredContent)
 
 
 if __name__ == "__main__":
