@@ -55,6 +55,8 @@
 
 ### User Commands
 
+See [EXAMPLE_USAGE.md](EXAMPLE_USAGE.md#user-makefile-examples) for examples.
+
 | Command | Description |
 |---|---|
 | `make start` | Launch interactive terminal UI with single-key navigation, drag-and-drop input, and saved shortcuts |
@@ -78,33 +80,33 @@
 | `make clean` | Remove all compiled Python `__pycache__` directories across workspace |
 
 ### CLI Mode (Arguments)
-For automated workflows, pass arguments using `ARGS`. CLI batches never prompt; missing tools return an error unless `--install-deps` is supplied.
+For automated workflows, pass arguments using `ARGS`. CLI batches never prompt; missing tools return an error unless `--install-deps` is supplied. See [EXAMPLE_USAGE.md](EXAMPLE_USAGE.md#cli-mode-examples) for examples.
 
-| Flag | Description | Example |
-|---|---|---|
-| `--install-deps` | Install required tools/models without prompting | `--install-deps` |
-| `--from` | Source file extension (e.g., `HEIC`, `MOV`) | `--from HEIC` |
-| `--to` | Target output extension (e.g., `JPG`, `MP3`) | `--to JPG` |
-| `--path` | Path to input file/dir (or `-` for stdin pipe) | `--path ~/Desktop/Photos` |
-| `--stdin` | Read binary input from standard input (`stdin`) | `--stdin` |
-| `--stdout` | Write binary converted output to standard output (`stdout`) | `--stdout` |
-| `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) | `--jobs 4` |
-| `--fps` | Target frames per second (for GIF output) | `--fps 30` |
-| `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) | `--bitrate 320k` |
-| `--stt` | Perform Speech-to-Text transcription on audio/video input | `--stt` |
-| `--model` | Whisper model size for STT (`base` ~142MB, `tiny` ~75MB, `small` ~466MB, `turbo` / `large-v3-turbo` ~1.5GB; default: `base`) | `--model turbo` |
-| `--language` | Language code for STT transcription (e.g., `en`, `es`, `zh`, `auto`) | `--language en` |
-| `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) | `--hwaccel auto` |
-| `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) | `--md-pdf-mode raw` |
-| `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy | `--strip-metadata` |
-| `--dpi` | Resolution for PDF-to-image conversion (default: `300`) | `--dpi 150` |
-| `--cache` | Enable checksum-validated caching (default: enabled) | `--cache` |
-| `--no-cache`, `--force` | Disable cache and force re-conversion of all files | `--no-cache` |
-| `--cache-ttl` | Cache expiration Time-To-Live in days (default: `30`, `0` to disable) | `--cache-ttl 14` |
-| `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) | `--shortcut S` |
-| `--overwrite` | Overwrite existing output files without prompting | `--overwrite` |
-| `--skip` | Skip existing output files without prompting | `--skip` |
-| `--resume` | Resume / retry last failed batch conversion | `--resume` |
+| Flag | Description |
+|---|---|
+| `--install-deps` | Install required tools/models without prompting |
+| `--from` | Source file extension (e.g., `HEIC`, `MOV`) |
+| `--to` | Target output extension (e.g., `JPG`, `MP3`) |
+| `--path` | Path to input file/dir (or `-` for stdin pipe) |
+| `--stdin` | Read binary input from standard input (`stdin`) |
+| `--stdout` | Write binary converted output to standard output (`stdout`) |
+| `--jobs`, `-j` | Number of parallel processing jobs (default: CPU count) |
+| `--fps` | Target frames per second (for GIF output) |
+| `--bitrate` | Audio bitrate for MP3 conversion (e.g., `128k`, `192k`, `320k`) |
+| `--stt` | Perform Speech-to-Text transcription on audio/video input |
+| `--model` | Whisper model size for STT (`base` ~142MB, `tiny` ~75MB, `small` ~466MB, `turbo` / `large-v3-turbo` ~1.5GB; default: `base`) |
+| `--language` | Language code for STT transcription (e.g., `en`, `es`, `zh`, `auto`) |
+| `--hwaccel` | Hardware acceleration mode (`auto`, `videotoolbox`, `nvenc`, `qsv`, `none`; default: `auto`) |
+| `--md-pdf-mode` | Rendering mode for Markdown to PDF (`formatted` or `raw`) |
+| `--strip-metadata` | Remove EXIF/IPTC metadata from images for privacy |
+| `--dpi` | Resolution for PDF-to-image conversion (default: `300`) |
+| `--cache` | Enable checksum-validated caching (default: enabled) |
+| `--no-cache`, `--force` | Disable cache and force re-conversion of all files |
+| `--cache-ttl` | Cache expiration Time-To-Live in days (default: `30`, `0` to disable) |
+| `--shortcut` | Run a saved shortcut by key (requires `--path` unless shortcut has a fixed path) |
+| `--overwrite` | Overwrite existing output files without prompting |
+| `--skip` | Skip existing output files without prompting |
+| `--resume` | Resume / retry last failed batch conversion |
 
 ## Supported Formats
 
@@ -186,13 +188,7 @@ Interactive mode prompts with a **Collision Preview** table before overwriting e
 
 ## Troubleshooting
 
-| Problem | Step-by-Step Fix |
-| :--- | :--- |
-| **Dependency installation fails** | 1. Run `make check` to see which tools are missing.<br>2. Ensure you have internet access and a supported package manager (`brew`, `apt`, `dnf`, or `pacman`).<br>3. On Linux unattended installs, ensure `root` or passwordless `sudo` is available, or install the missing package manually. |
-| **ImageMagick policy error (PDF / HEIC)** | 1. Open `/usr/local/etc/ImageMagick-7/policy.xml` (or `/etc/ImageMagick-7/policy.xml` on Linux).<br>2. Find the `<policy>` lines for `PDF` or `HEIC`.<br>3. Change `rights="none"` to `rights="read\|write"` and save. |
-| **Ghostscript (`gs`) not found** | 1. Run `which gs` to check if Ghostscript is in your `PATH`.<br>2. Install or relink it with `brew install ghostscript` (or your Linux package manager). |
-| **Document / Office to PDF fails or styling is off** | 1. For Markdown/Pandoc to PDF, install Typst or LaTeX: `brew install pandoc typst`.<br>2. For high-fidelity `DOCX`/`PPTX`/`RTF` layouts, install LibreOffice: `brew install --cask libreoffice`. |
-| **Whisper Speech-to-Text fails** | 1. Install `whisper.cpp` via `brew install whisper-cpp`.<br>2. Re-run with `--install-deps` (or approve the prompt in `make start`) to download models into `~/.cache/convergent/models/`. |
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues and step-by-step fixes.
 
 ## Tech Stack & Requirements
 
