@@ -91,8 +91,8 @@ def get_pdf_dimensions(path):
         except Exception:
             pass
 
-    if not shutil.which("magick") and not shutil.which("gs"):
-        raise RuntimeError("Neither ImageMagick ('magick') nor Ghostscript ('gs') is installed or in PATH.")
+    if not shutil.which("gs"):
+        raise RuntimeError("Ghostscript ('gs') is not installed or not in PATH. Please install it with 'brew install ghostscript'.")
 
     return None, None
 

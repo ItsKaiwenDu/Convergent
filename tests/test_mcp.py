@@ -1109,6 +1109,22 @@ class TestMCPServer(unittest.TestCase):
         self.assertEqual(len(res["split_files"]), 10)
         self.assertIn("manifest_path", res)
 
+    def test_pdf_page_count_falls_back_to_gs_without_mdls(self):
+        from modules.split import get_pdf_page_count as split_page_count
+        from modules.combine import get_pdf_page_count as combine_page_count
+
+        pdf_file = self.dir_path / "dummy.pdf"
+        pdf_file.write_bytes(b"%PDF-1.4\n%%EOF\n")
+
+        fake_gs = MagicMock(returncode=0, stdout="5\n", stderr="")
+        with patch("shutil.which", side_effect=lambda cmd: None if cmd == "mdls" else f"/usr/bin/{cmd}"), \
+             patch("subprocess.run", return_value=fake_gs) as mock_run:
+            self.assertEqual(split_page_count(str(pdf_file)), 5)
+            self.assertEqual(combine_page_count(str(pdf_file)), 5)
+            self.assertEqual(mock_run.call_count, 2)
+            self.assertEqual(mock_run.call_args_list[0][0][0][0], "gs")
+            self.assertEqual(mock_run.call_args_list[1][0][0][0], "gs")
+
 
 import asyncio
 from mcp.client.stdio import stdio_client

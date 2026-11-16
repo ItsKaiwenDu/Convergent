@@ -65,15 +65,20 @@ def natural_sort_key(path):
 
 def get_pdf_page_count(path):
     try:
-        result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "(null)":
-            return int(result.stdout.strip())
-        resolved_p = Path(path).resolve()
-        cmd = ["gs", "-q", "-dNODISPLAY", "-dSAFER", f"--permit-file-read={resolved_p}", "-c", f"({resolved_p}) (r) file runpdfbegin pdfpagecount = quit"]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return int(result.stdout.strip())
-    except:
+        if shutil.which("mdls"):
+            try:
+                result = subprocess.run(["mdls", "-name", "kMDItemNumberOfPages", "-raw", str(path)], capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip() and result.stdout.strip() != "(null)":
+                    return int(result.stdout.strip())
+            except FileNotFoundError:
+                pass
+        if shutil.which("gs"):
+            resolved_p = Path(path).resolve()
+            cmd = ["gs", "-q", "-dNODISPLAY", "-dSAFER", f"--permit-file-read={resolved_p}", "-c", f"({resolved_p}) (r) file runpdfbegin pdfpagecount = quit"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+    except Exception:
         pass
     return 0
 
