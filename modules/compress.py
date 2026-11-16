@@ -13,7 +13,7 @@ def required_dependencies(format_choice):
     return {"ZIP": ["zip"], "7Z": ["sevenzip"], "RAR": ["rar"]}.get(format_choice, [])
 
 
-def compress(paths, output_name, format_choice, password=None, output_dir=None):
+def compress(paths, output_name, format_choice, password=None, output_dir=None, overwrite=True):
     if isinstance(paths, str):
         paths = [paths]
         
@@ -55,6 +55,9 @@ def compress(paths, output_name, format_choice, password=None, output_dir=None):
             return False, "Output archive cannot be one of input files to compress.", None
         if p.is_dir() and output_path.is_relative_to(p_res):
             return False, f"Output archive '{output_path.name}' cannot be placed inside source directory '{p.name}' being compressed.", None
+
+    if not overwrite and (output_path.exists() or output_path.is_symlink()):
+        return False, f"Destination already exists: {output_path}. Choose another output path or set overwrite=True.", None
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_output = output_path.parent / f".tmp_{uuid.uuid4().hex[:8]}_{output_path.name}"

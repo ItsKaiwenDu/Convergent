@@ -82,7 +82,7 @@ class Converter:
             source = source.upper()
             if source == "HTM":
                 source = "HTML"
-            if source == target_format and not options.get("strip_metadata"):
+            if source == target_format and not options.get("strip_metadata") and not (options.get("ocr") and source == "PDF"):
                 continue
             if target_format not in self.formats.get(source, []) and source != target_format:
                 continue
@@ -251,10 +251,10 @@ class Converter:
             return None
         return split.split_pptx(path, mode=mode, ranges=ranges, num_parts=num_parts, output_dir=output_dir, interactive=interactive)
 
-    def compress(self, paths, output_name, format_choice, password=None, output_dir=None, interactive=True):
+    def compress(self, paths, output_name, format_choice, password=None, output_dir=None, interactive=True, overwrite=True):
         if not ensure_dependencies(compress.required_dependencies(format_choice), interactive=interactive, install=self.install_deps):
             return False, "Installation cancelled.", None
-        return compress.compress(paths, output_name, format_choice, password=password, output_dir=output_dir)
+        return compress.compress(paths, output_name, format_choice, password=password, output_dir=output_dir, overwrite=overwrite)
 
     def decompress(self, path, output_dir=None, interactive=True, password=None):
         if not ensure_dependencies(decompress.required_dependencies(path), interactive=interactive, install=self.install_deps):
@@ -264,8 +264,8 @@ class Converter:
     def process_single_file(self, f, target_format, fps=None, bitrate=None, md_pdf_mode=None, strip_metadata=False, ocr=False, stt=False, model="base", language=None, hwaccel="auto", dpi=None, output_dir=None, explicit_output_file=None, overwrite=True):
         return file_process.process_single_file(self, f, target_format, fps=fps, bitrate=bitrate, md_pdf_mode=md_pdf_mode, strip_metadata=strip_metadata, ocr=ocr, stt=stt, model=model, language=language, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir, explicit_output_file=explicit_output_file, overwrite=overwrite)
 
-    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None, cached_out_list=None, skipped_out_list=None):
-        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir, failed_details=failed_details, cached_out_list=cached_out_list, skipped_out_list=skipped_out_list)
+    def process(self, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None, cached_out_list=None, skipped_out_list=None, skip_same_format=False):
+        return file_process.process(self, console, get_char, source_formats, target_format, paths, fps, bitrate, jobs, overwrite, skip, md_pdf_mode, strip_metadata, interactive, ocr=ocr, stt=stt, model=model, language=language, success_map=success_map, use_cache=use_cache, hwaccel=hwaccel, dpi=dpi, output_dir=output_dir, failed_details=failed_details, cached_out_list=cached_out_list, skipped_out_list=skipped_out_list, skip_same_format=skip_same_format)
 
 def check_and_prompt_md_pdf(target_fmt, paths, console, get_char, time):
     if target_fmt != "PDF" or not paths:

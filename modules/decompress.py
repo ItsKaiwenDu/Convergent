@@ -1,8 +1,11 @@
 import os
 import subprocess
 import shutil
+import tarfile
+import zipfile
 from pathlib import Path
-from customs.run_command import run_command, send_to_trash
+from typing import List, Optional, Tuple
+from customs.run_command import run_command, run_command_output, send_to_trash
 
 COMPOUND_ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst")
 
@@ -89,3 +92,148 @@ def decompress(path, output_dir=None, password=None):
 
     success, error = run_command(cmd, cwd=cwd)
     return success, error, output_dir
+
+
+def _sevenzip_exec() -> str:
+    if not shutil.which("7z") and shutil.which("7zz"):
+        return "7zz"
+    return "7z"
+
+
+def _parse_7z_slt_members(stdout: str) -> List[Tuple[str, bool]]:
+    members: List[Tuple[str, bool]] = []
+    in_entries = False
+    cur_path: Optional[str] = None
+    cur_is_dir = False
+
+    def _flush():
+        nonlocal cur_path, cur_is_dir
+        if cur_path:
+            members.append((cur_path, cur_is_dir))
+        cur_path = None
+        cur_is_dir = False
+
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if not in_entries:
+            if line == "----------":
+                in_entries = True
+            continue
+        if not line:
+            _flush()
+            continue
+        if line.startswith("Path = "):
+            cur_path = line[len("Path = "):]
+        elif line == "Folder = +":
+            cur_is_dir = True
+        elif line.startswith("Attributes = ") and line[len("Attributes = "):].startswith("D"):
+            cur_is_dir = True
+    _flush()
+    return members
+
+
+def _parse_unrar_lt_members(stdout: str) -> List[Tuple[str, bool]]:
+    members: List[Tuple[str, bool]] = []
+    cur_path: Optional[str] = None
+    cur_is_dir = False
+
+    def _flush():
+        nonlocal cur_path, cur_is_dir
+        if cur_path:
+            members.append((cur_path, cur_is_dir))
+        cur_path = None
+        cur_is_dir = False
+
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if line.startswith("Name:"):
+            _flush()
+            cur_path = line[len("Name:"):].strip()
+        elif line.startswith("Type:") and cur_path is not None:
+            cur_is_dir = line[len("Type:"):].strip().lower() == "directory"
+    _flush()
+    return members
+
+
+def list_archive_members(path, password=None) -> Optional[List[Tuple[str, bool]]]:
+    """
+    Lists archive entries as (relative_path, is_dir) tuples when inspection is supported.
+    Returns None if the archive format/encryption prevents member inspection.
+    """
+    path_obj = Path(os.path.expanduser(str(path))).resolve()
+    if not path_obj.is_file():
+        return None
+
+    ext = path_obj.name.lower()
+    if ext.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(path_obj, "r") as zf:
+                return [(info.filename, info.is_dir()) for info in zf.infolist()]
+        except Exception:
+            return None
+
+    if ext.endswith((".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")):
+        try:
+            with tarfile.open(path_obj, "r:*") as tf:
+                return [(m.name, m.isdir()) for m in tf.getmembers()]
+        except Exception:
+            return None
+
+    pw_flag = f"-p{password}" if password else "-p-"
+    if ext.endswith(".rar") and shutil.which("unrar"):
+        code, stdout, _ = run_command_output(["unrar", "lt", pw_flag, str(path_obj)])
+        if code == 0:
+            return _parse_unrar_lt_members(stdout)
+
+    sevenzip_exec = _sevenzip_exec()
+    if ext.endswith((".7z", ".rar")) and shutil.which(sevenzip_exec):
+        code, stdout, _ = run_command_output([sevenzip_exec, "l", "-slt", pw_flag, str(path_obj)])
+        if code == 0:
+            return _parse_7z_slt_members(stdout)
+
+    return None
+
+
+def find_extraction_collisions(archive_path, dest_dir: Path, password=None) -> Tuple[Optional[List[str]], bool]:
+    """
+    Checks whether extracting archive_path into dest_dir would overwrite existing files.
+    Returns (colliding_relative_paths, inspected_successfully).
+    """
+    if not (dest_dir.exists() or dest_dir.is_symlink()):
+        return [], True
+    if not dest_dir.is_dir():
+        return [dest_dir.name], True
+    if not any(dest_dir.iterdir()):
+        return [], True
+
+    members = list_archive_members(archive_path, password=password)
+    if members is None:
+        return None, False
+
+    collisions: List[str] = []
+    seen = set()
+
+    def _add(rel_str: str):
+        if rel_str not in seen:
+            seen.add(rel_str)
+            collisions.append(rel_str)
+
+    for member_name, is_dir in members:
+        parts = [p for p in member_name.replace("\\", "/").split("/") if p not in ("", ".")]
+        if not parts or any(p == ".." for p in parts):
+            continue
+        rel = Path(*parts)
+        for parent in rel.parents:
+            if parent == Path("."):
+                continue
+            p_target = dest_dir / parent
+            if (p_target.exists() or p_target.is_symlink()) and not p_target.is_dir():
+                _add(str(parent))
+        target = dest_dir / rel
+        if is_dir:
+            if (target.exists() or target.is_symlink()) and not target.is_dir():
+                _add(str(rel))
+        elif target.exists() or target.is_symlink():
+            _add(str(rel))
+
+    return collisions, True

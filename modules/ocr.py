@@ -1,9 +1,17 @@
+import re
 import sys
 import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from customs.run_command import run_command, run_command_output
+from customs.run_command import (
+    LAST_COMMAND_STDERR,
+    LAST_COMMAND_STDOUT,
+    get_last_command_stderr,
+    get_last_command_stdout,
+    run_command,
+    run_command_output,
+)
 
 HAS_MACOS_VISION = False
 if sys.platform == "darwin":
@@ -78,66 +86,166 @@ def _convert_image_to_temp_png(source: Path) -> Path:
 _convert_heic_to_temp_png = _convert_image_to_temp_png
 
 
+_ENCRYPTED_PDF_MARKERS = (
+    "requires a password",
+    "password for access",
+    "incorrect password",
+    "password-protected",
+    "password protected",
+    "cannot decrypt",
+    "encrypted",
+)
+
+
+def _looks_like_encrypted_pdf_error(text: str) -> bool:
+    lower = (text or "").lower()
+    return any(marker in lower for marker in _ENCRYPTED_PDF_MARKERS)
+
+
+def _is_pdf_encrypted_hint(source: Path) -> bool:
+    """Best-effort check for PDF encryption via macOS metadata or PDF /Encrypt trailer key."""
+    if shutil.which("mdls"):
+        try:
+            res = subprocess.run(
+                ["mdls", "-name", "kMDItemSecurityMethod", "-raw", str(source)],
+                capture_output=True,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                timeout=3.0,
+            )
+            sec = (res.stdout or "").strip()
+            if res.returncode == 0 and sec and sec != "(null)":
+                return True
+        except Exception:
+            pass
+
+    try:
+        file_size = source.stat().st_size
+        with source.open("rb") as f:
+            if file_size <= 2 * 1024 * 1024:
+                sample = f.read()
+            else:
+                head = f.read(65536)
+                f.seek(max(0, file_size - 65536))
+                tail = f.read(65536)
+                sample = head + b"\n" + tail
+        if re.search(rb"/Encrypt\s+\d+\s+\d+\s+R|/Encrypt\s*<<", sample):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _run_pdf_render_command(cmd) -> tuple:
+    """Runs a PDF rendering command and returns (success, combined_diagnostic_output)."""
+    LAST_COMMAND_STDERR.set("")
+    LAST_COMMAND_STDOUT.set("")
+    success, err = run_command(cmd)
+    diag = "\n".join(
+        part for part in (err, get_last_command_stderr(), get_last_command_stdout()) if part
+    )
+    return success, diag
+
+
+def _clear_temp_pngs(temp_dir: Path):
+    for p in temp_dir.glob("*.png"):
+        try:
+            p.unlink()
+        except Exception:
+            pass
+
+
 def _convert_pdf_to_temp_images(source: Path):
     """
     Converts a PDF file to a directory of temporary PNG page images for OCR.
-    Tries pdftoppm, Ghostscript (gs), ImageMagick (magick/convert), and sips.
+    Tries pdftoppm, Ghostscript (gs), ImageMagick (magick/convert), and sips (only when no dedicated PDF renderer exists).
     Returns (temp_dir_path, list_of_png_paths).
     Caller is responsible for removing temp_dir_path.
     """
     temp_dir = Path(tempfile.mkdtemp(prefix="convergent_pdf_ocr_"))
-    
+    attempted_renderers = []
+    last_diag = ""
+
+    def _abort(message: str):
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise RuntimeError(message)
+
     # 1. pdftoppm (poppler) - fast & native rendering
     if shutil.which("pdftoppm"):
         out_prefix = temp_dir / "page"
-        success, _ = run_command(["pdftoppm", "-png", "-r", "300", str(source), str(out_prefix)])
-        if success:
-            pngs = sorted(list(temp_dir.glob("*.png")))
-            if pngs:
-                return temp_dir, pngs
+        success, diag = _run_pdf_render_command(
+            ["pdftoppm", "-png", "-r", "300", str(source), str(out_prefix)]
+        )
+        pngs = sorted(list(temp_dir.glob("*.png")))
+        if success and pngs:
+            return temp_dir, pngs
+        _clear_temp_pngs(temp_dir)
+        if _looks_like_encrypted_pdf_error(diag):
+            _abort(f"Cannot OCR encrypted or password-protected PDF: {source.name}")
+        attempted_renderers.append("pdftoppm")
+        if diag:
+            last_diag = diag
 
     # 2. Ghostscript (gs)
     if shutil.which("gs"):
         resolved_source = Path(source).resolve()
         resolved_temp = Path(temp_dir).resolve()
         out_pattern = resolved_temp / "page_%04d.png"
-        success, _ = run_command([
+        success, diag = _run_pdf_render_command([
             "gs", "-dNOPAUSE", "-dBATCH", "-dSAFER",
             f"--permit-file-read={resolved_source}",
             f"--permit-file-write={resolved_temp}/*",
             "-sDEVICE=png16m", "-r300",
             f"-sOUTPUTFILE={out_pattern}", str(resolved_source)
         ])
-        if success:
-            pngs = sorted(list(temp_dir.glob("*.png")))
-            if pngs:
-                return temp_dir, pngs
+        pngs = sorted(list(temp_dir.glob("*.png")))
+        if success and pngs:
+            return temp_dir, pngs
+        _clear_temp_pngs(temp_dir)
+        if _looks_like_encrypted_pdf_error(diag):
+            _abort(f"Cannot OCR encrypted or password-protected PDF: {source.name}")
+        attempted_renderers.append("gs")
+        if diag:
+            last_diag = diag
 
     # 3. ImageMagick (magick / convert)
-    if shutil.which("magick"):
+    im_cmd = "magick" if shutil.which("magick") else ("convert" if shutil.which("convert") else None)
+    if im_cmd:
         out_pattern = temp_dir / "page_%04d.png"
-        success, _ = run_command(["magick", "-density", "300", str(source), str(out_pattern)])
-        if success:
-            pngs = sorted(list(temp_dir.glob("*.png")))
-            if pngs:
-                return temp_dir, pngs
-    elif shutil.which("convert"):
-        out_pattern = temp_dir / "page_%04d.png"
-        success, _ = run_command(["convert", "-density", "300", str(source), str(out_pattern)])
-        if success:
-            pngs = sorted(list(temp_dir.glob("*.png")))
-            if pngs:
-                return temp_dir, pngs
+        success, diag = _run_pdf_render_command([im_cmd, "-density", "300", str(source), str(out_pattern)])
+        pngs = sorted(list(temp_dir.glob("*.png")))
+        if success and pngs:
+            return temp_dir, pngs
+        _clear_temp_pngs(temp_dir)
+        if _looks_like_encrypted_pdf_error(diag):
+            _abort(f"Cannot OCR encrypted or password-protected PDF: {source.name}")
+        attempted_renderers.append(im_cmd)
+        if diag:
+            last_diag = diag
 
-    # 4. sips (macOS fallback)
-    if shutil.which("sips"):
+    # 4. sips (macOS fallback only when no dedicated PDF renderer is available)
+    if not attempted_renderers and shutil.which("sips"):
+        if _is_pdf_encrypted_hint(source):
+            _abort(f"Cannot OCR encrypted or password-protected PDF: {source.name}")
         out_png = temp_dir / "page_0001.png"
-        success, _ = run_command(["sips", "-s", "format", "png", str(source), "--out", str(out_png)])
-        if success and out_png.exists():
+        success, diag = _run_pdf_render_command(
+            ["sips", "-s", "format", "png", str(source), "--out", str(out_png)]
+        )
+        if success and out_png.exists() and out_png.stat().st_size > 0:
             return temp_dir, [out_png]
+        _clear_temp_pngs(temp_dir)
+        if _looks_like_encrypted_pdf_error(diag):
+            _abort(f"Cannot OCR encrypted or password-protected PDF: {source.name}")
+        if diag:
+            last_diag = diag
 
-    shutil.rmtree(temp_dir, ignore_errors=True)
-    raise RuntimeError(
+    if attempted_renderers:
+        if _is_pdf_encrypted_hint(source):
+            _abort(f"Cannot OCR encrypted or password-protected PDF: {source.name}")
+        detail = last_diag.splitlines()[-1].strip() if last_diag.strip() else "PDF may be encrypted, corrupted, or unreadable."
+        _abort(f"Could not render PDF pages for OCR ({source.name}): {detail}")
+
+    _abort(
         "Could not convert PDF pages to PNG for OCR. "
         "Ensure 'pdftoppm', 'gs' (Ghostscript), or ImageMagick is installed."
     )

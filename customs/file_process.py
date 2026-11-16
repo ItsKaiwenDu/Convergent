@@ -191,6 +191,8 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
         if source_fmt == target_format:
             if strip_metadata and source_fmt in ("JPG", "PNG", "WEBP", "TIF", "BMP", "HEIC", "HEIF", "AVIF"):
                 pass
+            elif ocr and source_fmt == "PDF":
+                pass
             elif is_distinct_dest:
                 if (output_file.exists() or output_file.is_symlink()) and not overwrite:
                     return f.name, False, f"Destination already exists: {output_file.name}. Choose another output path or set overwrite=True.", duration
@@ -298,7 +300,7 @@ def process_single_file(conv, f, target_format, fps=None, bitrate=None, md_pdf_m
     duration = time.perf_counter() - start_time
     return f.name, success, error, duration
 
-def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None, cached_out_list=None, skipped_out_list=None):
+def process(conv, console, get_char, source_formats, target_format, paths, fps=None, bitrate=None, jobs=None, overwrite=False, skip=False, md_pdf_mode=None, strip_metadata=False, interactive=True, ocr=False, stt=False, model="base", language=None, success_map=None, use_cache=True, hwaccel="auto", dpi=None, output_dir=None, failed_details=None, cached_out_list=None, skipped_out_list=None, skip_same_format=False):
     """
     Processes a batch of files for conversion.
     """
@@ -313,6 +315,7 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     source_fmts_upper = [normalize_format_alias(fmt) for fmt in source_formats]
     target_format = normalize_format_alias(target_format)
     found_extensions = set()
+    has_dir_path = False
     
     for p in paths:
         path_obj = Path(os.path.expanduser(p))
@@ -324,7 +327,8 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
                 if path_obj.suffix:
                     found_extensions.add(path_obj.suffix.lower())
         elif path_obj.is_dir():
-            for item in path_obj.iterdir():
+            has_dir_path = True
+            for item in sorted(path_obj.iterdir(), key=lambda entry: entry.name):
                 if item.is_file():
                     ext = normalize_format_alias(item.suffix.lower()[1:])
                     if ext in source_fmts_upper:
@@ -345,6 +349,31 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
         console.print(f"[bold red]{msg}[/bold red]")
         if failed_details is not None:
             failed_details.append({"file": "", "name": "", "error": msg})
+        return []
+
+    same_format_skipped_count = 0
+    image_strip_formats = ("JPG", "PNG", "WEBP", "TIF", "BMP", "HEIC", "HEIF", "AVIF")
+    remaining_files = []
+    for f in files:
+        src_fmt = normalize_format_alias(f.suffix.lower()[1:])
+        needs_same_fmt_work = (
+            (strip_metadata and src_fmt in image_strip_formats)
+            or (ocr and src_fmt == "PDF")
+        )
+        is_distinct = (out_dir_path is not None and out_dir_path != f.parent.resolve())
+        if src_fmt == target_format and not needs_same_fmt_work and (skip_same_format or (has_dir_path and not is_distinct)):
+            same_format_skipped_count += 1
+            if skipped_out_list is not None:
+                skipped_out_list.append(str(f.resolve()))
+            continue
+        remaining_files.append(f)
+
+    if same_format_skipped_count > 0:
+        console.print(f"[dim]Skipped {same_format_skipped_count} file(s) already in {target_format} format.[/dim]")
+
+    files = remaining_files
+    if not files:
+        console.print(f"[bold green]All {same_format_skipped_count} file(s) already in {target_format} format and were skipped.[/bold green]")
         return []
 
     # Pre-compute stem disambiguation target_map before cache pre-filtering and conflict detection
@@ -848,8 +877,9 @@ def process(conv, console, get_char, source_formats, target_format, paths, fps=N
     ]
     if cached_count > 0:
         summary_parts.append(f"[bold cyan]↷ {cached_count} cached[/bold cyan]")
-    if skipped_count > 0:
-        summary_parts.append(f"[bold yellow]↷ {skipped_count} skipped[/bold yellow]")
+    total_skipped_count = skipped_count + same_format_skipped_count
+    if total_skipped_count > 0:
+        summary_parts.append(f"[bold yellow]↷ {total_skipped_count} skipped[/bold yellow]")
     summary_parts.append(f"[bold cyan]⏱ {total_time:.1f}s total[/bold cyan]")
     
     console.print(f"\n{', '.join(summary_parts)}")

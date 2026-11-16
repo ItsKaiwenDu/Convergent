@@ -41,8 +41,13 @@ class TestMCPServer(unittest.TestCase):
         self.assertIn("source_formats", res)
         self.assertIn("categories", res)
         self.assertIn("format_mapping", res)
+        self.assertNotIn("dependencies", res)
         self.assertIn("JPG", res["source_formats"])
-        self.assertIn("PNG", res["format_mapping"]["JPG"])
+        jpg_group_targets = next(
+            targets for key, targets in res["format_mapping"].items() if "JPG" in key.split(",")
+        )
+        self.assertIn("PNG", jpg_group_targets)
+        self.assertLess(len(res["format_mapping"]), len(res["source_formats"]))
         self.assertIn("image", res["categories"])
         self.assertNotIn("2", res["categories"])
 
@@ -1088,10 +1093,10 @@ class TestMCPServer(unittest.TestCase):
         with patch("mcp_server.server.conv.process", side_effect=fake_fail):
             res = convergent_convert(input_path=str(src_file), target_format="MP3", overwrite=True, use_cache=False)
         self.assertFalse(res["success"])
-        self.assertNotEqual(res["error"], res["failed_files"][0]["error"])
+        self.assertNotIn("failed_files", res)
         self.assertIn("broken.mp4", res["error"])
         self.assertIn("Line 1 error", res["error"])
-        self.assertEqual(res["failed_files"][0]["error"], "Line 1 error\nLine 2 detail")
+        self.assertIn("Line 2 detail", res["error"])
 
     def test_split_file_truncation_cap_matches_25_to_10(self):
         doc_pdf = self.dir_path / "many.pdf"
@@ -1125,6 +1130,562 @@ class TestMCPServer(unittest.TestCase):
             self.assertEqual(mock_run.call_args_list[0][0][0][0], "gs")
             self.assertEqual(mock_run.call_args_list[1][0][0][0], "gs")
 
+    def test_encrypted_pdf_ocr_rejected_without_zero_byte_output(self):
+        from modules import ocr
+        from customs.run_command import LAST_COMMAND_STDERR, LAST_COMMAND_STDOUT
+
+        enc_pdf = self.dir_path / "encrypted.pdf"
+        enc_pdf.write_bytes(b"%PDF-1.4\n1 0 obj << /Encrypt 2 0 R >> endobj\n%%EOF\n")
+
+        def fake_gs_encrypted(cmd, *args, **kwargs):
+            if cmd[0] == "gs":
+                LAST_COMMAND_STDERR.set("   **** This file requires a password for access.")
+                LAST_COMMAND_STDOUT.set("   **** Error: Couldn't initialise file.")
+                return True, ""
+            if cmd[0] == "sips":
+                raise AssertionError("sips fallback must not run after gs fails on encrypted PDF")
+            return False, "unexpected"
+
+        def fake_which(c):
+            if c in ("gs", "sips", "tesseract", "pandoc"):
+                return f"/usr/bin/{c}"
+            return None
+
+        with patch("modules.ocr.shutil.which", side_effect=fake_which), \
+             patch("modules.ocr.run_command", side_effect=fake_gs_encrypted):
+            with self.assertRaises(RuntimeError) as cm:
+                ocr._convert_pdf_to_temp_images(enc_pdf)
+            self.assertIn("encrypted or password-protected PDF", str(cm.exception))
+
+            out_txt_custom = self.dir_path / "custom_out.txt"
+            res_ocr = perform_ocr(input_path=str(enc_pdf), target_format="TXT", output_path=str(out_txt_custom))
+            self.assertFalse(res_ocr["success"])
+            self.assertIn("encrypted or password-protected PDF", res_ocr["error"])
+            self.assertFalse((self.dir_path / "encrypted.txt").exists())
+            self.assertFalse(out_txt_custom.exists())
+
+            res_conv = convergent_convert(input_path=str(enc_pdf), target_format="TXT", use_cache=False)
+            self.assertFalse(res_conv["success"])
+            self.assertIn("encrypted or password-protected PDF", res_conv["error"])
+            self.assertFalse((self.dir_path / "encrypted.txt").exists())
+
+            out_pdf_custom = self.dir_path / "ocr_out.pdf"
+            res_pdf = perform_ocr(input_path=str(enc_pdf), target_format="PDF", output_path=str(out_pdf_custom))
+            self.assertFalse(res_pdf["success"])
+            self.assertIn("encrypted or password-protected PDF", res_pdf["error"])
+            self.assertFalse(out_pdf_custom.exists())
+
+        # Even if only sips is installed, /Encrypt hint blocks blank-PNG masking
+        with patch("modules.ocr.shutil.which", side_effect=lambda c: f"/usr/bin/{c}" if c in ("sips", "tesseract") else None), \
+             patch("modules.ocr.run_command", side_effect=AssertionError("sips must not run on encrypted PDF")):
+            with self.assertRaises(RuntimeError) as cm_sips:
+                ocr._convert_pdf_to_temp_images(enc_pdf)
+            self.assertIn("encrypted or password-protected PDF", str(cm_sips.exception))
+
+        # Corrupt/unreadable PDF failing gs must not fall back to sips either
+        corrupt_pdf = self.dir_path / "corrupt.pdf"
+        corrupt_pdf.write_bytes(b"%PDF-1.4\nnot valid pdf content\n")
+
+        def fake_gs_corrupt(cmd, *args, **kwargs):
+            if cmd[0] == "gs":
+                LAST_COMMAND_STDERR.set("")
+                LAST_COMMAND_STDOUT.set("   **** Error: Couldn't initialise file.")
+                return True, ""
+            if cmd[0] == "sips":
+                raise AssertionError("sips fallback must not mask gs failure on unreadable PDF")
+            return False, "unexpected"
+
+        with patch("modules.ocr.shutil.which", side_effect=fake_which), \
+             patch("modules.ocr.run_command", side_effect=fake_gs_corrupt):
+            with self.assertRaises(RuntimeError) as cm_corrupt:
+                ocr._convert_pdf_to_temp_images(corrupt_pdf)
+            self.assertIn("Could not render PDF pages for OCR", str(cm_corrupt.exception))
+
+    def test_compress_files_respects_overwrite(self):
+        src = self.dir_path / "note.txt"
+        src.write_text("compress me", encoding="utf-8")
+        archive_path = self.dir_path / "bundle.zip"
+        archive_path.write_bytes(b"existing_archive")
+
+        res_no = compress_files(
+            file_paths=[str(src)],
+            output_name="bundle.zip",
+            output_dir=str(self.dir_path),
+            overwrite=False,
+        )
+        self.assertFalse(res_no["success"])
+        self.assertIn("Destination already exists", res_no["error"])
+        self.assertEqual(archive_path.read_bytes(), b"existing_archive")
+
+        res_yes = compress_files(
+            file_paths=[str(src)],
+            output_name="bundle.zip",
+            output_dir=str(self.dir_path),
+            overwrite=True,
+        )
+        self.assertTrue(res_yes["success"], msg=res_yes.get("error"))
+        import zipfile
+        self.assertTrue(zipfile.is_zipfile(archive_path))
+
+    def test_decompress_archive_respects_overwrite(self):
+        import zipfile
+        import tarfile
+
+        zip_path = self.dir_path / "bundle.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("file1.txt", "new_from_zip")
+            zf.writestr("sub/file2.txt", "nested_from_zip")
+
+        # 1. Existing directory with unrelated file -> overwrite=False succeeds cleanly
+        out_dir = self.dir_path / "out"
+        out_dir.mkdir()
+        unrelated = out_dir / "unrelated.txt"
+        unrelated.write_text("keep_me", encoding="utf-8")
+
+        res_non_colliding = decompress_archive(str(zip_path), output_dir=str(out_dir), overwrite=False)
+        self.assertTrue(res_non_colliding["success"], msg=res_non_colliding.get("error"))
+        self.assertEqual((out_dir / "file1.txt").read_text(encoding="utf-8"), "new_from_zip")
+        self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep_me")
+
+        # 2. Existing colliding file -> overwrite=False rejects without clobbering
+        (out_dir / "file1.txt").write_text("original_local", encoding="utf-8")
+        res_collide = decompress_archive(str(zip_path), output_dir=str(out_dir), overwrite=False)
+        self.assertFalse(res_collide["success"])
+        self.assertIn("conflicting file", res_collide["error"])
+        self.assertEqual((out_dir / "file1.txt").read_text(encoding="utf-8"), "original_local")
+        self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep_me")
+
+        # 3. overwrite=True overwrites colliding file
+        res_overwrite = decompress_archive(str(zip_path), output_dir=str(out_dir), overwrite=True)
+        self.assertTrue(res_overwrite["success"], msg=res_overwrite.get("error"))
+        self.assertEqual((out_dir / "file1.txt").read_text(encoding="utf-8"), "new_from_zip")
+
+        # 4. Default output_dir=None with overwrite=False preserves unrelated files and blocks collisions
+        tgz_path = self.dir_path / "pkg.tar.gz"
+        payload = self.dir_path / "item.txt"
+        payload.write_text("from_tar", encoding="utf-8")
+        with tarfile.open(tgz_path, "w:gz") as tf:
+            tf.add(payload, arcname="item.txt")
+
+        default_dir = self.dir_path / "pkg"
+        default_dir.mkdir()
+        (default_dir / "keep.txt").write_text("do_not_trash", encoding="utf-8")
+        res_tgz_ok = decompress_archive(str(tgz_path), overwrite=False)
+        self.assertTrue(res_tgz_ok["success"], msg=res_tgz_ok.get("error"))
+        self.assertEqual((default_dir / "keep.txt").read_text(encoding="utf-8"), "do_not_trash")
+        self.assertEqual((default_dir / "item.txt").read_text(encoding="utf-8"), "from_tar")
+
+        (default_dir / "item.txt").write_text("local_edit", encoding="utf-8")
+        res_tgz_collide = decompress_archive(str(tgz_path), overwrite=False)
+        self.assertFalse(res_tgz_collide["success"])
+        self.assertEqual((default_dir / "item.txt").read_text(encoding="utf-8"), "local_edit")
+        self.assertEqual((default_dir / "keep.txt").read_text(encoding="utf-8"), "do_not_trash")
+
+        # 5. Parser unit checks for 7z and unrar listings
+        from modules.decompress import _parse_7z_slt_members, _parse_unrar_lt_members
+        parsed_7z = _parse_7z_slt_members(
+            "Listing archive: test.7z\n----------\nPath = sub\nAttributes = D drwxr-xr-x\n\nPath = sub/b.txt\nAttributes = A\n"
+        )
+        self.assertEqual(parsed_7z, [("sub", True), ("sub/b.txt", False)])
+        parsed_rar = _parse_unrar_lt_members(
+            "        Name: sub\n        Type: Directory\n        Name: sub/b.txt\n        Type: File\n"
+        )
+        self.assertEqual(parsed_rar, [("sub", True), ("sub/b.txt", False)])
+
+    def test_directory_convert_skips_same_format_and_disambiguates_distinct_sources(self):
+        from Convergent import Converter
+        batch_dir = self.dir_path / "batch_mixed"
+        batch_dir.mkdir()
+        for i in range(1, 5):
+            (batch_dir / f"item_{i:02d}.png").write_bytes(b"png")
+        existing_jpg = batch_dir / "item_01.jpg"
+        existing_jpg.write_bytes(b"original_jpg")
+
+        converted_calls = []
+
+        def fake_convert_image(self_conv, source, target_ext, **kwargs):
+            converted_calls.append(Path(source).name)
+            out_p = Path(source).with_suffix(f".{target_ext.lower()}")
+            out_p.write_bytes(b"converted_jpg")
+            return True, ""
+
+        with patch.object(Converter, "prepare_conversion", return_value=True), \
+             patch.object(Converter, "convert_image", fake_convert_image):
+            res = convergent_convert(
+                input_path=str(batch_dir),
+                target_format="JPG",
+                overwrite=False,
+                use_cache=False,
+            )
+
+        self.assertTrue(res["success"], msg=res.get("error"))
+        self.assertEqual(res["count"], 3)
+        self.assertEqual(existing_jpg.read_bytes(), b"original_jpg")
+        self.assertFalse((batch_dir / "item_01_png.jpg").exists())
+        self.assertFalse((batch_dir / "item_01_jpg.jpg").exists())
+        skipped_names = {Path(p).name for p in res.get("skipped_files", [])}
+        self.assertEqual(skipped_names, {"item_01.jpg", "item_01.png"})
+        self.assertEqual(sorted(converted_calls), ["item_02.png", "item_03.png", "item_04.png"])
+
+        # Same-stem different formats (a.png + a.webp + a.jpg -> JPG) still disambiguates a.png & a.webp while skipping a.jpg
+        disambig_dir = self.dir_path / "disambig"
+        disambig_dir.mkdir()
+        (disambig_dir / "a.png").write_bytes(b"png")
+        (disambig_dir / "a.webp").write_bytes(b"webp")
+        (disambig_dir / "a.jpg").write_bytes(b"orig_jpg")
+
+        with patch.object(Converter, "prepare_conversion", return_value=True), \
+             patch.object(Converter, "convert_image", fake_convert_image):
+            res_dis = convergent_convert(
+                input_path=str(disambig_dir),
+                target_format="JPG",
+                overwrite=False,
+                use_cache=False,
+            )
+
+        self.assertTrue(res_dis["success"], msg=res_dis.get("error"))
+        self.assertEqual(res_dis["count"], 2)
+        out_names = {Path(p).name for p in res_dis["converted_files"]}
+        self.assertEqual(out_names, {"a_png.jpg", "a_webp.jpg"})
+        self.assertEqual([Path(p).name for p in res_dis.get("skipped_files", [])], ["a.jpg"])
+        self.assertEqual((disambig_dir / "a.jpg").read_bytes(), b"orig_jpg")
+
+        # Directory with only target-format files (including JPEG alias) skips all cleanly
+        only_jpg_dir = self.dir_path / "only_jpg"
+        only_jpg_dir.mkdir()
+        (only_jpg_dir / "x.jpg").write_bytes(b"jpg")
+        (only_jpg_dir / "y.jpeg").write_bytes(b"jpeg")
+        res_all_same = convergent_convert(input_path=str(only_jpg_dir), target_format="JPG", use_cache=False)
+        self.assertTrue(res_all_same["success"], msg=res_all_same.get("error"))
+        self.assertEqual(res_all_same["count"], 0)
+        self.assertEqual(
+            {Path(p).name for p in res_all_same.get("skipped_files", [])},
+            {"x.jpg", "y.jpeg"},
+        )
+
+    def test_convergent_convert_source_format_filter_and_validation(self):
+        from Convergent import Converter
+        mix_dir = self.dir_path / "mix_filter"
+        mix_dir.mkdir()
+        (mix_dir / "pic.png").write_bytes(b"png")
+        (mix_dir / "photo.webp").write_bytes(b"webp")
+        (mix_dir / "snap.jpeg").write_bytes(b"jpeg")
+
+        def fake_convert_image(self_conv, source, target_ext, **kwargs):
+            out_p = Path(source).with_suffix(f".{target_ext.lower()}")
+            out_p.write_bytes(b"converted")
+            return True, ""
+
+        # 1. Invalid source_format rejected
+        res_bad = convergent_convert(input_path=str(mix_dir), source_format="NOTAFMT", target_format="JPG")
+        self.assertFalse(res_bad["success"])
+        self.assertIn("Unsupported source_format", res_bad["error"])
+
+        # 2. Directory filtered to PNG only
+        with patch.object(Converter, "prepare_conversion", return_value=True), \
+             patch.object(Converter, "convert_image", fake_convert_image):
+            res_png = convergent_convert(
+                input_path=str(mix_dir),
+                source_format="png",
+                target_format="JPG",
+                use_cache=False,
+            )
+        self.assertTrue(res_png["success"], msg=res_png.get("error"))
+        self.assertEqual(res_png["count"], 1)
+        self.assertEqual([Path(p).name for p in res_png["converted_files"]], ["pic.jpg"])
+        self.assertFalse((mix_dir / "photo.jpg").exists())
+
+        # 3. Alias normalization: source_format="JPEG" matches both pic.jpg (from step 2) and snap.jpeg
+        with patch.object(Converter, "prepare_conversion", return_value=True), \
+             patch.object(Converter, "convert_image", fake_convert_image):
+            res_jpeg = convergent_convert(
+                input_path=str(mix_dir),
+                source_format="JPEG",
+                target_format="BMP",
+                use_cache=False,
+            )
+        self.assertTrue(res_jpeg["success"], msg=res_jpeg.get("error"))
+        self.assertEqual({Path(p).name for p in res_jpeg["converted_files"]}, {"pic.bmp", "snap.bmp"})
+        self.assertFalse((mix_dir / "photo.bmp").exists())
+
+        # 4. Single-file mismatch rejected clearly
+        res_mismatch = convergent_convert(
+            input_path=str(mix_dir / "pic.png"),
+            source_format="JPG",
+            target_format="WEBP",
+            use_cache=False,
+        )
+        self.assertFalse(res_mismatch["success"])
+        self.assertIn("does not match source_format 'JPG'", res_mismatch["error"])
+
+    def test_split_file_rejects_incompatible_modes_and_warns_ignored_args(self):
+        vid = self.dir_path / "clip.mp4"
+        vid.write_bytes(b"mp4")
+        mp3 = self.dir_path / "song.mp3"
+        mp3.write_bytes(b"mp3")
+        pdf = self.dir_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+        gif = self.dir_path / "anim.gif"
+        gif.write_bytes(b"GIF89a")
+
+        for media_f in (vid, mp3):
+            for bad_mode in ("pages", "frames"):
+                res = split_file(file_path=str(media_f), mode=bad_mode)
+                self.assertFalse(res["success"])
+                self.assertIn("not supported", res["error"])
+                self.assertIn("interval", res["error"])
+
+        for bad_doc_mode in ("interval", "frames"):
+            res = split_file(file_path=str(pdf), mode=bad_doc_mode)
+            self.assertFalse(res["success"])
+            self.assertIn("not supported", res["error"])
+            self.assertIn("pages", res["error"])
+
+        res_gif = split_file(file_path=str(gif), mode="pages")
+        self.assertFalse(res_gif["success"])
+        self.assertIn("not supported", res_gif["error"])
+        self.assertIn("frames", res_gif["error"])
+
+        # Explicit mode='pages' with num_parts attaches warning instead of silently ignoring
+        out_dir = self.dir_path / "pdf_pages_out"
+        out_dir.mkdir()
+        with patch("mcp_server.server.conv.split_pdf") as mock_split_pdf:
+            def fake_pages(*args, **kwargs):
+                (out_dir / "page_001.pdf").write_bytes(b"p1")
+                return str(out_dir)
+            mock_split_pdf.side_effect = fake_pages
+            res_warn = split_file(file_path=str(pdf), mode="pages", num_parts=2, output_dir=str(out_dir))
+            self.assertTrue(res_warn["success"])
+            self.assertTrue(any("ignores" in w for w in res_warn.get("warnings", [])))
+
+    def test_resize_media_rejects_conflicting_scale_percent_and_dimensions(self):
+        img = self.dir_path / "photo.png"
+        img.write_bytes(b"png")
+
+        res_w = resize_media(file_path=str(img), width=100, scale_percent=50)
+        self.assertFalse(res_w["success"])
+        self.assertIn("Conflicting sizing parameters", res_w["error"])
+
+        res_h = resize_media(file_path=str(img), height=100, scale_percent=50)
+        self.assertFalse(res_h["success"])
+        self.assertIn("Conflicting sizing parameters", res_h["error"])
+
+        res_wh = resize_media(file_path=str(img), width=100, height=200, scale_percent=50)
+        self.assertFalse(res_wh["success"])
+        self.assertIn("Conflicting sizing parameters", res_wh["error"])
+
+    def test_convergent_convert_pdf_ocr_false_warning(self):
+        from Convergent import Converter
+        pdf_file = self.dir_path / "scan.pdf"
+        pdf_file.write_bytes(b"%PDF-1.4\n")
+
+        def fake_convert_pdf(self_conv, source, target_ext, **kwargs):
+            out_p = Path(source).with_suffix(f".{target_ext.lower()}")
+            out_p.write_text("extracted text", encoding="utf-8")
+            return True, ""
+
+        with patch.object(Converter, "prepare_conversion", return_value=True), \
+             patch.object(Converter, "convert_pdf", fake_convert_pdf):
+            # Explicit ocr=False -> warns that OCR override occurred
+            res_false = convergent_convert(
+                input_path=str(pdf_file),
+                target_format="TXT",
+                ocr=False,
+                use_cache=False,
+            )
+            self.assertTrue(res_false["success"], msg=res_false.get("error"))
+            self.assertIn("warnings", res_false)
+            self.assertTrue(any("ocr=False was overridden" in w for w in res_false["warnings"]))
+
+            # Default omitted ocr (None) -> no override warning
+            res_default = convergent_convert(
+                input_path=str(pdf_file),
+                target_format="TXT",
+                use_cache=False,
+            )
+            self.assertTrue(res_default["success"], msg=res_default.get("error"))
+            self.assertNotIn("warnings", res_default)
+
+    def test_perform_ocr_pdf_summary_metadata(self):
+        pdf_out = self.dir_path / "searchable.pdf"
+        pdf_out.write_bytes(b"%PDF-1.4\n")
+        with patch("mcp_server.server.convergent_convert") as mock_conv:
+            mock_conv.return_value = {
+                "success": True,
+                "count": 1,
+                "converted_files": [str(pdf_out)],
+                "target_format": "PDF",
+            }
+            res = perform_ocr(input_path=str(pdf_out), target_format="PDF")
+        self.assertTrue(res["success"])
+        self.assertIsNone(res.get("total_characters"))
+        self.assertEqual(
+            res.get("extracted_text_preview"),
+            "[Searchable OCR text layer embedded in PDF document]",
+        )
+
+    def test_convergent_convert_pdf_to_images_note_and_output_directory(self):
+        pdf_file = self.dir_path / "slides.pdf"
+        pdf_file.write_bytes(b"%PDF-1.4\n")
+        img_dir = self.dir_path / "slides_images"
+        img_dir.mkdir()
+        (img_dir / "page_001.png").write_bytes(b"png1")
+        (img_dir / "page_002.png").write_bytes(b"png2")
+
+        with patch("mcp_server.server.conv.process", return_value=[img_dir]):
+            res = convergent_convert(
+                input_path=str(pdf_file),
+                target_format="PNG",
+                use_cache=False,
+            )
+        self.assertTrue(res["success"])
+        self.assertEqual(res["converted_files"], [str(img_dir)])
+        self.assertEqual(res.get("output_directory"), str(img_dir))
+        self.assertIn("pdf_to_images", res.get("note", ""))
+        self.assertIn("2 page image file(s)", res.get("note", ""))
+
+    def test_combine_files_single_file_warning(self):
+        single_pdf = self.dir_path / "only_one.pdf"
+        single_pdf.write_bytes(b"%PDF-1.4\n")
+        out_pdf = self.dir_path / "combined.pdf"
+        with patch("mcp_server.server.conv.combine_pdfs", return_value=out_pdf):
+            res = combine_files(file_paths=[str(single_pdf)], output_path=str(out_pdf))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["output_file"], str(out_pdf))
+        self.assertEqual(
+            res.get("warnings"),
+            ["Only 1 input file was provided; created output without merging multiple files."],
+        )
+
+        second_pdf = self.dir_path / "second.pdf"
+        second_pdf.write_bytes(b"%PDF-1.4\n")
+        with patch("mcp_server.server.conv.combine_pdfs", return_value=out_pdf):
+            res_multi = combine_files(file_paths=[str(single_pdf), str(second_pdf)], output_path=str(out_pdf))
+        self.assertTrue(res_multi["success"])
+        self.assertNotIn("warnings", res_multi)
+
+    def test_list_supported_formats_include_dependencies(self):
+        models_dir = self.dir_path / "whisper_models"
+        models_dir.mkdir()
+        (models_dir / "ggml-base.bin").write_bytes(b"model")
+        (models_dir / "ggml-tiny.bin").write_bytes(b"model")
+        (models_dir / "ggml-small.tmp").write_bytes(b"partial")
+
+        with patch("modules.stt.MODELS_DIR", models_dir), \
+             patch("modules.ocr.HAS_MACOS_VISION", True), \
+             patch("modules.stt.find_whisper_binary", return_value="/opt/homebrew/bin/whisper-cli"), \
+             patch("shutil.which", side_effect=lambda cmd: f"/usr/bin/{cmd}" if cmd in ("ffmpeg", "ffprobe", "gs", "magick") else None):
+            res = list_supported_formats(include_dependencies=True)
+
+        self.assertIn("dependencies", res)
+        deps = res["dependencies"]
+        self.assertTrue(deps["macos_vision"])
+        self.assertEqual(deps["whisper_models"], ["base", "tiny"])
+        self.assertTrue(deps["binaries"]["ffmpeg"])
+        self.assertTrue(deps["binaries"]["ffprobe"])
+        self.assertTrue(deps["binaries"]["gs"])
+        self.assertTrue(deps["binaries"]["magick"])
+        self.assertTrue(deps["binaries"]["whisper"])
+        self.assertFalse(deps["binaries"]["tesseract"])
+
+    def test_mcp_schemas_strip_titles_have_enums_and_case_insensitive_validation(self):
+        import json
+        from mcp_server.server import mcp
+
+        def has_title_key(obj):
+            if isinstance(obj, dict):
+                if "title" in obj:
+                    return True
+                return any(has_title_key(v) for v in obj.values())
+            if isinstance(obj, list):
+                return any(has_title_key(item) for item in obj)
+            return False
+
+        async def check_schemas_and_calls():
+            tools = await mcp.list_tools()
+            by_name = {t.name: t for t in tools}
+
+            for t in tools:
+                self.assertFalse(
+                    has_title_key(t.inputSchema),
+                    f"Tool {t.name} inputSchema still contains 'title': {t.inputSchema}",
+                )
+
+            # Verify enum definitions on the 7 parameterized tools
+            self.assertEqual(
+                by_name["pdf_to_images"].inputSchema["properties"]["target_format"]["enum"],
+                ["JPG", "PNG", "TIF", "BMP"],
+            )
+            self.assertEqual(
+                by_name["extract_audio"].inputSchema["properties"]["target_format"]["enum"],
+                ["MP3", "WAV", "AAC", "FLAC", "M4A", "OGG"],
+            )
+            self.assertEqual(
+                by_name["perform_ocr"].inputSchema["properties"]["target_format"]["enum"],
+                ["TXT", "MD", "DOCX", "PDF"],
+            )
+            self.assertEqual(
+                by_name["perform_stt"].inputSchema["properties"]["target_format"]["enum"],
+                ["TXT", "SRT", "VTT", "MD"],
+            )
+            self.assertEqual(
+                by_name["compress_files"].inputSchema["properties"]["format"]["enum"],
+                ["ZIP", "TAR.GZ", "TAR.BZ2", "TAR.XZ", "7Z", "RAR"],
+            )
+            self.assertEqual(
+                by_name["split_file"].inputSchema["properties"]["frame_format"]["enum"],
+                ["png", "jpg"],
+            )
+            cat_any_of = by_name["list_supported_formats"].inputSchema["properties"]["category"]["anyOf"]
+            self.assertEqual(cat_any_of[0]["enum"], ["image", "video", "audio", "document"])
+
+            # Verify case-insensitive and alias inputs succeed through FastMCP validation AND emit compact JSON
+            res_cat = await mcp.call_tool("list_supported_formats", {"category": "IMAGE"})
+            self.assertEqual(len(res_cat), 1)
+            raw_text = res_cat[0].text
+            self.assertNotIn("\n  ", raw_text)
+            self.assertEqual(json.loads(raw_text)["category"], "image")
+
+            res_cat_num = await mcp.call_tool("list_supported_formats", {"category": "5"})
+            self.assertEqual(json.loads(res_cat_num[0].text)["category"], "document")
+
+            # Lowercase & alias inputs for enum-validated tools
+            dummy_pdf = self.dir_path / "s.pdf"
+            dummy_pdf.write_bytes(b"%PDF-1.4\n")
+            dummy_txt = self.dir_path / "n.txt"
+            dummy_txt.write_text("hi", encoding="utf-8")
+            dummy_img = self.dir_path / "p.png"
+            dummy_img.write_bytes(b"png")
+            dummy_aud = self.dir_path / "a.wav"
+            dummy_aud.write_bytes(b"wav")
+
+            with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": [str(dummy_txt)]}) as mock_cc:
+                await mcp.call_tool("perform_ocr", {"input_path": str(dummy_img), "target_format": "txt"})
+                self.assertEqual(mock_cc.call_args[1]["target_format"], "TXT")
+
+                await mcp.call_tool("perform_stt", {"input_path": str(dummy_aud), "target_format": "srt"})
+                self.assertEqual(mock_cc.call_args[1]["target_format"], "SRT")
+
+            with patch("mcp_server.server.conv.compress", return_value=(True, "", self.dir_path / "out.tar.gz")) as mock_comp:
+                res_comp = await mcp.call_tool(
+                    "compress_files",
+                    {"file_paths": [str(dummy_txt)], "output_name": "out.tgz", "format": "tgz", "output_dir": str(self.dir_path)},
+                )
+                self.assertEqual(mock_comp.call_args[1]["format_choice"], "TAR.GZ")
+                self.assertTrue(json.loads(res_comp[0].text)["success"])
+
+            with patch("mcp_server.server.convergent_convert", return_value={"success": False, "error": "missing"}):
+                res_p2i = await mcp.call_tool("pdf_to_images", {"pdf_path": str(dummy_pdf), "target_format": "jpeg"})
+                self.assertFalse(json.loads(res_p2i[0].text)["success"])
+
+            # Verify docstrings and server instructions include error/behavior guidance
+            self.assertIn("isError=true", mcp.instructions)
+            self.assertIn("OCR", convergent_convert.__doc__)
+            self.assertIn("pdf_to_images", convergent_convert.__doc__)
+            self.assertIn("Ghostscript", resize_media.__doc__)
+
+        asyncio.run(check_schemas_and_calls())
+
 
 import asyncio
 from mcp.client.stdio import stdio_client
@@ -1144,6 +1705,7 @@ class TestMCPAsyncSession(unittest.IsolatedAsyncioTestCase):
                 # 1. Bounded Initialize
                 init_res = await asyncio.wait_for(session.initialize(), timeout=5.0)
                 self.assertEqual(init_res.serverInfo.name, "Convergent")
+                self.assertIn("isError=true", init_res.instructions or "")
 
                 # 2. Bounded list_tools
                 tools_res = await asyncio.wait_for(session.list_tools(), timeout=5.0)
@@ -1158,11 +1720,13 @@ class TestMCPAsyncSession(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("resize_media", tool_names)
                 for t in tools_res.tools:
                     self.assertIsNone(t.outputSchema, f"{t.name} should not emit outputSchema")
+                    self.assertNotIn("title", t.inputSchema, f"{t.name} should strip title from inputSchema")
 
-                # 3. Bounded call_tool
+                # 3. Bounded call_tool (verify compact JSON response)
                 call_res = await asyncio.wait_for(session.call_tool("list_supported_formats", {}), timeout=5.0)
                 self.assertFalse(call_res.isError)
                 self.assertIsNone(call_res.structuredContent)
+                self.assertNotIn("\n  ", call_res.content[0].text)
 
 
 if __name__ == "__main__":
