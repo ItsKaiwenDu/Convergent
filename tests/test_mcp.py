@@ -15,16 +15,16 @@ if importlib.util.find_spec("mcp") is None:
 
 from mcp_server.server import (
     list_supported_formats,
-    convergent_convert,
+    convert,
     pdf_to_images,
     extract_audio,
-    perform_ocr,
-    perform_stt,
-    combine_files,
-    split_file,
-    compress_files,
-    decompress_archive,
-    resize_media,
+    ocr,
+    stt,
+    combine,
+    split,
+    compress,
+    decompress,
+    resize,
 )
 
 
@@ -52,7 +52,7 @@ class TestMCPServer(unittest.TestCase):
         self.assertNotIn("2", res["categories"])
 
     def test_convergent_convert_nonexistent_file(self):
-        res = convergent_convert(
+        res = convert(
             input_path=str(self.dir_path / "nonexistent.jpg"),
             target_format="PNG",
         )
@@ -72,7 +72,7 @@ class TestMCPServer(unittest.TestCase):
         with patch("mcp_server.server.conv.process") as mock_process:
             mock_process.return_value = [dummy_out]
 
-            res = convergent_convert(
+            res = convert(
                 input_path=str(src_file),
                 target_format="PNG",
                 output_path=str(dest_dir),
@@ -96,38 +96,38 @@ class TestMCPServer(unittest.TestCase):
         self.assertIn("File not found", res["error"])
 
     def test_perform_ocr_missing_file(self):
-        res = perform_ocr(input_path=str(self.dir_path / "ghost.png"))
+        res = ocr(input_path=str(self.dir_path / "ghost.png"))
         self.assertFalse(res["success"])
         self.assertIn("File not found", res["error"])
 
     def test_perform_stt_missing_file(self):
-        res = perform_stt(input_path=str(self.dir_path / "ghost.wav"))
+        res = stt(input_path=str(self.dir_path / "ghost.wav"))
         self.assertFalse(res["success"])
         self.assertIn("File not found", res["error"])
 
     def test_combine_files_empty_and_unsupported(self):
         # Empty list
-        res = combine_files(file_paths=[])
+        res = combine(file_paths=[])
         self.assertFalse(res["success"])
         self.assertIn("No valid existing files", res["error"])
 
         # Unsupported extension
         unsupported_file = self.dir_path / "data.xyz"
         unsupported_file.write_bytes(b"xyz")
-        res2 = combine_files(file_paths=[str(unsupported_file)])
+        res2 = combine(file_paths=[str(unsupported_file)])
         self.assertFalse(res2["success"])
         self.assertIn("Unsupported file type", res2["error"])
 
     def test_split_file_missing_and_unsupported(self):
         # Missing file
-        res = split_file(file_path=str(self.dir_path / "ghost.pdf"))
+        res = split(file_path=str(self.dir_path / "ghost.pdf"))
         self.assertFalse(res["success"])
         self.assertIn("File not found", res["error"])
 
         # Unsupported extension
         unsupported_file = self.dir_path / "data.xyz"
         unsupported_file.write_bytes(b"xyz")
-        res2 = split_file(file_path=str(unsupported_file))
+        res2 = split(file_path=str(unsupported_file))
         self.assertFalse(res2["success"])
         self.assertIn("Unsupported file type", res2["error"])
 
@@ -147,7 +147,7 @@ class TestMCPServer(unittest.TestCase):
 
         with patch("sys.stdout", stdout_buf):
             console.print("Diagnostic test message")
-            res = convergent_convert(
+            res = convert(
                 input_path=str(src_file),
                 target_format="MD",
                 overwrite=True,
@@ -179,7 +179,7 @@ class TestMCPServer(unittest.TestCase):
                 else:
                     existing.write_bytes(b"old")
                 with patch("mcp_server.server.conv.process", return_value=[output]):
-                    result = convergent_convert(str(src), "PNG", output_path=str(destination), overwrite=False)
+                    result = convert(str(src), "PNG", output_path=str(destination), overwrite=False)
                 self.assertFalse(result["success"])
                 self.assertIn("Destination already exists", result["error"])
                 self.assertTrue(output.exists())
@@ -199,7 +199,7 @@ class TestMCPServer(unittest.TestCase):
         for overwrite in (False, True):
             output.write_bytes(b"new")
             with patch("mcp_server.server.conv.process", return_value=[output]):
-                result = convergent_convert(str(src), "PNG", output_path=str(destination), overwrite=overwrite)
+                result = convert(str(src), "PNG", output_path=str(destination), overwrite=overwrite)
             self.assertEqual(result["success"], overwrite)
             self.assertEqual(destination.read_bytes(), b"new" if overwrite else b"old")
 
@@ -213,7 +213,7 @@ class TestMCPServer(unittest.TestCase):
         destination.mkdir()
         (destination / "b.png").write_bytes(b"old")
         with patch("mcp_server.server.conv.process", return_value=outputs):
-            result = convergent_convert(str(src), "PNG", output_path=str(destination), overwrite=False)
+            result = convert(str(src), "PNG", output_path=str(destination), overwrite=False)
         self.assertFalse(result["success"])
         self.assertTrue(all(out.exists() for out in outputs))
         self.assertFalse((destination / "a.png").exists())
@@ -294,14 +294,14 @@ class TestMCPServer(unittest.TestCase):
 
     def test_finding_4_convenience_tools_accept_output_path(self):
         import inspect
-        for fn in (pdf_to_images, extract_audio, perform_ocr, perform_stt):
+        for fn in (pdf_to_images, extract_audio, ocr, stt):
             sig = inspect.signature(fn)
             self.assertIn("output_path", sig.parameters, f"{fn.__name__} must accept output_path parameter!")
 
     def test_finding_5_error_diagnostics_returned(self):
         src_file = self.dir_path / "bad.txt"
         src_file.write_text("hello")
-        res = convergent_convert(
+        res = convert(
             input_path=str(src_file),
             target_format="XYZ",
             overwrite=True,
@@ -328,7 +328,7 @@ class TestMCPServer(unittest.TestCase):
             return [dummy_out]
 
         with patch("mcp_server.server.conv.process", side_effect=mock_process_side_effect):
-            res = convergent_convert(
+            res = convert(
                 input_path=str(src_dir),
                 target_format="PDF",
                 overwrite=True,
@@ -344,7 +344,7 @@ class TestMCPServer(unittest.TestCase):
         p1.write_bytes(b"%PDF")
         p2.write_bytes(b"MP4")
 
-        res = combine_files(file_paths=[str(p1), str(p2)])
+        res = combine(file_paths=[str(p1), str(p2)])
         self.assertFalse(res["success"])
         self.assertIn("mismatched file types", res["error"])
 
@@ -352,7 +352,7 @@ class TestMCPServer(unittest.TestCase):
         test_file = self.dir_path / "hello.txt"
         test_file.write_text("Hello MCP Archive")
 
-        comp_res = compress_files(
+        comp_res = compress(
             file_paths=[str(test_file)],
             output_name="test_archive.zip",
             output_dir=str(self.dir_path),
@@ -361,7 +361,7 @@ class TestMCPServer(unittest.TestCase):
         self.assertTrue(Path(comp_res["archive_path"]).exists())
 
         extract_dir = self.dir_path / "extracted_contents"
-        decomp_res = decompress_archive(
+        decomp_res = decompress(
             archive_path=comp_res["archive_path"],
             output_dir=str(extract_dir),
         )
@@ -374,7 +374,7 @@ class TestMCPServer(unittest.TestCase):
         img_file.write_bytes(b"dummy")
 
         with patch("modules.resize.resize_single_file", return_value=("sample.png", True, "", 0.05)):
-            res = resize_media(
+            res = resize(
                 file_path=str(img_file),
                 scale_percent=50,
                 output_path=str(self.dir_path / "scaled.png"),
@@ -398,23 +398,23 @@ class TestMCPServer(unittest.TestCase):
         ocr_out = self.dir_path / "ocr_output.txt"
         ocr_out.write_text("A" * 1200)
 
-        with patch("mcp_server.server.convergent_convert") as mock_conv:
+        with patch("mcp_server.server.convert") as mock_conv:
             mock_conv.return_value = {
                 "success": True,
                 "count": 1,
                 "converted_files": [str(ocr_out)],
                 "target_format": "TXT",
             }
-            res = perform_ocr(input_path=str(ocr_out), preview_length=200)
+            res = ocr(input_path=str(ocr_out), preview_length=200)
             self.assertEqual(res["total_characters"], 1200)
             self.assertIn("truncated, 1200 total characters", res["extracted_text_preview"])
             self.assertTrue(len(res["extracted_text_preview"]) < 300)
 
     def test_finding_13_stt_model_fallback_warning(self):
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}):
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": []}):
             dummy_audio = self.dir_path / "audio.mp3"
             dummy_audio.touch()
-            res = perform_stt(input_path=str(dummy_audio), model="custom-gpt-whisper-unknown")
+            res = stt(input_path=str(dummy_audio), model="custom-gpt-whisper-unknown")
             self.assertEqual(res.get("model_used"), "base")
             self.assertIn("warning", res)
             self.assertIn("Falling back to 'base'", res["warning"])
@@ -447,10 +447,10 @@ class TestMCPServer(unittest.TestCase):
         self.assertEqual(normalize_model_name("large-v3-turbo"), "turbo")
         self.assertEqual(normalize_model_name("large-turbo"), "turbo")
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}):
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": []}):
             dummy_audio = self.dir_path / "audio.mp3"
             dummy_audio.touch()
-            res = perform_stt(input_path=str(dummy_audio), model="large-v3-turbo")
+            res = stt(input_path=str(dummy_audio), model="large-v3-turbo")
             self.assertEqual(res.get("model_used"), "turbo")
             self.assertEqual(res.get("model_requested"), "large-v3-turbo")
             self.assertNotIn("warning", res)
@@ -473,14 +473,14 @@ class TestMCPServer(unittest.TestCase):
     def test_perform_ocr_docx_no_binary_preview(self):
         docx_file = self.dir_path / "output.docx"
         docx_file.write_bytes(b"PK\x03\x04\x14\x00fake_zip_binary")
-        with patch("mcp_server.server.convergent_convert") as mock_conv:
+        with patch("mcp_server.server.convert") as mock_conv:
             mock_conv.return_value = {
                 "success": True,
                 "count": 1,
                 "converted_files": [str(docx_file)],
                 "target_format": "DOCX",
             }
-            res = perform_ocr(input_path=str(docx_file), target_format="DOCX")
+            res = ocr(input_path=str(docx_file), target_format="DOCX")
             self.assertIsNone(res.get("total_characters"))
             self.assertEqual(res.get("extracted_text_preview"), "[Text extracted and saved to DOCX document]")
 
@@ -488,7 +488,7 @@ class TestMCPServer(unittest.TestCase):
         with patch("modules.resize.resize_single_file", return_value=("test.jpg", True, "", 0.05)) as mock_resize:
             dummy_img = self.dir_path / "img.jpg"
             dummy_img.touch()
-            res = resize_media(file_path=str(dummy_img), width=300)
+            res = resize(file_path=str(dummy_img), width=300)
             self.assertTrue(res["success"])
             self.assertEqual(mock_resize.call_args[1]["method"], "w")
             self.assertEqual(mock_resize.call_args[1]["scale_val"], 300)
@@ -503,7 +503,7 @@ class TestMCPServer(unittest.TestCase):
         self.assertIn("Invalid audio target format", res_gif["error"])
 
         # Allow valid AAC audio format
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": ["video.aac"]}):
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": ["video.aac"]}):
             res_aac = extract_audio(video_path=str(dummy_video), target_format="AAC")
             self.assertTrue(res_aac["success"])
 
@@ -576,7 +576,7 @@ class TestMCPServer(unittest.TestCase):
             p.touch()
             created_paths.append(str(p))
 
-        with patch("mcp_server.server.convergent_convert") as mock_conv:
+        with patch("mcp_server.server.convert") as mock_conv:
             mock_conv.return_value = {
                 "success": True,
                 "count": len(created_paths),
@@ -599,14 +599,14 @@ class TestMCPServer(unittest.TestCase):
         dummy_video.touch()
         with patch("mcp_server.server.conv.split_video", return_value=str(self.dir_path / "split_out")) as mock_split_vid:
             (self.dir_path / "split_out").mkdir(exist_ok=True)
-            res = split_file(file_path=str(dummy_video))
+            res = split(file_path=str(dummy_video))
             self.assertEqual(mock_split_vid.call_args[1]["mode"], "interval")
 
         # 2. PDF auto-mode -> pages
         dummy_pdf = self.dir_path / "doc.pdf"
         dummy_pdf.touch()
         with patch("mcp_server.server.conv.split_pdf", return_value=str(self.dir_path / "split_out")) as mock_split_pdf:
-            res = split_file(file_path=str(dummy_pdf))
+            res = split(file_path=str(dummy_pdf))
             self.assertEqual(mock_split_pdf.call_args[1]["mode"], "pages")
 
     def test_combine_mixed_audio_filter_complex(self):
@@ -640,7 +640,7 @@ class TestMCPServer(unittest.TestCase):
                     return [default_file]
                 mock_proc.side_effect = fake_proc
 
-                res1 = convergent_convert(
+                res1 = convert(
                     input_path=str(dummy_src),
                     target_format="PNG",
                     output_path=str(custom_out),
@@ -651,7 +651,7 @@ class TestMCPServer(unittest.TestCase):
 
             # Second call: hits cache directly without calling conv.process
             with patch("mcp_server.server.conv.process") as mock_proc2:
-                res2 = convergent_convert(
+                res2 = convert(
                     input_path=str(dummy_src),
                     target_format="PNG",
                     output_path=str(custom_out),
@@ -736,7 +736,7 @@ class TestMCPServer(unittest.TestCase):
                     return [default_file]
                 mock_proc.side_effect = fake_proc
 
-                res1 = convergent_convert(
+                res1 = convert(
                     input_path=str(src),
                     target_format="MD",
                     output_path=str(custom_out),
@@ -747,7 +747,7 @@ class TestMCPServer(unittest.TestCase):
                 self.assertTrue(custom_out.exists())
 
             # Calling again with overwrite=False must NOT bypass the check via cache
-            res2 = convergent_convert(
+            res2 = convert(
                 input_path=str(src),
                 target_format="MD",
                 output_path=str(custom_out),
@@ -762,7 +762,7 @@ class TestMCPServer(unittest.TestCase):
         d2 = self.dir_path / "b.docx"
         d1.write_bytes(b"docx1")
         d2.write_bytes(b"docx2")
-        res_docx = combine_files(file_paths=[str(d1), str(d2)], output_path=str(self.dir_path / "merged.docx"))
+        res_docx = combine(file_paths=[str(d1), str(d2)], output_path=str(self.dir_path / "merged.docx"))
         self.assertFalse(res_docx["success"])
         self.assertIn(".pdf", res_docx["error"])
 
@@ -770,7 +770,7 @@ class TestMCPServer(unittest.TestCase):
         p2 = self.dir_path / "b.pptx"
         p1.write_bytes(b"pptx1")
         p2.write_bytes(b"pptx2")
-        res_pptx = combine_files(file_paths=[str(p1), str(p2)], output_path=str(self.dir_path / "merged.pptx"))
+        res_pptx = combine(file_paths=[str(p1), str(p2)], output_path=str(self.dir_path / "merged.pptx"))
         self.assertFalse(res_pptx["success"])
         self.assertIn(".pdf", res_pptx["error"])
 
@@ -778,7 +778,7 @@ class TestMCPServer(unittest.TestCase):
         pdf2 = self.dir_path / "b.pdf"
         pdf1.write_bytes(b"%PDF-1.4\n")
         pdf2.write_bytes(b"%PDF-1.4\n")
-        res_noext = combine_files(file_paths=[str(pdf1), str(pdf2)], output_path=str(self.dir_path / "merged"))
+        res_noext = combine(file_paths=[str(pdf1), str(pdf2)], output_path=str(self.dir_path / "merged"))
         self.assertFalse(res_noext["success"])
         self.assertIn(".pdf", res_noext["error"])
 
@@ -795,7 +795,7 @@ class TestMCPServer(unittest.TestCase):
         mp3.write_bytes(b"mp3")
 
         # 1. Reject internal CLI code aspect_ratio="5"
-        res_ar5 = resize_media(file_path=str(img), width=100, aspect_ratio="5")
+        res_ar5 = resize(file_path=str(img), width=100, aspect_ratio="5")
         self.assertFalse(res_ar5["success"])
         self.assertIn("aspect ratio", res_ar5["error"].lower())
 
@@ -803,24 +803,24 @@ class TestMCPServer(unittest.TestCase):
         for bad_fps in (0, -24, True, "30"):
             vid = self.dir_path / "clip.mp4"
             vid.write_bytes(b"mp4")
-            res_fps = resize_media(file_path=str(vid), fps=bad_fps)
+            res_fps = resize(file_path=str(vid), fps=bad_fps)
             self.assertFalse(res_fps["success"], f"Expected failure for fps={bad_fps!r}")
             self.assertIn("fps", res_fps["error"].lower())
 
         # 3. Reject fps on non-video files
         for non_vid in (img, pdf):
-            res_nonvid_fps = resize_media(file_path=str(non_vid), width=100, fps=30)
+            res_nonvid_fps = resize(file_path=str(non_vid), width=100, fps=30)
             self.assertFalse(res_nonvid_fps["success"])
             self.assertIn("video", res_nonvid_fps["error"].lower())
 
         # 4. Reject pure no-op calls
-        res_noop = resize_media(file_path=str(img))
+        res_noop = resize(file_path=str(img))
         self.assertFalse(res_noop["success"])
         self.assertIn("no operation", res_noop["error"].lower())
 
         # 5. Reject unsupported extensions with explicit error
         for bad_file in (txt, svg, mp3):
-            res_unsup = resize_media(file_path=str(bad_file), width=100)
+            res_unsup = resize(file_path=str(bad_file), width=100)
             self.assertFalse(res_unsup["success"])
             self.assertIn("unsupported file format", res_unsup["error"].lower())
 
@@ -829,7 +829,7 @@ class TestMCPServer(unittest.TestCase):
             v = self.dir_path / f"sample{ext}"
             v.write_bytes(b"video")
             with patch("modules.resize.resize_single_file", return_value=(v.name, True, "", 0.05)):
-                res_v = resize_media(file_path=str(v), fps=24)
+                res_v = resize(file_path=str(v), fps=24)
                 self.assertTrue(res_v["success"], f"Expected success for {ext}: {res_v}")
 
         # 7. Verify resize_single_file falls back to libx264 for .avi when get_video_encoder returns None
@@ -897,7 +897,7 @@ class TestMCPServer(unittest.TestCase):
             return out_files
 
         with patch("mcp_server.server.conv.process", side_effect=fake_process):
-            res1 = convergent_convert(input_path=str(in_dir), target_format="MD", output_path=str(new_out_dir), use_cache=False)
+            res1 = convert(input_path=str(in_dir), target_format="MD", output_path=str(new_out_dir), use_cache=False)
             self.assertTrue(res1["success"])
             self.assertTrue(res1["truncated"])
             manifest1 = Path(res1["manifest_path"])
@@ -906,7 +906,7 @@ class TestMCPServer(unittest.TestCase):
             self.assertTrue(manifest1.exists())
 
             # Repeat run overwrites same deterministic manifest instead of creating multiple files
-            res2 = convergent_convert(input_path=str(in_dir), target_format="MD", output_path=str(new_out_dir), use_cache=False)
+            res2 = convert(input_path=str(in_dir), target_format="MD", output_path=str(new_out_dir), use_cache=False)
             self.assertEqual(res2["manifest_path"], res1["manifest_path"])
             manifests = list(new_out_dir.glob(".convergent_manifest_converted*.json"))
             self.assertEqual(len(manifests), 1)
@@ -956,8 +956,8 @@ class TestMCPServer(unittest.TestCase):
         dummy_audio = self.dir_path / "audio.mp3"
         dummy_audio.touch()
         raw_err = "Whisper model 'small' (~466 MB) is not installed. Rerun conversion with --install-deps to download it."
-        with patch("mcp_server.server.convergent_convert", return_value={"success": False, "error": raw_err, "converted_files": []}):
-            res = perform_stt(input_path=str(dummy_audio), model="small")
+        with patch("mcp_server.server.convert", return_value={"success": False, "error": raw_err, "converted_files": []}):
+            res = stt(input_path=str(dummy_audio), model="small")
         self.assertFalse(res["success"])
         self.assertNotIn("Rerun conversion with --install-deps", res["error"])
         self.assertIn("python Convergent.py --install-deps", res["error"])
@@ -980,7 +980,7 @@ class TestMCPServer(unittest.TestCase):
             return True, "", expected_dir
 
         with patch("mcp_server.server.conv.decompress", side_effect=fake_decompress):
-            res = decompress_archive(archive_path=str(tar_gz))
+            res = decompress(archive_path=str(tar_gz))
         self.assertTrue(res["success"])
         self.assertEqual(Path(res["output_dir"]).name, "bundle")
         self.assertEqual(res["extracted_files_count"], 1)
@@ -1006,7 +1006,7 @@ class TestMCPServer(unittest.TestCase):
 
         with patch("mcp_server.server.conv.split_pdf", side_effect=fake_split_pdf), \
              patch("modules.split.send_to_trash") as mock_trash:
-            res = split_file(file_path=str(dummy_pdf), mode="parts", num_parts=1, output_dir=str(out_dir))
+            res = split(file_path=str(dummy_pdf), mode="parts", num_parts=1, output_dir=str(out_dir))
         self.assertTrue(res["success"])
         self.assertEqual(res["count"], 1)
         self.assertEqual([Path(p).name for p in res["split_files"]], ["part_1_1-3.pdf"])
@@ -1022,13 +1022,13 @@ class TestMCPServer(unittest.TestCase):
         f2 = self.dir_path / "page2.txt"
         f1.write_text("Hello")
         f2.write_text("World!")
-        with patch("mcp_server.server.convergent_convert", return_value={
+        with patch("mcp_server.server.convert", return_value={
             "success": True,
             "count": 2,
             "converted_files": [str(f1), str(f2)],
             "target_format": "TXT",
         }):
-            res = perform_ocr(input_path=str(img_dir), preview_length=500)
+            res = ocr(input_path=str(img_dir), preview_length=500)
         self.assertTrue(res["success"])
         self.assertEqual(res["total_characters"], 11)
         self.assertIn("page1.txt", res["extracted_text_preview"])
@@ -1038,7 +1038,7 @@ class TestMCPServer(unittest.TestCase):
         # 1. Same-format in-place skip includes informative message
         png = self.dir_path / "pic.png"
         png.write_bytes(b"png")
-        res_same = convergent_convert(input_path=str(png), target_format="PNG", use_cache=False)
+        res_same = convert(input_path=str(png), target_format="PNG", use_cache=False)
         self.assertTrue(res_same["success"])
         self.assertEqual(res_same.get("message"), "Skipped (same format as input).")
 
@@ -1052,7 +1052,7 @@ class TestMCPServer(unittest.TestCase):
         sym_file = link_dir / "alias.txt"
         sym_file.symlink_to(real_file)
 
-        res_sym = convergent_convert(input_path=str(sym_file), target_format="MD", use_cache=False)
+        res_sym = convert(input_path=str(sym_file), target_format="MD", use_cache=False)
         self.assertTrue(res_sym["success"])
         self.assertEqual(Path(res_sym["converted_files"][0]).parent.resolve(), link_dir.resolve())
         self.assertFalse((real_dir / "source.md").exists())
@@ -1091,7 +1091,7 @@ class TestMCPServer(unittest.TestCase):
             return []
 
         with patch("mcp_server.server.conv.process", side_effect=fake_fail):
-            res = convergent_convert(input_path=str(src_file), target_format="MP3", overwrite=True, use_cache=False)
+            res = convert(input_path=str(src_file), target_format="MP3", overwrite=True, use_cache=False)
         self.assertFalse(res["success"])
         self.assertNotIn("failed_files", res)
         self.assertIn("broken.mp4", res["error"])
@@ -1107,7 +1107,7 @@ class TestMCPServer(unittest.TestCase):
             (split_dir / f"page_{i:03d}.pdf").touch()
 
         with patch("mcp_server.server.conv.split_pdf", return_value=str(split_dir)):
-            res = split_file(file_path=str(doc_pdf), output_dir=str(split_dir))
+            res = split(file_path=str(doc_pdf), output_dir=str(split_dir))
         self.assertTrue(res["success"])
         self.assertEqual(res["count"], 30)
         self.assertTrue(res["truncated"])
@@ -1131,7 +1131,7 @@ class TestMCPServer(unittest.TestCase):
             self.assertEqual(mock_run.call_args_list[1][0][0][0], "gs")
 
     def test_encrypted_pdf_ocr_rejected_without_zero_byte_output(self):
-        from modules import ocr
+        from modules import ocr as ocr_mod
         from customs.run_command import LAST_COMMAND_STDERR, LAST_COMMAND_STDOUT
 
         enc_pdf = self.dir_path / "encrypted.pdf"
@@ -1154,23 +1154,23 @@ class TestMCPServer(unittest.TestCase):
         with patch("modules.ocr.shutil.which", side_effect=fake_which), \
              patch("modules.ocr.run_command", side_effect=fake_gs_encrypted):
             with self.assertRaises(RuntimeError) as cm:
-                ocr._convert_pdf_to_temp_images(enc_pdf)
+                ocr_mod._convert_pdf_to_temp_images(enc_pdf)
             self.assertIn("encrypted or password-protected PDF", str(cm.exception))
 
             out_txt_custom = self.dir_path / "custom_out.txt"
-            res_ocr = perform_ocr(input_path=str(enc_pdf), target_format="TXT", output_path=str(out_txt_custom))
+            res_ocr = ocr(input_path=str(enc_pdf), target_format="TXT", output_path=str(out_txt_custom))
             self.assertFalse(res_ocr["success"])
             self.assertIn("encrypted or password-protected PDF", res_ocr["error"])
             self.assertFalse((self.dir_path / "encrypted.txt").exists())
             self.assertFalse(out_txt_custom.exists())
 
-            res_conv = convergent_convert(input_path=str(enc_pdf), target_format="TXT", use_cache=False)
+            res_conv = convert(input_path=str(enc_pdf), target_format="TXT", use_cache=False)
             self.assertFalse(res_conv["success"])
             self.assertIn("encrypted or password-protected PDF", res_conv["error"])
             self.assertFalse((self.dir_path / "encrypted.txt").exists())
 
             out_pdf_custom = self.dir_path / "ocr_out.pdf"
-            res_pdf = perform_ocr(input_path=str(enc_pdf), target_format="PDF", output_path=str(out_pdf_custom))
+            res_pdf = ocr(input_path=str(enc_pdf), target_format="PDF", output_path=str(out_pdf_custom))
             self.assertFalse(res_pdf["success"])
             self.assertIn("encrypted or password-protected PDF", res_pdf["error"])
             self.assertFalse(out_pdf_custom.exists())
@@ -1179,7 +1179,7 @@ class TestMCPServer(unittest.TestCase):
         with patch("modules.ocr.shutil.which", side_effect=lambda c: f"/usr/bin/{c}" if c in ("sips", "tesseract") else None), \
              patch("modules.ocr.run_command", side_effect=AssertionError("sips must not run on encrypted PDF")):
             with self.assertRaises(RuntimeError) as cm_sips:
-                ocr._convert_pdf_to_temp_images(enc_pdf)
+                ocr_mod._convert_pdf_to_temp_images(enc_pdf)
             self.assertIn("encrypted or password-protected PDF", str(cm_sips.exception))
 
         # Corrupt/unreadable PDF failing gs must not fall back to sips either
@@ -1198,7 +1198,7 @@ class TestMCPServer(unittest.TestCase):
         with patch("modules.ocr.shutil.which", side_effect=fake_which), \
              patch("modules.ocr.run_command", side_effect=fake_gs_corrupt):
             with self.assertRaises(RuntimeError) as cm_corrupt:
-                ocr._convert_pdf_to_temp_images(corrupt_pdf)
+                ocr_mod._convert_pdf_to_temp_images(corrupt_pdf)
             self.assertIn("Could not render PDF pages for OCR", str(cm_corrupt.exception))
 
     def test_compress_files_respects_overwrite(self):
@@ -1207,7 +1207,7 @@ class TestMCPServer(unittest.TestCase):
         archive_path = self.dir_path / "bundle.zip"
         archive_path.write_bytes(b"existing_archive")
 
-        res_no = compress_files(
+        res_no = compress(
             file_paths=[str(src)],
             output_name="bundle.zip",
             output_dir=str(self.dir_path),
@@ -1217,7 +1217,7 @@ class TestMCPServer(unittest.TestCase):
         self.assertIn("Destination already exists", res_no["error"])
         self.assertEqual(archive_path.read_bytes(), b"existing_archive")
 
-        res_yes = compress_files(
+        res_yes = compress(
             file_paths=[str(src)],
             output_name="bundle.zip",
             output_dir=str(self.dir_path),
@@ -1242,21 +1242,21 @@ class TestMCPServer(unittest.TestCase):
         unrelated = out_dir / "unrelated.txt"
         unrelated.write_text("keep_me", encoding="utf-8")
 
-        res_non_colliding = decompress_archive(str(zip_path), output_dir=str(out_dir), overwrite=False)
+        res_non_colliding = decompress(str(zip_path), output_dir=str(out_dir), overwrite=False)
         self.assertTrue(res_non_colliding["success"], msg=res_non_colliding.get("error"))
         self.assertEqual((out_dir / "file1.txt").read_text(encoding="utf-8"), "new_from_zip")
         self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep_me")
 
         # 2. Existing colliding file -> overwrite=False rejects without clobbering
         (out_dir / "file1.txt").write_text("original_local", encoding="utf-8")
-        res_collide = decompress_archive(str(zip_path), output_dir=str(out_dir), overwrite=False)
+        res_collide = decompress(str(zip_path), output_dir=str(out_dir), overwrite=False)
         self.assertFalse(res_collide["success"])
         self.assertIn("conflicting file", res_collide["error"])
         self.assertEqual((out_dir / "file1.txt").read_text(encoding="utf-8"), "original_local")
         self.assertEqual(unrelated.read_text(encoding="utf-8"), "keep_me")
 
         # 3. overwrite=True overwrites colliding file
-        res_overwrite = decompress_archive(str(zip_path), output_dir=str(out_dir), overwrite=True)
+        res_overwrite = decompress(str(zip_path), output_dir=str(out_dir), overwrite=True)
         self.assertTrue(res_overwrite["success"], msg=res_overwrite.get("error"))
         self.assertEqual((out_dir / "file1.txt").read_text(encoding="utf-8"), "new_from_zip")
 
@@ -1270,13 +1270,13 @@ class TestMCPServer(unittest.TestCase):
         default_dir = self.dir_path / "pkg"
         default_dir.mkdir()
         (default_dir / "keep.txt").write_text("do_not_trash", encoding="utf-8")
-        res_tgz_ok = decompress_archive(str(tgz_path), overwrite=False)
+        res_tgz_ok = decompress(str(tgz_path), overwrite=False)
         self.assertTrue(res_tgz_ok["success"], msg=res_tgz_ok.get("error"))
         self.assertEqual((default_dir / "keep.txt").read_text(encoding="utf-8"), "do_not_trash")
         self.assertEqual((default_dir / "item.txt").read_text(encoding="utf-8"), "from_tar")
 
         (default_dir / "item.txt").write_text("local_edit", encoding="utf-8")
-        res_tgz_collide = decompress_archive(str(tgz_path), overwrite=False)
+        res_tgz_collide = decompress(str(tgz_path), overwrite=False)
         self.assertFalse(res_tgz_collide["success"])
         self.assertEqual((default_dir / "item.txt").read_text(encoding="utf-8"), "local_edit")
         self.assertEqual((default_dir / "keep.txt").read_text(encoding="utf-8"), "do_not_trash")
@@ -1311,7 +1311,7 @@ class TestMCPServer(unittest.TestCase):
 
         with patch.object(Converter, "prepare_conversion", return_value=True), \
              patch.object(Converter, "convert_image", fake_convert_image):
-            res = convergent_convert(
+            res = convert(
                 input_path=str(batch_dir),
                 target_format="JPG",
                 overwrite=False,
@@ -1336,7 +1336,7 @@ class TestMCPServer(unittest.TestCase):
 
         with patch.object(Converter, "prepare_conversion", return_value=True), \
              patch.object(Converter, "convert_image", fake_convert_image):
-            res_dis = convergent_convert(
+            res_dis = convert(
                 input_path=str(disambig_dir),
                 target_format="JPG",
                 overwrite=False,
@@ -1355,7 +1355,7 @@ class TestMCPServer(unittest.TestCase):
         only_jpg_dir.mkdir()
         (only_jpg_dir / "x.jpg").write_bytes(b"jpg")
         (only_jpg_dir / "y.jpeg").write_bytes(b"jpeg")
-        res_all_same = convergent_convert(input_path=str(only_jpg_dir), target_format="JPG", use_cache=False)
+        res_all_same = convert(input_path=str(only_jpg_dir), target_format="JPG", use_cache=False)
         self.assertTrue(res_all_same["success"], msg=res_all_same.get("error"))
         self.assertEqual(res_all_same["count"], 0)
         self.assertEqual(
@@ -1377,14 +1377,14 @@ class TestMCPServer(unittest.TestCase):
             return True, ""
 
         # 1. Invalid source_format rejected
-        res_bad = convergent_convert(input_path=str(mix_dir), source_format="NOTAFMT", target_format="JPG")
+        res_bad = convert(input_path=str(mix_dir), source_format="NOTAFMT", target_format="JPG")
         self.assertFalse(res_bad["success"])
         self.assertIn("Unsupported source_format", res_bad["error"])
 
         # 2. Directory filtered to PNG only
         with patch.object(Converter, "prepare_conversion", return_value=True), \
              patch.object(Converter, "convert_image", fake_convert_image):
-            res_png = convergent_convert(
+            res_png = convert(
                 input_path=str(mix_dir),
                 source_format="png",
                 target_format="JPG",
@@ -1398,7 +1398,7 @@ class TestMCPServer(unittest.TestCase):
         # 3. Alias normalization: source_format="JPEG" matches both pic.jpg (from step 2) and snap.jpeg
         with patch.object(Converter, "prepare_conversion", return_value=True), \
              patch.object(Converter, "convert_image", fake_convert_image):
-            res_jpeg = convergent_convert(
+            res_jpeg = convert(
                 input_path=str(mix_dir),
                 source_format="JPEG",
                 target_format="BMP",
@@ -1409,7 +1409,7 @@ class TestMCPServer(unittest.TestCase):
         self.assertFalse((mix_dir / "photo.bmp").exists())
 
         # 4. Single-file mismatch rejected clearly
-        res_mismatch = convergent_convert(
+        res_mismatch = convert(
             input_path=str(mix_dir / "pic.png"),
             source_format="JPG",
             target_format="WEBP",
@@ -1430,18 +1430,18 @@ class TestMCPServer(unittest.TestCase):
 
         for media_f in (vid, mp3):
             for bad_mode in ("pages", "frames"):
-                res = split_file(file_path=str(media_f), mode=bad_mode)
+                res = split(file_path=str(media_f), mode=bad_mode)
                 self.assertFalse(res["success"])
                 self.assertIn("not supported", res["error"])
                 self.assertIn("interval", res["error"])
 
         for bad_doc_mode in ("interval", "frames"):
-            res = split_file(file_path=str(pdf), mode=bad_doc_mode)
+            res = split(file_path=str(pdf), mode=bad_doc_mode)
             self.assertFalse(res["success"])
             self.assertIn("not supported", res["error"])
             self.assertIn("pages", res["error"])
 
-        res_gif = split_file(file_path=str(gif), mode="pages")
+        res_gif = split(file_path=str(gif), mode="pages")
         self.assertFalse(res_gif["success"])
         self.assertIn("not supported", res_gif["error"])
         self.assertIn("frames", res_gif["error"])
@@ -1454,7 +1454,7 @@ class TestMCPServer(unittest.TestCase):
                 (out_dir / "page_001.pdf").write_bytes(b"p1")
                 return str(out_dir)
             mock_split_pdf.side_effect = fake_pages
-            res_warn = split_file(file_path=str(pdf), mode="pages", num_parts=2, output_dir=str(out_dir))
+            res_warn = split(file_path=str(pdf), mode="pages", num_parts=2, output_dir=str(out_dir))
             self.assertTrue(res_warn["success"])
             self.assertTrue(any("ignores" in w for w in res_warn.get("warnings", [])))
 
@@ -1462,15 +1462,15 @@ class TestMCPServer(unittest.TestCase):
         img = self.dir_path / "photo.png"
         img.write_bytes(b"png")
 
-        res_w = resize_media(file_path=str(img), width=100, scale_percent=50)
+        res_w = resize(file_path=str(img), width=100, scale_percent=50)
         self.assertFalse(res_w["success"])
         self.assertIn("Conflicting sizing parameters", res_w["error"])
 
-        res_h = resize_media(file_path=str(img), height=100, scale_percent=50)
+        res_h = resize(file_path=str(img), height=100, scale_percent=50)
         self.assertFalse(res_h["success"])
         self.assertIn("Conflicting sizing parameters", res_h["error"])
 
-        res_wh = resize_media(file_path=str(img), width=100, height=200, scale_percent=50)
+        res_wh = resize(file_path=str(img), width=100, height=200, scale_percent=50)
         self.assertFalse(res_wh["success"])
         self.assertIn("Conflicting sizing parameters", res_wh["error"])
 
@@ -1487,7 +1487,7 @@ class TestMCPServer(unittest.TestCase):
         with patch.object(Converter, "prepare_conversion", return_value=True), \
              patch.object(Converter, "convert_pdf", fake_convert_pdf):
             # Explicit ocr=False -> warns that OCR override occurred
-            res_false = convergent_convert(
+            res_false = convert(
                 input_path=str(pdf_file),
                 target_format="TXT",
                 ocr=False,
@@ -1498,7 +1498,7 @@ class TestMCPServer(unittest.TestCase):
             self.assertTrue(any("ocr=False was overridden" in w for w in res_false["warnings"]))
 
             # Default omitted ocr (None) -> no override warning
-            res_default = convergent_convert(
+            res_default = convert(
                 input_path=str(pdf_file),
                 target_format="TXT",
                 use_cache=False,
@@ -1509,14 +1509,14 @@ class TestMCPServer(unittest.TestCase):
     def test_perform_ocr_pdf_summary_metadata(self):
         pdf_out = self.dir_path / "searchable.pdf"
         pdf_out.write_bytes(b"%PDF-1.4\n")
-        with patch("mcp_server.server.convergent_convert") as mock_conv:
+        with patch("mcp_server.server.convert") as mock_conv:
             mock_conv.return_value = {
                 "success": True,
                 "count": 1,
                 "converted_files": [str(pdf_out)],
                 "target_format": "PDF",
             }
-            res = perform_ocr(input_path=str(pdf_out), target_format="PDF")
+            res = ocr(input_path=str(pdf_out), target_format="PDF")
         self.assertTrue(res["success"])
         self.assertIsNone(res.get("total_characters"))
         self.assertEqual(
@@ -1533,7 +1533,7 @@ class TestMCPServer(unittest.TestCase):
         (img_dir / "page_002.png").write_bytes(b"png2")
 
         with patch("mcp_server.server.conv.process", return_value=[img_dir]):
-            res = convergent_convert(
+            res = convert(
                 input_path=str(pdf_file),
                 target_format="PNG",
                 use_cache=False,
@@ -1549,7 +1549,7 @@ class TestMCPServer(unittest.TestCase):
         single_pdf.write_bytes(b"%PDF-1.4\n")
         out_pdf = self.dir_path / "combined.pdf"
         with patch("mcp_server.server.conv.combine_pdfs", return_value=out_pdf):
-            res = combine_files(file_paths=[str(single_pdf)], output_path=str(out_pdf))
+            res = combine(file_paths=[str(single_pdf)], output_path=str(out_pdf))
         self.assertTrue(res["success"])
         self.assertEqual(res["output_file"], str(out_pdf))
         self.assertEqual(
@@ -1560,7 +1560,7 @@ class TestMCPServer(unittest.TestCase):
         second_pdf = self.dir_path / "second.pdf"
         second_pdf.write_bytes(b"%PDF-1.4\n")
         with patch("mcp_server.server.conv.combine_pdfs", return_value=out_pdf):
-            res_multi = combine_files(file_paths=[str(single_pdf), str(second_pdf)], output_path=str(out_pdf))
+            res_multi = combine(file_paths=[str(single_pdf), str(second_pdf)], output_path=str(out_pdf))
         self.assertTrue(res_multi["success"])
         self.assertNotIn("warnings", res_multi)
 
@@ -1621,19 +1621,19 @@ class TestMCPServer(unittest.TestCase):
                 ["MP3", "WAV", "AAC", "FLAC", "M4A", "OGG"],
             )
             self.assertEqual(
-                by_name["perform_ocr"].inputSchema["properties"]["target_format"]["enum"],
+                by_name["ocr"].inputSchema["properties"]["target_format"]["enum"],
                 ["TXT", "MD", "DOCX", "PDF"],
             )
             self.assertEqual(
-                by_name["perform_stt"].inputSchema["properties"]["target_format"]["enum"],
+                by_name["stt"].inputSchema["properties"]["target_format"]["enum"],
                 ["TXT", "SRT", "VTT", "MD"],
             )
             self.assertEqual(
-                by_name["compress_files"].inputSchema["properties"]["format"]["enum"],
+                by_name["compress"].inputSchema["properties"]["format"]["enum"],
                 ["ZIP", "TAR.GZ", "TAR.BZ2", "TAR.XZ", "7Z", "RAR"],
             )
             self.assertEqual(
-                by_name["split_file"].inputSchema["properties"]["frame_format"]["enum"],
+                by_name["split"].inputSchema["properties"]["frame_format"]["enum"],
                 ["png", "jpg"],
             )
             cat_any_of = by_name["list_supported_formats"].inputSchema["properties"]["category"]["anyOf"]
@@ -1659,30 +1659,30 @@ class TestMCPServer(unittest.TestCase):
             dummy_aud = self.dir_path / "a.wav"
             dummy_aud.write_bytes(b"wav")
 
-            with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": [str(dummy_txt)]}) as mock_cc:
-                await mcp.call_tool("perform_ocr", {"input_path": str(dummy_img), "target_format": "txt"})
+            with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": [str(dummy_txt)]}) as mock_cc:
+                await mcp.call_tool("ocr", {"input_path": str(dummy_img), "target_format": "txt"})
                 self.assertEqual(mock_cc.call_args[1]["target_format"], "TXT")
 
-                await mcp.call_tool("perform_stt", {"input_path": str(dummy_aud), "target_format": "srt"})
+                await mcp.call_tool("stt", {"input_path": str(dummy_aud), "target_format": "srt"})
                 self.assertEqual(mock_cc.call_args[1]["target_format"], "SRT")
 
             with patch("mcp_server.server.conv.compress", return_value=(True, "", self.dir_path / "out.tar.gz")) as mock_comp:
                 res_comp = await mcp.call_tool(
-                    "compress_files",
+                    "compress",
                     {"file_paths": [str(dummy_txt)], "output_name": "out.tgz", "format": "tgz", "output_dir": str(self.dir_path)},
                 )
                 self.assertEqual(mock_comp.call_args[1]["format_choice"], "TAR.GZ")
                 self.assertTrue(json.loads(res_comp[0].text)["success"])
 
-            with patch("mcp_server.server.convergent_convert", return_value={"success": False, "error": "missing"}):
+            with patch("mcp_server.server.convert", return_value={"success": False, "error": "missing"}):
                 res_p2i = await mcp.call_tool("pdf_to_images", {"pdf_path": str(dummy_pdf), "target_format": "jpeg"})
                 self.assertFalse(json.loads(res_p2i[0].text)["success"])
 
             # Verify docstrings and server instructions include error/behavior guidance
             self.assertIn("isError=true", mcp.instructions)
-            self.assertIn("OCR", convergent_convert.__doc__)
-            self.assertIn("pdf_to_images", convergent_convert.__doc__)
-            self.assertIn("Ghostscript", resize_media.__doc__)
+            self.assertIn("OCR", convert.__doc__)
+            self.assertIn("pdf_to_images", convert.__doc__)
+            self.assertIn("Ghostscript", resize.__doc__)
 
         asyncio.run(check_schemas_and_calls())
 
@@ -1710,14 +1710,14 @@ class TestMCPAsyncSession(unittest.IsolatedAsyncioTestCase):
                 # 2. Bounded list_tools
                 tools_res = await asyncio.wait_for(session.list_tools(), timeout=5.0)
                 tool_names = [t.name for t in tools_res.tools]
-                self.assertIn("convergent_convert", tool_names)
+                self.assertIn("convert", tool_names)
                 self.assertIn("list_supported_formats", tool_names)
                 self.assertIn("pdf_to_images", tool_names)
-                self.assertIn("perform_ocr", tool_names)
-                self.assertIn("perform_stt", tool_names)
-                self.assertIn("compress_files", tool_names)
-                self.assertIn("decompress_archive", tool_names)
-                self.assertIn("resize_media", tool_names)
+                self.assertIn("ocr", tool_names)
+                self.assertIn("stt", tool_names)
+                self.assertIn("compress", tool_names)
+                self.assertIn("decompress", tool_names)
+                self.assertIn("resize", tool_names)
                 for t in tools_res.tools:
                     self.assertIsNone(t.outputSchema, f"{t.name} should not emit outputSchema")
                     self.assertNotIn("title", t.inputSchema, f"{t.name} should strip title from inputSchema")

@@ -9,26 +9,11 @@
 
 ## Key Features
 
--   **Comprehensive Media & Document Suite**: Convert, merge, split, resize, compress, extract text (OCR), and transcribe speech across images, videos, audio, documents, and archives.
--   **Interactive TUI & Headless CLI**: Intuitive terminal menu with single-key navigation and drag-and-drop support, paired with scriptable CLI flags and Unix pipe streaming (`stdin`/`stdout`).
--   **100% Local MCP Server**: Standalone Model Context Protocol (`stdio`) server empowering AI coding assistants (Claude Desktop, Cursor, OpenCode, Zed) with local conversion tools.
--   **Hardware-Accelerated & Cached**: Multi-core parallel batch processing, hardware transcoding (`VideoToolbox`, `NVENC`, `QSV`, Apple Metal for Whisper), and `blake2b` checksum caching to skip unchanged files.
--   **Privacy & Safety First**: Fully offline execution, EXIF/IPTC metadata stripping, collision preview tables, and safe macOS Trash recovery.
--   **Persistent Workflow Shortcuts**: Save, edit, and trigger custom workflows with single-key shortcuts, plus native macOS Finder Quick Action context-menu integration.
-
-## Supported Formats
-
-| Category | Formats & Ops | Technology |
-| :--- | :--- | :--- |
-| **Images** | `JPG`, `PNG`, `HEIC`, `HEIF`, `AVIF`, `WEBP`, `TIF`, `BMP`, `SVG`, `ARW`, `DNG` | Native macOS `sips` acceleration, ImageMagick fallback, metadata stripping |
-| **Video** | `MOV`, `MP4`, `WEBM`, `GIF`, `AVI`, `MKV` | Hardware encoding (`VideoToolbox`, `NVENC`, `QSV`), custom FPS, split & merge |
-| **Audio** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG` | FFmpeg audio encoding, custom bitrates (`128k`, `192k`, `320k`), split & merge |
-| **Documents** | `PDF`, `DOCX`, `PPTX`, `RTF`, `HTML`, `MD`, `TXT` | Pandoc, Typst, LibreOffice, and Ghostscript layout fidelity |
-| **Archives** | `ZIP`, `TAR`, `TAR.GZ`, `TAR.BZ2`, `TAR.XZ`, `7Z`, `RAR` | 7-Zip, tar, and rar compression/extraction with optional password protection |
-| **Resize** | `JPG`, `PNG`, `HEIC`, `MP4`, `MOV`, `PDF` | Percentage scaling, target height, exact dimensions, aspect-ratio crop (16:9, 4:3, 1:1, 9:16), bicubic PDF downsampling |
-| **OCR** | `JPG`, `PNG`, `HEIC`, `WEBP`, `PDF` → `TXT`, `MD`, `DOCX` | Local text extraction via native Apple Vision Framework (macOS) or Tesseract |
-| **Speech-to-Text** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`, `MP4`, `MOV`, `MKV`, `WEBM`, `AVI` → `TXT`, `SRT`, `VTT`, `MD` | Local `whisper.cpp` Metal-accelerated transcription models (`base`, `tiny`, `small`, `turbo`) |
-| **Combine & Split** | `PDF`, `DOCX`, `PPTX`, `MP4`, `MP3`, `GIF`, `TXT` | Multi-file concatenation, interactive page reordering, chapter/interval splitting |
+-   **Daily Conversion Formats**: Convert, merge, split, resize, and compress everyday images, videos, audio, documents, and archives—plus extract text from scans (`OCR`) and transcribe speech to text.
+-   **Local MCP for AI Agent**: Built-in Model Context Protocol (`stdio`) server that lets AI coding assistants (Codex, Claude Code, Google Antigravity, OpenCode, etc.) run file conversions directly on your machine.
+-   **Optimized for Efficiency**: Multi-core parallel batch processing, hardware-accelerated transcoding (`VideoToolbox`, `NVENC`, `QSV`, Apple Metal for Whisper), and `blake2b` checksum caching to skip unchanged files.
+-   **Shortcuts**: Save and trigger your frequent conversion workflows with single-key shortcuts in the interactive menu, or run them straight from macOS Finder's right-click Quick Action menu.
+-   **Private & Offline Use**: Runs 100% offline with zero cloud uploads, strips hidden `EXIF/IPTC` metadata, previews filename collisions before overwriting, and moves replaced files to macOS Trash for safe recovery.
 
 ## Getting Started
 
@@ -68,16 +53,29 @@
 
 ## Usage
 
+### User Commands
+
 | Command | Description |
 |---|---|
-| `make setup-mcp` | Install optional MCP support |
 | `make start` | Launch interactive terminal UI with single-key navigation, drag-and-drop input, and saved shortcuts |
+| `make setup` | Install minimal CLI dependencies; conversion tools install on demand |
+| `make setup-mcp` | Install optional MCP support |
 | `make shortcut` | Generate a clickable `.command` desktop shortcut for instant one-click access |
 | `make quick-action` | Bind a saved shortcut to macOS Finder's right-click context menu (create shortcut via `make start` → `+` first) |
-| `make cache-stats` | Display cached fingerprint records, TTL, and SQLite database storage size (`~/.convergent_cache.sqlite`) |
-| `make cache-clear` | Delete all cached conversion checksums to force full re-conversion |
-| `make clean` | Remove all compiled Python `__pycache__` directories across workspace |
+| `make update` | Pull latest updates from GitHub and sync Python dependencies |
 | `make help` | View all available Makefile targets |
+
+### Automation & Maintenance
+
+| Command | Description |
+|---|---|
+| `make mcp` | Start local MCP server over `stdio` for AI coding assistants |
+| `make mcp-config` | Print copy-paste JSON config for Claude Desktop, OpenCode, Cursor, etc. |
+| `make check` | Verify installed conversion dependencies |
+| `make test` | Run automated unit test suite |
+| `make cache` | Display cached fingerprint records, TTL, and SQLite database storage size (`~/.convergent_cache.sqlite`) |
+| `make cache-clear` | Delete all cached conversion checksums to force full re-conversion. This is automatically handled by Convergent. |
+| `make clean` | Remove all compiled Python `__pycache__` directories across workspace |
 
 ### CLI Mode (Arguments)
 For automated workflows, pass arguments using `ARGS`. CLI batches never prompt; missing tools return an error unless `--install-deps` is supplied.
@@ -108,94 +106,67 @@ For automated workflows, pass arguments using `ARGS`. CLI batches never prompt; 
 | `--skip` | Skip existing output files without prompting | `--skip` |
 | `--resume` | Resume / retry last failed batch conversion | `--resume` |
 
-**Example Commands:**
-```bash
-# Install a specific tool before an automated run
-python3 -m customs.check_deps --install ffmpeg
+## Supported Formats
 
-# Transcribe MP3 audio to plain text using local Whisper engine (base model)
-make start ARGS="--from MP3 --to TXT --path ~/Desktop/recording.mp3"
+| Category | Formats & Ops | Technology |
+| :--- | :--- | :--- |
+| **Images** | `JPG`, `PNG`, `HEIC`, `HEIF`, `AVIF`, `WEBP`, `TIF`, `BMP`, `SVG`, `ARW`, `DNG` | Native macOS `sips` acceleration, ImageMagick fallback, metadata stripping |
+| **Video** | `MOV`, `MP4`, `WEBM`, `GIF`, `AVI`, `MKV` | Hardware encoding (`VideoToolbox`, `NVENC`, `QSV`), custom FPS, split & merge |
+| **Audio** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG` | FFmpeg audio encoding, custom bitrates (`128k`, `192k`, `320k`), split & merge |
+| **Documents** | `PDF`, `DOCX`, `PPTX`, `RTF`, `HTML`, `MD`, `TXT` | Pandoc, Typst, LibreOffice, and Ghostscript layout fidelity |
+| **Archives** | `ZIP`, `TAR`, `TAR.GZ`, `TAR.BZ2`, `TAR.XZ`, `7Z`, `RAR` | 7-Zip, tar, and rar compression/extraction with optional password protection |
+| **Resize** | `JPG`, `PNG`, `HEIC`, `MP4`, `MOV`, `PDF` | Percentage scaling, target height, exact dimensions, aspect-ratio crop (16:9, 4:3, 1:1, 9:16), bicubic PDF downsampling |
+| **OCR** | `JPG`, `PNG`, `HEIC`, `WEBP`, `PDF` → `TXT`, `MD`, `DOCX` | Local text extraction via native Apple Vision Framework (macOS) or Tesseract |
+| **Speech-to-Text** | `MP3`, `WAV`, `M4A`, `FLAC`, `AAC`, `OGG`, `MP4`, `MOV`, `MKV`, `WEBM`, `AVI` → `TXT`, `SRT`, `VTT`, `MD` | Local `whisper.cpp` Metal-accelerated transcription models (`base`, `tiny`, `small`, `turbo`) |
+| **Combine & Split** | `PDF`, `DOCX`, `PPTX`, `MP4`, `MP3`, `GIF`, `TXT` | Multi-file concatenation, interactive page reordering, chapter/interval splitting |
 
-# Generate timestamped SRT subtitles from an MP4 video using Whisper Turbo model
-make start ARGS="--from MP4 --to SRT --path ./meeting.mp4 --model turbo"
+## MCP
 
-# Convert HEIC images to JPG using 4 parallel jobs and strip EXIF metadata
-make start ARGS="--from HEIC --to JPG --path ~/Desktop/Photos --jobs 4 --strip-metadata"
+Convergent runs as a **100% local Model Context Protocol (MCP) server** over `stdio`, letting AI coding assistants (Codex, Claude Code, Google Antigravity, OpenCode, Cursor, etc.) run file conversions directly on your machine.
 
-# Convert MOV video to MP4 using Apple Silicon hardware acceleration
-make start ARGS="--from MOV --to MP4 --path ./video.mov --hwaccel auto"
+### Option 1: Prompt for AI Agent
 
-# Force software encoding (libx264) for maximum compression
-make start ARGS="--from MOV --to MP4 --path ./video.mov --hwaccel none"
+1. **Setup**: "Install Convergent's MCP dependencies (`make setup-mcp`) and register its local `stdio` MCP server using `make mcp-config`."
+2. **`/convergent` Skill Setup** "Create a minimal `/convergent` `SKILL.md` that points to Convergent's local MCP tools so you can invoke it on demand without consuming extra tokens."
 
-# Convert Video to GIF with 30 FPS
-make start ARGS="--from MP4 --to GIF --fps 30 --path ./video.mp4"
+### Option 2: Manual Setup
 
-# Force overwrite of existing files or skip them silently
-make start ARGS="--from JPG --to PNG --path ./images --overwrite"
+1. Install optional MCP support & generate your client config:
+   ```bash
+   make setup-mcp
+   make mcp-config
+   ```
+2. Add printed JSON to your AI client's MCP config (e.g., `claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "convergent": {
+         "command": "python3",
+         "args": [
+           "/path/to/Convergent/Convergent.py",
+           "--mcp"
+         ]
+       }
+     }
+   }
+   ```
+3. To start server, run `make mcp` (or `python3 Convergent.py --mcp --install-deps` to allow auto tool/model downloads).
 
-# Convert Markdown to raw PDF instead of human-friendly typeset PDF
-make start ARGS="--from MD --to PDF --path ./document.md --md-pdf-mode raw"
+### Available MCP Tools
 
-# Stream pipe: convert image from stdin and write binary JPG to stdout
-cat input.heic | python3 Convergent.py --from HEIC --to JPG --stdout > output.jpg
-
-# Convert image directly from macOS clipboard
-pbpaste | python3 Convergent.py --from PNG --to WEBP --stdout > clipboard.webp
-
-# Pipe FFmpeg audio stream into Convergent for 320k MP3 output
-ffmpeg -i video.mp4 -vn -f wav pipe:1 | python3 Convergent.py --from WAV --to MP3 --bitrate 320k --stdout > audio.mp3
-```
-
-## Local MCP Server Integration
-
-Convergent can run as a **100% local Model Context Protocol (MCP) server** over `stdio`. This allows local AI models, assistants, and IDE extensions (such as OpenCode, Claude Desktop, Cursor, Windsurf, Zed, etc.) to use Convergent's conversion capabilities directly.
-
-### Running MCP Server
-```bash
-# Install optional MCP support and start server
-make setup-mcp
-make mcp
-
-# Or directly via Python
-python Convergent.py --mcp
-```
-
-*MCP never prompts. Add `--install-deps` to Python command to allow tool/model downloads.*
-
-### Client Configuration Helper
-To print ready-to-use JSON configuration snippets for your AI clients:
-```bash
-make mcp-config
-```
-
-#### Example `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "convergent": {
-      "command": "python3",
-      "args": [
-        "/path/to/Convergent/Convergent.py",
-        "--mcp"
-      ]
-    }
-  }
-}
-```
-
-### Available MCP Tools Exposed to AI Models
-- `convergent_convert`: General-purpose file & directory converter (PDF, JPG, PNG, MP3, MP4, DOCX, MD, etc.).
-- `pdf_to_images`: Convert multi-page PDFs to image sequences (JPG/PNG) for visual model analysis.
-- `extract_audio`: Extract audio tracks (`MP3`, `WAV`, `AAC`, `FLAC`, `M4A`) from video files for transcription.
-- `perform_ocr`: Extract plain text or Markdown from images or scanned PDFs using local OCR.
-- `perform_stt`: Perform local Speech-to-Text transcription on audio/video to generate text or subtitles.
-- `combine_files`: Merge multiple PDFs, videos, audio clips, or documents into a single file.
-- `split_file`: Split PDFs, videos, audio files, or documents into segments.
-- `compress_files`: Compress files or directories into archives (ZIP, TAR.GZ, 7Z, RAR) with optional password protection.
-- `decompress_archive`: Decompress archive packages safely to target directories.
-- `resize_media`: Resize, rescale, crop aspect ratio, or strip metadata from images, video, or PDF documents.
-- `list_supported_formats`: Query all supported format conversions and category mappings.
+| Tool | Description |
+| :--- | :--- |
+| `convert` | General-purpose file & directory converter |
+| `pdf_to_images` | Convert multi-page PDFs to image sequences for visual model analysis |
+| `extract_audio` | Extract audio tracks from video files for transcription |
+| `ocr` | Extract plain text or Markdown from images or scanned PDFs using local OCR |
+| `stt` | Perform local Speech-to-Text transcription on audio/video to generate text or subtitles |
+| `combine` | Merge multiple PDFs, videos, audio clips, or documents into a single file |
+| `split` | Split PDFs, videos, audio files, or documents into segments |
+| `compress` | Compress files or directories into archives with optional password protection |
+| `decompress` | Decompress archive packages safely to target directories |
+| `resize` | Resize, rescale, crop aspect ratio, or strip metadata from images, video, or PDF documents |
+| `list_supported_formats` | Query all supported format conversions and category mappings |
 
 ## Quick Shortcuts
 
@@ -211,33 +182,17 @@ Save frequent workflows as persistent shortcuts for instant access.
 
 ## Collision Handling & Overwrite Guard
 
-In interactive mode, a **Collision Preview** table lists existing outputs and offers:
-
-- `[o]`: Overwrite once | `[Shift] + [o]`: Overwrite all
-- `[s]`: Skip once | `[Shift] + [s]`: Skip all
-- `[k]`: Keep both (auto-rename) once | `[Shift] + [k]`: Keep all
-- `[c]`: Cancel entire operation
-
-**Automation:** CLI skips existing outputs unless `--overwrite` is set. For MCP, `overwrite=False` rejects destination conflicts on single-file/custom targets and safely skips existing outputs on batch/directory conversions while reporting `skipped_files`.
-
-## Post-Conversion Actions
-
-After conversion, you can choose from Post-Convert Options menu:
-- `[d]`: Delete original (source) files (move to Trash).
-- `[m]`: Move converted files/folders to a new directory.
-- `[u]`: Undo conversion (move output files to Trash).
-- `[q]`: Quit program.
-- `[Any other key]`: Continue / Return to main menu.
+Interactive mode prompts with a **Collision Preview** table before overwriting existing files. For automation, CLI skips existing outputs unless `--overwrite` is set, and MCP (`overwrite=False`) rejects single-file/custom target conflicts while skipping existing batch outputs and reporting `skipped_files`.
 
 ## Troubleshooting
 
-- **Dependency installation**: Uses `brew`, `apt`, `dnf`, or `pacman`; install manually if unavailable. Downloads need internet; conversion runs locally. Unattended Linux installs require root or passwordless sudo.
-- **Ghostscript not found**: Ensure `gs` is in system PATH. Run `brew install ghostscript` to install or fix link.
-- **ImageMagick policy error**: If PDF or HEIC processing fails, edit `/usr/local/etc/ImageMagick-7/policy.xml` to allow these formats (change `rights="none"` to `rights="read|write"` for relevant patterns).
-- **Pandoc PDF fonts / Markdown to PDF**: If converting documents to PDF fails, ensure you have a LaTeX distribution or Typst installed (e.g., `brew install pandoc typst`).
-- **Office styling off**: Install LibreOffice (`brew install --cask libreoffice`) for high-fidelity DOCX/PPTX/RTF to PDF layout conversion.
-- **Whisper Speech-to-Text**: Install whisper.cpp via `brew install whisper-cpp`. Models download on approval or with `--install-deps`; cached in `~/.cache/convergent/models/`.
-- **RAW Image Support**: On macOS, Sony `ARW` and Adobe `DNG` are supported natively via `sips`. On Linux, ensure `darktable` or `rawtherapee` is installed to provide necessary delegates for ImageMagick.
+| Problem | Step-by-Step Fix |
+| :--- | :--- |
+| **Dependency installation fails** | 1. Run `make check` to see which tools are missing.<br>2. Ensure you have internet access and a supported package manager (`brew`, `apt`, `dnf`, or `pacman`).<br>3. On Linux unattended installs, ensure `root` or passwordless `sudo` is available, or install the missing package manually. |
+| **ImageMagick policy error (PDF / HEIC)** | 1. Open `/usr/local/etc/ImageMagick-7/policy.xml` (or `/etc/ImageMagick-7/policy.xml` on Linux).<br>2. Find the `<policy>` lines for `PDF` or `HEIC`.<br>3. Change `rights="none"` to `rights="read\|write"` and save. |
+| **Ghostscript (`gs`) not found** | 1. Run `which gs` to check if Ghostscript is in your `PATH`.<br>2. Install or relink it with `brew install ghostscript` (or your Linux package manager). |
+| **Document / Office to PDF fails or styling is off** | 1. For Markdown/Pandoc to PDF, install Typst or LaTeX: `brew install pandoc typst`.<br>2. For high-fidelity `DOCX`/`PPTX`/`RTF` layouts, install LibreOffice: `brew install --cask libreoffice`. |
+| **Whisper Speech-to-Text fails** | 1. Install `whisper.cpp` via `brew install whisper-cpp`.<br>2. Re-run with `--install-deps` (or approve the prompt in `make start`) to download models into `~/.cache/convergent/models/`. |
 
 ## Tech Stack & Requirements
 
@@ -262,40 +217,14 @@ After conversion, you can choose from Post-Convert Options menu:
 
 ```
 Convergent/
-├── Convergent.py             # Main CLI entry point
+├── Convergent.py             # Main CLI & interactive TUI entry point
 ├── Makefile                  # Task automation commands
 ├── requirements.txt          # Core Python dependencies
 ├── requirements-mcp.txt      # Optional MCP dependencies
-├── tests/                    # Unit and integration tests
-├── _config.yml               # GitHub Pages config
-├── _includes/                # Documentation templates
-│   └── head-custom.html      # Custom site headers & verification
 ├── mcp_server/               # Local MCP server package
-│   ├── __init__.py           # Package initialization
-│   ├── server.py             # FastMCP server and tool handlers
-│   └── config_generator.py   # Client configuration generator
-├── modules/                  # Format conversion engines
-│   ├── audio.py              # Audio format conversion
-│   ├── combine.py            # File merge & combine engine
-│   ├── compress.py           # Archive compression
-│   ├── decompress.py         # Archive extraction
-│   ├── doc.py                # Office & Markdown conversion
-│   ├── image.py              # Image format conversion
-│   ├── resize.py             # Image, video & PDF resize engine
-│   ├── ocr.py                # OCR text extraction
-│   ├── pdf_manip.py          # PDF to image export
-│   ├── split.py              # File splitting engine
-│   ├── stt.py                # Speech-to-Text transcription
-│   └── video.py              # Video format conversion
-└── customs/                  # Shared helper utilities
-    ├── cache.py              # Conversion caching (blake2b + SQLite)
-    ├── check_deps.py         # Dependency check & installer
-    ├── console.py            # Rich terminal UI helper
-    ├── file_process.py       # File processing & collision guard
-    ├── hwaccel.py            # Hardware acceleration detector
-    ├── run_command.py        # Command execution runner
-    ├── shortcut.py           # Custom shortcuts manager
-    └── quick_action.py       # macOS Quick Action installer
+├── modules/                  # Format conversion, OCR, STT, resize, and merge/split engines
+├── customs/                  # Shared utilities (caching, hardware detection, shortcuts, UI)
+└── tests/                    # Unit and integration tests
 ```
 
 ## Owner

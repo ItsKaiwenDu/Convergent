@@ -279,7 +279,7 @@ def _sanitize_mcp_error(msg: str) -> str:
 
 
 @mcp.tool(structured_output=False)
-def convergent_convert(
+def convert(
     input_path: str,
     target_format: str,
     output_path: Optional[str] = None,
@@ -801,7 +801,7 @@ def pdf_to_images(
     if path_obj.is_dir():
         return {
             "success": False,
-            "error": f"pdf_to_images expects a single PDF file, but received a directory: {pdf_path}. Use convergent_convert for batch directory conversions.",
+            "error": f"pdf_to_images expects a single PDF file, but received a directory: {pdf_path}. Use convert for batch directory conversions.",
             "images": [],
             "count": 0,
             "truncated": False,
@@ -809,7 +809,7 @@ def pdf_to_images(
     if path_obj.suffix.lower() != ".pdf":
         return {
             "success": False,
-            "error": f"pdf_to_images expects a .pdf file, but received: {pdf_path}. Use convergent_convert for other document conversions.",
+            "error": f"pdf_to_images expects a .pdf file, but received: {pdf_path}. Use convert for other document conversions.",
             "images": [],
             "count": 0,
             "truncated": False,
@@ -849,7 +849,7 @@ def pdf_to_images(
             "truncated": False,
         }
 
-    res = convergent_convert(
+    res = convert(
         input_path=full_path,
         target_format=target_fmt,
         output_path=output_path,
@@ -942,7 +942,7 @@ def extract_audio(
             "error": f"Invalid audio target format '{target_format}'. Supported audio formats are: {', '.join(sorted(valid_audio_formats))}",
         }
 
-    res = convergent_convert(
+    res = convert(
         input_path=full_path,
         target_format=target_upper,
         output_path=output_path,
@@ -953,7 +953,7 @@ def extract_audio(
 
 
 @mcp.tool(structured_output=False)
-def perform_ocr(
+def ocr(
     input_path: str,
     target_format: Annotated[Literal["TXT", "MD", "DOCX", "PDF"], BeforeValidator(_normalize_upper_ext)] = "TXT",
     output_path: Optional[str] = None,
@@ -982,7 +982,7 @@ def perform_ocr(
     if input_ext in audio_video_exts:
         return {
             "success": False,
-            "error": f"Invalid input format '{input_ext}' for OCR. perform_ocr does not accept audio or video files. For speech transcription, use 'perform_stt'.",
+            "error": f"Invalid input format '{input_ext}' for OCR. ocr does not accept audio or video files. For speech transcription, use 'stt'.",
             "converted_files": [],
         }
 
@@ -990,7 +990,7 @@ def perform_ocr(
     if input_ext in markup_exts:
         return {
             "success": False,
-            "error": f"Invalid input format '{input_ext}' for OCR. perform_ocr is designed for image and scanned PDF inputs. For document format conversions (Markdown, HTML, DOCX), use 'convergent_convert'.",
+            "error": f"Invalid input format '{input_ext}' for OCR. ocr is designed for image and scanned PDF inputs. For document format conversions (Markdown, HTML, DOCX), use 'convert'.",
             "converted_files": [],
         }
 
@@ -1003,7 +1003,7 @@ def perform_ocr(
             "converted_files": [],
         }
 
-    res = convergent_convert(
+    res = convert(
         input_path=full_path,
         target_format=target_upper,
         output_path=output_path,
@@ -1068,7 +1068,7 @@ def perform_ocr(
 
 
 @mcp.tool(structured_output=False)
-def perform_stt(
+def stt(
     input_path: str,
     target_format: Annotated[Literal["TXT", "SRT", "VTT", "MD"], BeforeValidator(_normalize_upper_ext)] = "TXT",
     output_path: Optional[str] = None,
@@ -1100,10 +1100,10 @@ def perform_stt(
     input_ext = Path(full_path).suffix.lower()
     if input_ext not in valid_stt_inputs:
         image_pdf_exts = {".png", ".jpg", ".jpeg", ".pdf", ".tif", ".tiff", ".bmp", ".webp"}
-        hint = " For text extraction from images or scanned PDFs, use 'perform_ocr'." if input_ext in image_pdf_exts else ""
+        hint = " For text extraction from images or scanned PDFs, use 'ocr'." if input_ext in image_pdf_exts else ""
         return {
             "success": False,
-            "error": f"Invalid input format '{input_ext}' for Speech-to-Text. perform_stt only accepts audio and video files.{hint}",
+            "error": f"Invalid input format '{input_ext}' for Speech-to-Text. stt only accepts audio and video files.{hint}",
             "converted_files": [],
         }
 
@@ -1130,7 +1130,7 @@ def perform_stt(
     from modules.stt import normalize_model_name
     resolved_model = normalize_model_name(actual_model)
 
-    res = convergent_convert(
+    res = convert(
         input_path=full_path,
         target_format=target_upper,
         output_path=output_path,
@@ -1174,7 +1174,7 @@ def perform_stt(
 
 
 @mcp.tool(structured_output=False)
-def combine_files(
+def combine(
     file_paths: List[str],
     output_path: Optional[str] = None,
     overwrite: bool = True,
@@ -1324,7 +1324,7 @@ def combine_files(
 
 
 @mcp.tool(structured_output=False)
-def split_file(
+def split(
     file_path: str,
     mode: Literal["auto", "pages", "interval", "ranges", "parts", "frames"] = "auto",
     interval: Optional[float] = None,
@@ -1579,7 +1579,7 @@ def split_file(
 
 
 @mcp.tool(structured_output=False)
-def compress_files(
+def compress(
     file_paths: List[str],
     output_name: str = "archive.zip",
     format: Annotated[Literal["ZIP", "TAR.GZ", "TAR.BZ2", "TAR.XZ", "7Z", "RAR"], BeforeValidator(_normalize_compress_format)] = "ZIP",
@@ -1650,7 +1650,7 @@ def compress_files(
 
 
 @mcp.tool(structured_output=False)
-def decompress_archive(
+def decompress(
     archive_path: str,
     output_dir: Optional[str] = None,
     password: Optional[str] = None,
@@ -1750,7 +1750,7 @@ def decompress_archive(
 
 
 @mcp.tool(structured_output=False)
-def resize_media(
+def resize(
     file_path: str,
     width: Optional[int] = None,
     height: Optional[int] = None,

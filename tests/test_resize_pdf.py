@@ -7,7 +7,7 @@ from pathlib import Path
 
 from customs import shortcut
 from modules import resize
-from mcp_server.server import resize_media as mcp_resize_media
+from mcp_server.server import resize as mcp_resize_media
 
 
 class TestResizePDF(unittest.TestCase):

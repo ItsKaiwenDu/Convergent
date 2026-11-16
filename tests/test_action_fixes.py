@@ -17,18 +17,18 @@ if importlib.util.find_spec("mcp") is None:
 from customs.run_command import run_command
 from customs.cache import CacheManager, PARTIAL_THRESHOLD
 from modules.resize import calculate_crop_and_scale
-from modules.compress import compress
+from modules.compress import compress as compress_mod_fn
 from modules.combine import combine_pdfs, combine_videos, combine_audios
 from mcp_server.server import (
-    convergent_convert,
+    convert,
     pdf_to_images,
-    perform_ocr,
-    combine_files,
-    compress_files,
-    split_file,
+    ocr,
+    combine,
+    compress,
+    split,
     list_supported_formats,
-    decompress_archive,
-    resize_media,
+    decompress,
+    resize,
     extract_audio,
 )
 
@@ -70,7 +70,7 @@ class TestActionFixes(unittest.TestCase):
         self.assertIsNone(conv.combine_pdfs([str(pdf1), str(pdf2)], output_path=str(pdf1), interactive=False))
 
         # Via MCP tool
-        mcp_res = combine_files([str(pdf1), str(pdf2)], output_path=str(pdf1))
+        mcp_res = combine([str(pdf1), str(pdf2)], output_path=str(pdf1))
         self.assertFalse(mcp_res["success"])
         self.assertIn("cannot be one of input files", mcp_res["error"])
 
@@ -103,7 +103,7 @@ class TestActionFixes(unittest.TestCase):
         f1 = self.dir_path / "file1.zip"
         f1.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
 
-        res = compress_files(file_paths=[str(f1)], output_name="file1.zip", output_dir=str(self.dir_path))
+        res = compress(file_paths=[str(f1)], output_name="file1.zip", output_dir=str(self.dir_path))
         self.assertFalse(res["success"])
         self.assertIn("cannot be one of input files", res["error"])
 
@@ -111,7 +111,7 @@ class TestActionFixes(unittest.TestCase):
         f1 = self.dir_path / "file1.txt"
         f1.write_text("content")
 
-        res = compress_files(
+        res = compress(
             file_paths=[str(f1)],
             output_name="archive.tar.gz",
             format="TAR.GZ",
@@ -292,7 +292,7 @@ class TestActionFixes(unittest.TestCase):
             return str(split_dir)
 
         with patch("mcp_server.server.conv.split_pdf", side_effect=fake_split_pdf):
-            res = split_file(file_path=str(doc), output_dir=str(split_dir))
+            res = split(file_path=str(doc), output_dir=str(split_dir))
             self.assertTrue(res["success"])
             self.assertEqual(res["count"], 1)
             self.assertEqual(len(res["split_files"]), 1)
@@ -302,8 +302,8 @@ class TestActionFixes(unittest.TestCase):
         sample = self.dir_path / "sample.jpg"
         sample.touch()
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": False, "error": "OCR engine failed"}):
-            res = perform_ocr(input_path=str(sample))
+        with patch("mcp_server.server.convert", return_value={"success": False, "error": "OCR engine failed"}):
+            res = ocr(input_path=str(sample))
             self.assertFalse(res["success"])
             self.assertIsNone(res.get("extracted_text_preview"))
 
@@ -417,11 +417,11 @@ class TestActionFixes(unittest.TestCase):
         unrelated = out_dir / "unrelated.txt"
         unrelated.write_text("other")
 
-        res1 = decompress_archive(str(zip_path), output_dir=str(out_dir))
+        res1 = decompress(str(zip_path), output_dir=str(out_dir))
         self.assertTrue(res1["success"])
         self.assertEqual(res1["extracted_files_count"], 2)
 
-        res2 = decompress_archive(str(zip_path), output_dir=str(out_dir))
+        res2 = decompress(str(zip_path), output_dir=str(out_dir))
         self.assertTrue(res2["success"])
         self.assertEqual(res2["extracted_files_count"], 2)
 
@@ -431,7 +431,7 @@ class TestActionFixes(unittest.TestCase):
         dest = self.dir_path / "existing.png"
         dest.write_bytes(b"existing_content")
 
-        res = convergent_convert(str(src), "PNG", output_path=str(dest), overwrite=False, use_cache=False)
+        res = convert(str(src), "PNG", output_path=str(dest), overwrite=False, use_cache=False)
         self.assertFalse(res["success"])
         self.assertIn("Destination already exists", res["error"])
         self.assertEqual(res["converted_files"], [])
@@ -441,31 +441,31 @@ class TestActionFixes(unittest.TestCase):
         src = self.dir_path / "media.mp4"
         src.touch()
 
-        res_w0 = resize_media(str(src), width=0)
+        res_w0 = resize(str(src), width=0)
         self.assertFalse(res_w0["success"])
         self.assertIn("Invalid width", res_w0["error"])
 
-        res_h0 = resize_media(str(src), height=-5)
+        res_h0 = resize(str(src), height=-5)
         self.assertFalse(res_h0["success"])
         self.assertIn("Invalid height", res_h0["error"])
 
-        res_scale0 = resize_media(str(src), scale_percent=0)
+        res_scale0 = resize(str(src), scale_percent=0)
         self.assertFalse(res_scale0["success"])
         self.assertIn("Invalid scale_percent", res_scale0["error"])
 
-        res_aspect = resize_media(str(src), aspect_ratio="bad_aspect")
+        res_aspect = resize(str(src), aspect_ratio="bad_aspect")
         self.assertFalse(res_aspect["success"])
         self.assertIn("Unsupported aspect ratio", res_aspect["error"])
 
-        res_parts0 = split_file(str(src), num_parts=0)
+        res_parts0 = split(str(src), num_parts=0)
         self.assertFalse(res_parts0["success"])
         self.assertIn("Invalid num_parts", res_parts0["error"])
 
-        res_inv0 = split_file(str(src), interval=0)
+        res_inv0 = split(str(src), interval=0)
         self.assertFalse(res_inv0["success"])
         self.assertIn("Invalid interval", res_inv0["error"])
 
-        res_mode = split_file(str(src), mode="invalid_mode")
+        res_mode = split(str(src), mode="invalid_mode")
         self.assertFalse(res_mode["success"])
         self.assertIn("Invalid mode", res_mode["error"])
 
@@ -474,7 +474,7 @@ class TestActionFixes(unittest.TestCase):
         pdf_file.touch()
 
         with patch("modules.split.get_pdf_page_count", return_value=3):
-            res_all_bad = split_file(str(pdf_file), ranges="bad,9-12")
+            res_all_bad = split(str(pdf_file), ranges="bad,9-12")
             self.assertFalse(res_all_bad["success"])
             self.assertIn("No valid ranges provided", res_all_bad["error"])
 
@@ -484,7 +484,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("modules.split.get_pdf_page_count", return_value=3), \
              patch("mcp_server.server.conv.split_pdf", return_value=out_split):
-            res_partial = split_file(str(pdf_file), ranges="1-1,bad,9-12", output_dir=str(out_split))
+            res_partial = split(str(pdf_file), ranges="1-1,bad,9-12", output_dir=str(out_split))
             self.assertTrue(res_partial["success"])
             self.assertIn("warnings", res_partial)
             self.assertEqual(len(res_partial["warnings"]), 2)
@@ -499,7 +499,7 @@ class TestActionFixes(unittest.TestCase):
         dummy_vid = self.dir_path / "sample.mp4"
         dummy_vid.touch()
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": ["sample.ogg"]}):
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": ["sample.ogg"]}):
             res = extract_audio(str(dummy_vid), target_format="OGG")
             self.assertTrue(res["success"])
 
@@ -510,7 +510,7 @@ class TestActionFixes(unittest.TestCase):
 
         async def check_concurrency():
             task_slow = asyncio.create_task(
-                mcp._tool_manager.get_tool("convergent_convert").run({
+                mcp._tool_manager.get_tool("convert").run({
                     "input_path": str(self.dir_path / "nonexistent.jpg"),
                     "target_format": "PNG",
                 })
@@ -672,7 +672,7 @@ class TestActionFixes(unittest.TestCase):
         from mcp_server.server import mcp
 
         async def check_typo_rejection():
-            tool = mcp._tool_manager.get_tool("convergent_convert")
+            tool = mcp._tool_manager.get_tool("convert")
             with self.assertRaises((ValueError, ToolError)) as cm:
                 await tool.run({
                     "input_path": str(self.dir_path / "test.png"),
@@ -726,7 +726,7 @@ class TestActionFixes(unittest.TestCase):
             zf.writestr("__MACOSX/._real.txt", "apple double metadata")
             zf.writestr("._real2.txt", "apple double metadata")
 
-        res = decompress_archive(str(zip_path), output_dir=str(self.dir_path / "zip_out"))
+        res = decompress(str(zip_path), output_dir=str(self.dir_path / "zip_out"))
         self.assertTrue(res["success"])
         # Should count 1 real extracted file, excluding AppleDouble and __MACOSX
         self.assertEqual(res["extracted_files_count"], 1)
@@ -839,7 +839,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("customs.file_process.process_single_file", side_effect=fake_make_out):
-            res1 = convergent_convert(
+            res1 = convert(
                 input_path=str(src_img),
                 target_format="JPG",
                 output_path=str(out_target),
@@ -851,7 +851,7 @@ class TestActionFixes(unittest.TestCase):
             self.assertFalse(res1.get("cached", False))
 
             # Repeat conversion with identical output in place must be reported as cached
-            res2 = convergent_convert(
+            res2 = convert(
                 input_path=str(src_img),
                 target_format="JPG",
                 output_path=str(out_target),
@@ -866,17 +866,17 @@ class TestActionFixes(unittest.TestCase):
         src_f.write_text("# Hello")
 
         # dpi <= 0 rejection
-        res_dpi = convergent_convert(str(src_f), "PDF", dpi=0)
+        res_dpi = convert(str(src_f), "PDF", dpi=0)
         self.assertFalse(res_dpi["success"])
         self.assertIn("positive integer", res_dpi["error"])
 
         # invalid md_pdf_mode
-        res_mode = convergent_convert(str(src_f), "PDF", md_pdf_mode="invalid_engine")
+        res_mode = convert(str(src_f), "PDF", md_pdf_mode="invalid_engine")
         self.assertFalse(res_mode["success"])
         self.assertIn("Allowed modes", res_mode["error"])
 
         # invalid bitrate string
-        res_br = convergent_convert(str(src_f), "MP3", bitrate="nonsense")
+        res_br = convert(str(src_f), "MP3", bitrate="nonsense")
         self.assertFalse(res_br["success"])
         self.assertIn("Invalid bitrate", res_br["error"])
 
@@ -906,17 +906,17 @@ class TestActionFixes(unittest.TestCase):
         sample_vid = self.dir_path / "split_partial.mp4"
         sample_vid.touch()
 
-        from modules import split
+        from modules import split as split_mod
         # Simulate part 2 failure in split
         def fake_split(p, **kwargs):
             out_d = self.dir_path / "partial_out"
             out_d.mkdir(parents=True, exist_ok=True)
             (out_d / "part_001.mp4").touch()
-            split.record_split_failed_parts([{"part": 2, "error": "Destination was a directory"}])
+            split_mod.record_split_failed_parts([{"part": 2, "error": "Destination was a directory"}])
             return out_d
 
         with patch.object(Converter, "split_video", side_effect=fake_split):
-            res = split_file(str(sample_vid), mode="parts", num_parts=2)
+            res = split(str(sample_vid), mode="parts", num_parts=2)
             self.assertTrue(res["success"])
             self.assertTrue(res.get("partial_success", False))
             self.assertEqual(len(res.get("failed_parts", [])), 1)
@@ -1000,12 +1000,12 @@ class TestActionFixes(unittest.TestCase):
                 self.assertEqual(p2.read_text(), "orig page 2")
 
     def test_split_diagnostics_isolation(self):
-        from modules import split
+        from modules import split as split_mod
         from Convergent import Converter
 
         # 1. Simulate a failed video split recording a failed part
-        split.record_split_failed_parts([{"part": 2, "error": "Disk full"}])
-        self.assertEqual(len(split.get_split_failed_parts()), 1)
+        split_mod.record_split_failed_parts([{"part": 2, "error": "Disk full"}])
+        self.assertEqual(len(split_mod.get_split_failed_parts()), 1)
 
         # 2. Run a valid PDF split
         pdf_f = self.dir_path / "valid.pdf"
@@ -1016,7 +1016,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("modules.split.get_pdf_page_count", return_value=1), \
              patch.object(Converter, "split_pdf", return_value=out_split):
-            res = split_file(str(pdf_f), mode="pages")
+            res = split(str(pdf_f), mode="pages")
             self.assertTrue(res["success"])
             # Must NOT inherit previous video failure!
             self.assertFalse(res.get("partial_success", False))
@@ -1058,16 +1058,15 @@ class TestActionFixes(unittest.TestCase):
         # "RAW" uppercase accepted and normalized to "raw"
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("customs.file_process.process", return_value=["intro.pdf"]):
-            res = convergent_convert(str(src_md), "PDF", md_pdf_mode="RAW")
+            res = convert(str(src_md), "PDF", md_pdf_mode="RAW")
             self.assertTrue(res["success"])
 
         # "wkhtmltopdf" rejected
-        res_bad = convergent_convert(str(src_md), "PDF", md_pdf_mode="wkhtmltopdf")
+        res_bad = convert(str(src_md), "PDF", md_pdf_mode="wkhtmltopdf")
         self.assertFalse(res_bad["success"])
         self.assertIn("Allowed modes: standard, formatted, raw, typst", res_bad["error"])
 
     def test_audio_and_gif_split_failure_tracking(self):
-        from modules import split
         wav_file = self.dir_path / "audio.wav"
         wav_file.touch()
 
@@ -1084,7 +1083,7 @@ class TestActionFixes(unittest.TestCase):
         with patch("Convergent.ensure_dependencies", return_value=True), \
              patch("modules.split.get_media_duration", return_value=60.0), \
              patch("modules.split.run_command", side_effect=fake_audio_run_cmd):
-            res = split_file(str(wav_file), mode="parts", num_parts=2)
+            res = split(str(wav_file), mode="parts", num_parts=2)
             self.assertTrue(res["success"])
             self.assertTrue(res.get("partial_success", False))
             self.assertEqual(len(res.get("failed_parts", [])), 1)
@@ -1106,7 +1105,7 @@ class TestActionFixes(unittest.TestCase):
         with patch("Convergent.ensure_dependencies", return_value=True), \
              patch("modules.split.get_media_duration", return_value=10.0), \
              patch("modules.split.run_command", side_effect=fake_gif_run_cmd):
-            res = split_file(str(gif_file), mode="parts", num_parts=2)
+            res = split(str(gif_file), mode="parts", num_parts=2)
             self.assertTrue(res["success"])
             self.assertTrue(res.get("partial_success", False))
             self.assertEqual(len(res.get("failed_parts", [])), 1)
@@ -1137,7 +1136,7 @@ class TestActionFixes(unittest.TestCase):
         with patch.object(Converter, "prepare_conversion", return_value=True), \
              patch("customs.file_process.process_single_file", side_effect=fake_process_single):
             # First conversion: cache misses, converts both files to disambiguated names
-            res1 = convergent_convert(
+            res1 = convert(
                 input_path=str(self.dir_path), target_format="PNG",
                 output_path=str(out_dir), use_cache=True, overwrite=True
             )
@@ -1148,7 +1147,7 @@ class TestActionFixes(unittest.TestCase):
 
             # Repeat identical conversion: both must hit cache and trigger ZERO conversions!
             process_count[0] = 0
-            res2 = convergent_convert(
+            res2 = convert(
                 input_path=str(self.dir_path), target_format="PNG",
                 output_path=str(out_dir), use_cache=True, overwrite=True
             )
@@ -1157,15 +1156,15 @@ class TestActionFixes(unittest.TestCase):
             self.assertTrue(res2.get("cached", False))
 
     def test_stt_canonical_model_resolution_and_err_detail(self):
-        from mcp_server.server import perform_stt
-        from modules import stt
+        from mcp_server.server import stt
+        from modules import stt as stt_mod
 
         # Model "standard" resolved to "base"
         audio_f = self.dir_path / "speech.wav"
         audio_f.touch()
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}) as mock_cc:
-            res = perform_stt(input_path=str(audio_f), model="standard")
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": []}) as mock_cc:
+            res = stt(input_path=str(audio_f), model="standard")
             self.assertTrue(res["success"])
             self.assertEqual(res["model_used"], "base")
             self.assertEqual(res["model_requested"], "standard")
@@ -1176,7 +1175,7 @@ class TestActionFixes(unittest.TestCase):
              patch("modules.stt.extract_audio_for_stt", return_value=audio_f), \
              patch("modules.stt.get_model_path", return_value=Path("/tmp/model.bin")), \
              patch("modules.stt.run_command", return_value=(True, "error: unknown language 'invalid_lang'")):
-            ok, err = stt.convert_audio_to_text(audio_f, target_ext="TXT", model="base", language="invalid_lang")
+            ok, err = stt_mod.convert_audio_to_text(audio_f, target_ext="TXT", model="base", language="invalid_lang")
             self.assertFalse(ok)
             self.assertIn("error: unknown language 'invalid_lang'", err)
 
@@ -1258,14 +1257,14 @@ class TestActionFixes(unittest.TestCase):
         out_images_dir.mkdir()
         (out_images_dir / "old_page.png").touch()
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": [str(out_images_dir)]}):
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": [str(out_images_dir)]}):
             res = pdf_to_images(pdf_path=str(dummy_pdf), target_format="JPG", output_path=str(out_images_dir))
             self.assertFalse(res["success"])
             self.assertEqual(res["count"], 0)
             self.assertEqual(res["images"], [])
 
     def test_all_skipped_branch_does_not_mask_failures(self):
-        from mcp_server.server import convergent_convert
+        from mcp_server.server import convert
 
         failed_file = self.dir_path / "corrupted.png"
         failed_file.touch()
@@ -1277,56 +1276,56 @@ class TestActionFixes(unittest.TestCase):
             return []
 
         with patch("mcp_server.server.conv.process", side_effect=fake_process_with_failures):
-            res = convergent_convert(input_path=str(self.dir_path), target_format="JPG", overwrite=False, use_cache=False)
+            res = convert(input_path=str(self.dir_path), target_format="JPG", overwrite=False, use_cache=False)
             self.assertFalse(res["success"])
             self.assertEqual(res["count"], 0)
             self.assertTrue(len(res["failed_files"]) > 0)
             self.assertEqual(res["failed_files"][0]["name"], "corrupted.png")
 
     def test_specialized_tools_input_and_target_validation(self):
-        from mcp_server.server import perform_ocr, perform_stt
+        from mcp_server.server import ocr, stt
 
         vid_file = self.dir_path / "recording.mp4"
         vid_file.touch()
         img_file = self.dir_path / "photo.png"
         img_file.touch()
 
-        # perform_ocr must reject video
-        res_ocr = perform_ocr(input_path=str(vid_file))
+        # ocr must reject video
+        res_ocr = ocr(input_path=str(vid_file))
         self.assertFalse(res_ocr["success"])
-        self.assertIn("perform_stt", res_ocr["error"])
+        self.assertIn("stt", res_ocr["error"])
 
-        # perform_ocr must reject invalid target format like PNG
-        res_ocr_target = perform_ocr(input_path=str(img_file), target_format="PNG")
+        # ocr must reject invalid target format like PNG
+        res_ocr_target = ocr(input_path=str(img_file), target_format="PNG")
         self.assertFalse(res_ocr_target["success"])
         self.assertIn("Supported OCR text targets", res_ocr_target["error"])
 
-        # perform_stt must reject image
-        res_stt = perform_stt(input_path=str(img_file))
+        # stt must reject image
+        res_stt = stt(input_path=str(img_file))
         self.assertFalse(res_stt["success"])
-        self.assertIn("perform_ocr", res_stt["error"])
+        self.assertIn("ocr", res_stt["error"])
 
-        # perform_stt must reject invalid target format like DOCX
-        res_stt_target = perform_stt(input_path=str(vid_file), target_format="DOCX")
+        # stt must reject invalid target format like DOCX
+        res_stt_target = stt(input_path=str(vid_file), target_format="DOCX")
         self.assertFalse(res_stt_target["success"])
         self.assertIn("Supported transcript/subtitle targets", res_stt_target["error"])
 
     def test_convergent_convert_fps_zero_rejected(self):
-        from mcp_server.server import convergent_convert
+        from mcp_server.server import convert
 
         vid = self.dir_path / "clip.mp4"
         vid.touch()
 
-        res_zero = convergent_convert(input_path=str(vid), target_format="GIF", fps=0)
+        res_zero = convert(input_path=str(vid), target_format="GIF", fps=0)
         self.assertFalse(res_zero["success"])
         self.assertIn("Invalid fps", res_zero["error"])
 
-        res_neg = convergent_convert(input_path=str(vid), target_format="GIF", fps=-10)
+        res_neg = convert(input_path=str(vid), target_format="GIF", fps=-10)
         self.assertFalse(res_neg["success"])
         self.assertIn("Invalid fps", res_neg["error"])
 
     def test_batch_result_capping_and_manifest_generation(self):
-        from mcp_server.server import convergent_convert
+        from mcp_server.server import convert
 
         batch_dir = self.dir_path / "bulk"
         batch_dir.mkdir()
@@ -1342,7 +1341,7 @@ class TestActionFixes(unittest.TestCase):
             return results
 
         with patch("mcp_server.server.conv.process", side_effect=fake_bulk_process):
-            res = convergent_convert(input_path=str(batch_dir), target_format="PNG", output_path=str(batch_dir))
+            res = convert(input_path=str(batch_dir), target_format="PNG", output_path=str(batch_dir))
             self.assertTrue(res["success"])
             self.assertEqual(res["count"], 30)
             self.assertTrue(res["truncated"])
@@ -1376,7 +1375,7 @@ class TestActionFixes(unittest.TestCase):
             self.assertEqual(resource_arg[0], f"--resource-path={html_file.parent.resolve()}")
 
     def test_archiver_path_injection_and_output_in_source_rejection(self):
-        from modules.compress import compress
+        from modules.compress import compress as compress_mod_fn
 
         src_folder = self.dir_path / "my_source_folder"
         src_folder.mkdir()
@@ -1384,7 +1383,7 @@ class TestActionFixes(unittest.TestCase):
 
         # Reject output archive placed inside source directory being compressed
         nested_out = src_folder / "backup.zip"
-        ok, err, _ = compress([str(src_folder)], output_name=str(nested_out), format_choice="ZIP")
+        ok, err, _ = compress_mod_fn([str(src_folder)], output_name=str(nested_out), format_choice="ZIP")
         self.assertFalse(ok)
         self.assertIn("cannot be placed inside source directory", err)
 
@@ -1404,7 +1403,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("modules.compress.run_command", side_effect=fake_compress_cmd) as mock_cmd, \
              patch("shutil.move"):
-            ok, err, path = compress([str(hyphen_f), str(at_f)], output_name=str(out_zip), format_choice="ZIP")
+            ok, err, path = compress_mod_fn([str(hyphen_f), str(at_f)], output_name=str(out_zip), format_choice="ZIP")
             self.assertTrue(ok)
             cmd_args = mock_cmd.call_args[0][0]
             rel_files = [a for a in cmd_args if a.endswith("-flag.txt") or a.endswith("@list.txt")]
@@ -1468,7 +1467,7 @@ class TestActionFixes(unittest.TestCase):
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("Convergent.Converter.process", side_effect=fake_process):
             # Single-file conversion with specific file target: output_directory should NOT be returned
-            res = convergent_convert(
+            res = convert(
                 input_path=str(src_file),
                 target_format="PDF",
                 output_path=str(custom_out),
@@ -1489,7 +1488,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("Convergent.Converter.process", side_effect=fake_dir_process):
-            res_dir = convergent_convert(
+            res_dir = convert(
                 input_path=str(self.dir_path),
                 target_format="PDF",
                 output_path=str(out_sub_dir),
@@ -1517,7 +1516,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("Convergent.Converter.process", side_effect=fake_failing_process):
-            res_fail = convergent_convert(
+            res_fail = convert(
                 input_path=str(src_dir),
                 target_format="PDF",
                 output_path=str(src_dir),
@@ -1544,7 +1543,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("Convergent.Converter.process", side_effect=fake_skipped_process):
-            res_skip = convergent_convert(
+            res_skip = convert(
                 input_path=str(src_dir),
                 target_format="PDF",
                 output_path=str(src_dir),
@@ -1572,19 +1571,19 @@ class TestActionFixes(unittest.TestCase):
         self.assertFalse(txt_res["success"])
         self.assertIn("expects a .pdf file", txt_res["error"])
 
-        # perform_ocr rejects markdown file
+        # ocr rejects markdown file
         fake_md = self.dir_path / "doc.md"
         fake_md.touch()
-        ocr_md_res = perform_ocr(str(fake_md))
+        ocr_md_res = ocr(str(fake_md))
         self.assertFalse(ocr_md_res["success"])
-        self.assertIn("use 'convergent_convert'", ocr_md_res["error"])
+        self.assertIn("use 'convert'", ocr_md_res["error"])
 
-        # perform_ocr rejects html file
+        # ocr rejects html file
         fake_html = self.dir_path / "page.html"
         fake_html.touch()
-        ocr_html_res = perform_ocr(str(fake_html))
+        ocr_html_res = ocr(str(fake_html))
         self.assertFalse(ocr_html_res["success"])
-        self.assertIn("use 'convergent_convert'", ocr_html_res["error"])
+        self.assertIn("use 'convert'", ocr_html_res["error"])
 
     def test_pptx_to_html_warning_attachment(self):
         fake_pptx = self.dir_path / "presentation.pptx"
@@ -1597,7 +1596,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("Convergent.Converter.prepare_conversion", return_value=True), \
              patch("Convergent.Converter.process", side_effect=fake_pptx_process):
-            res = convergent_convert(
+            res = convert(
                 input_path=str(fake_pptx),
                 target_format="HTML",
                 output_path=str(self.dir_path),
@@ -1616,7 +1615,7 @@ class TestActionFixes(unittest.TestCase):
         except OSError:
             self.skipTest("Symlinks not supported on this filesystem")
 
-        res = convergent_convert(
+        res = convert(
             input_path=str(src_png),
             target_format="JPG",
             output_path=str(alias_jpg),
@@ -1668,7 +1667,7 @@ class TestActionFixes(unittest.TestCase):
 
         with patch("modules.compress.shutil.which", return_value="/usr/local/bin/7z"), \
              patch("modules.compress.run_command", return_value=(True, "")) as mock_cmd:
-            success, err, out_p = compress([f1, f2], output_name="out.7z", format_choice="7Z", output_dir=self.dir_path)
+            success, err, out_p = compress_mod_fn([f1, f2], output_name="out.7z", format_choice="7Z", output_dir=self.dir_path)
             self.assertTrue(mock_cmd.called)
             cmd_args = mock_cmd.call_args[0][0]
             self.assertIn("-spf", cmd_args)
@@ -1746,7 +1745,7 @@ class TestActionFixes(unittest.TestCase):
         out_txt = self.dir_path / "merged.txt"
         out_txt.write_text("existing merged")
 
-        res_combine = combine_files([str(f1), str(f2)], output_path=str(out_txt), overwrite=False)
+        res_combine = combine([str(f1), str(f2)], output_path=str(out_txt), overwrite=False)
         self.assertFalse(res_combine["success"])
         self.assertIn("Destination already exists", res_combine["error"])
 
@@ -1755,7 +1754,7 @@ class TestActionFixes(unittest.TestCase):
         out_resized = self.dir_path / "photo_resized.png"
         out_resized.write_bytes(b"existing resized")
 
-        res_resize = resize_media(str(img), width=100, output_path=str(out_resized), overwrite=False)
+        res_resize = resize(str(img), width=100, output_path=str(out_resized), overwrite=False)
         self.assertFalse(res_resize["success"])
         self.assertIn("Destination already exists", res_resize["error"])
 
@@ -1769,7 +1768,7 @@ class TestActionFixes(unittest.TestCase):
             (fake_split_dir / f"page_{i:03d}.pdf").touch()
 
         with patch("mcp_server.server.conv.split_pdf", return_value=fake_split_dir):
-            res = split_file(str(pdf_file), output_dir=str(fake_split_dir))
+            res = split(str(pdf_file), output_dir=str(fake_split_dir))
             self.assertTrue(res["success"])
             self.assertEqual(res["count"], 55)
             self.assertTrue(res["truncated"])
@@ -1782,7 +1781,7 @@ class TestActionFixes(unittest.TestCase):
             return None
 
         with patch("mcp_server.server.conv.split_pdf", side_effect=fake_split_fail):
-            fail_res = split_file(str(pdf_file))
+            fail_res = split(str(pdf_file))
             self.assertFalse(fail_res["success"])
             self.assertIn("Ghostscript memory error", fail_res["error"])
             self.assertIn("failed_parts", fail_res)

@@ -6,7 +6,7 @@
 PYTHON = python3
 SCRIPT = Convergent.py
 
-.PHONY: help setup setup-mcp update start check test shortcut quick-action mcp mcp-config clean cache-clear cache-stats
+.PHONY: help setup setup-mcp update start check test shortcut quick-action mcp mcp-config clean cache cache-clear
 
 test: ## Run automated unit test suite
 	$(PYTHON) -m unittest discover -s tests -v
@@ -69,6 +69,6 @@ clean: ## Clean up __pycache__ directories
 cache-clear: ## Clear conversion cache (checksum DB)
 	@$(PYTHON) -c "from customs.cache import clear_cache; removed=clear_cache(); print(f'Removed cache DBs: {removed}' if removed else 'No cache DB found.')"
 
-cache-stats: ## Show cache entry count and storage stats
+cache: ## Show cache entry count and storage stats
 	@$(PYTHON) -c "from customs.cache import CacheManager; import json; cm=CacheManager(); print(json.dumps(cm.stats(), indent=2)); cm.close()"
 

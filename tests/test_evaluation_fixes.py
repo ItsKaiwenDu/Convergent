@@ -14,12 +14,12 @@ if importlib.util.find_spec("mcp") is None:
 
 from customs.run_command import run_command, run_command_output
 from mcp_server.server import (
-    perform_stt,
-    perform_ocr,
+    stt,
+    ocr,
     extract_audio,
     pdf_to_images,
-    combine_files,
-    resize_media,
+    combine,
+    resize,
 )
 import modules.audio as audio_mod
 import modules.video as video_mod
@@ -81,7 +81,7 @@ class TestEvaluationFixes(unittest.TestCase):
             self.fail("console.print raised MarkupError on escaped bracketed string!")
 
     def test_f05_combine_files_allows_existing_directory_target(self):
-        """F05: combine_files should allow an existing directory as output_path when destination combined file does not exist."""
+        """F05: combine should allow an existing directory as output_path when destination combined file does not exist."""
         p1 = self.dir_path / "doc1.pdf"
         p2 = self.dir_path / "doc2.pdf"
         p1.touch()
@@ -91,20 +91,20 @@ class TestEvaluationFixes(unittest.TestCase):
         out_dir.mkdir()
 
         with patch("mcp_server.server.conv.combine_pdfs", return_value=out_dir / "combined.pdf"):
-            res = combine_files(file_paths=[str(p1), str(p2)], output_path=str(out_dir), overwrite=False)
+            res = combine(file_paths=[str(p1), str(p2)], output_path=str(out_dir), overwrite=False)
             self.assertTrue(res.get("success"), msg=res.get("error"))
             self.assertEqual(res.get("output_file"), str(out_dir / "combined.pdf"))
 
     def test_f05_convenience_tools_accept_and_forward_overwrite(self):
-        """F05: Convenience tools must accept overwrite parameter and forward it to convergent_convert."""
+        """F05: Convenience tools must accept overwrite parameter and forward it to convert."""
         f = self.dir_path / "input.png"
         f.touch()
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}) as mock_conv:
-            perform_ocr(input_path=str(f), overwrite=False)
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": []}) as mock_conv:
+            ocr(input_path=str(f), overwrite=False)
             self.assertFalse(mock_conv.call_args[1]["overwrite"])
 
-            perform_stt(input_path=str(self.dir_path / "audio.mp3"), overwrite=False)
+            stt(input_path=str(self.dir_path / "audio.mp3"), overwrite=False)
             self.assertFalse(mock_conv.call_args[1]["overwrite"])
 
             extract_audio(video_path=str(self.dir_path / "video.mp4"), overwrite=False)
@@ -148,44 +148,44 @@ class TestEvaluationFixes(unittest.TestCase):
             self.assertIn("128k", cmd)
 
     def test_f07_stt_model_alias_normalization_and_input_validation(self):
-        """F07: perform_stt resolves canonical model names and rejects unsupported inputs like opus."""
+        """F07: stt resolves canonical model names and rejects unsupported inputs like opus."""
         dummy_audio = self.dir_path / "audio.mp3"
         dummy_audio.touch()
 
-        with patch("mcp_server.server.convergent_convert", return_value={"success": True, "converted_files": []}):
-            res_medium = perform_stt(input_path=str(dummy_audio), model="medium")
+        with patch("mcp_server.server.convert", return_value={"success": True, "converted_files": []}):
+            res_medium = stt(input_path=str(dummy_audio), model="medium")
             self.assertEqual(res_medium.get("model_used"), "small")
             self.assertEqual(res_medium.get("model_requested"), "medium")
 
-            res_turbo = perform_stt(input_path=str(dummy_audio), model="large-v3")
+            res_turbo = stt(input_path=str(dummy_audio), model="large-v3")
             self.assertEqual(res_turbo.get("model_used"), "turbo")
             self.assertEqual(res_turbo.get("model_requested"), "large-v3")
 
         dummy_opus = self.dir_path / "test.opus"
         dummy_opus.touch()
-        res_opus = perform_stt(input_path=str(dummy_opus))
+        res_opus = stt(input_path=str(dummy_opus))
         self.assertFalse(res_opus.get("success"))
         self.assertIn("Invalid input format '.opus'", res_opus.get("error"))
 
     def test_f08_resize_media_surfaces_missing_magick_and_ffprobe(self):
-        """F08: resize_media surfaces explicit missing dependency errors when magick or ffprobe is not in PATH."""
+        """F08: resize surfaces explicit missing dependency errors when magick or ffprobe is not in PATH."""
         dummy_img = self.dir_path / "test.png"
         dummy_img.touch()
 
         with patch("shutil.which", return_value=None):
-            res_img = resize_media(file_path=str(dummy_img), width=200)
+            res_img = resize(file_path=str(dummy_img), width=200)
             self.assertFalse(res_img.get("success"))
             self.assertIn("ImageMagick ('magick') is not installed", res_img.get("error"))
 
             dummy_video = self.dir_path / "test.mp4"
             dummy_video.touch()
-            res_vid = resize_media(file_path=str(dummy_video), width=200)
+            res_vid = resize(file_path=str(dummy_video), width=200)
             self.assertFalse(res_vid.get("success"))
             self.assertIn("FFmpeg ('ffprobe') is not installed", res_vid.get("error"))
 
             dummy_mov = self.dir_path / "test.mov"
             dummy_mov.touch()
-            res_mov = resize_media(file_path=str(dummy_mov), width=200)
+            res_mov = resize(file_path=str(dummy_mov), width=200)
             self.assertFalse(res_mov.get("success"))
             self.assertIn("FFmpeg ('ffprobe') is not installed", res_mov.get("error"))
 
